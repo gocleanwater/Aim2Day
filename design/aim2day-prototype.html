@@ -64,7 +64,7 @@
       <div class="space-y-6">
         <section class="rounded-[24px] border border-[#E4E8EE] bg-white p-6 shadow-[0_8px_28px_rgba(31,49,75,0.04)] md:p-7" aria-labelledby="annual-title">
           <div class="mb-6 flex items-center justify-between gap-4">
-            <div><p class="text-[12px] font-semibold text-[#708096]">2026년</p><h2 id="annual-title" class="mt-1 text-[20px] font-bold tracking-[-0.03em]">올해 목표</h2></div>
+            <div><p class="text-[12px] font-semibold text-[#708096]">2026년 · 2 / 3개</p><h2 id="annual-title" class="mt-1 text-[20px] font-bold tracking-[-0.03em]">올해 목표</h2></div>
             <button class="text-[13px] font-semibold text-[#225C9C]" id="goalDetailButton">목표 자세히 보기 →</button>
           </div>
           <div class="grid gap-3 md:grid-cols-2">
@@ -123,6 +123,7 @@
       <p id="stepPeriod" class="mb-3 text-[13px] font-semibold text-[#55708F]">2026년</p>
       <h1 id="stepQuestion" class="max-w-[600px] text-[28px] font-bold leading-[1.35] tracking-[-0.05em] md:text-[36px]">올해 남은 기간에 어떤 일에 집중하고 싶나요?</h1>
       <p id="stepHint" class="mt-4 text-[14px] leading-relaxed text-[#718094]">이미 세워둔 올해 목표가 있다면 그대로 적어도 좋아요.</p>
+      <p id="annualLimit" class="mt-2 text-[12px] text-[#718094]">연간 목표는 한 해에 최대 3개까지 만들 수 있어요.</p>
       <label for="planInput" id="inputLabel" class="mt-10 block text-[13px] font-semibold text-[#526478]">올해 목표</label>
       <input id="planInput" class="mt-3 w-full rounded-[14px] border border-[#DCE3EA] bg-[#FAFBFC] px-5 py-4 text-[16px] outline-none placeholder:text-[#A0AAB5] focus:border-[#3E83C3]" placeholder="예: 백엔드 개발자 취업 준비">
       <div class="mt-10 flex items-center justify-between gap-3"><button id="backButton" class="rounded-xl px-5 py-3 text-[14px] font-semibold text-[#63768B] disabled:opacity-40" disabled>이전</button><button id="nextButton" class="rounded-xl bg-[#225C9C] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#194D85]">다음</button></div>
@@ -152,7 +153,7 @@
       { period: '2026.11.10', question: '그러면 오늘 해내고 싶은 행동은 무엇인가요?', hint: '이번 주 목표에 연결되는 행동을 적어보세요.', label: '오늘 행동', placeholder: '예: 알고리즘 문제 2개 풀기' }
     ];
     const answers = ['', '', '', '']; let step = 0;
-    function renderStep() { const data = steps[step]; document.getElementById('stepLabel').textContent = `${step + 1} / 4`; document.getElementById('stepPeriod').textContent = data.period; document.getElementById('stepQuestion').textContent = data.question; document.getElementById('stepHint').textContent = data.hint; document.getElementById('inputLabel').textContent = data.label; const input = document.getElementById('planInput'); input.placeholder = data.placeholder; input.value = answers[step]; document.getElementById('backButton').disabled = step === 0; document.getElementById('nextButton').textContent = step === 3 ? '계획 완료' : '다음'; document.querySelectorAll('.step-bar').forEach((bar, index) => bar.classList.toggle('bg-[#225C9C]', index <= step)); document.querySelectorAll('.step-bar').forEach((bar, index) => bar.classList.toggle('bg-[#DCE5EE]', index > step)); }
+    function renderStep() { const data = steps[step]; document.getElementById('stepLabel').textContent = `${step + 1} / 4`; document.getElementById('stepPeriod').textContent = data.period; document.getElementById('stepQuestion').textContent = data.question; document.getElementById('stepHint').textContent = data.hint; document.getElementById('annualLimit').classList.toggle('hidden', step !== 0); document.getElementById('inputLabel').textContent = data.label; const input = document.getElementById('planInput'); input.placeholder = data.placeholder; input.value = answers[step]; document.getElementById('backButton').disabled = step === 0; document.getElementById('nextButton').textContent = step === 3 ? '계획 완료' : '다음'; document.querySelectorAll('.step-bar').forEach((bar, index) => bar.classList.toggle('bg-[#225C9C]', index <= step)); document.querySelectorAll('.step-bar').forEach((bar, index) => bar.classList.toggle('bg-[#DCE5EE]', index > step)); }
     document.getElementById('backButton').addEventListener('click', () => { answers[step] = document.getElementById('planInput').value; step--; renderStep(); });
     document.getElementById('nextButton').addEventListener('click', () => { const value = document.getElementById('planInput').value.trim(); if (!value) { toast('내용을 입력해 주세요.'); return; } answers[step] = value; if (step < 3) { step++; renderStep(); document.getElementById('planInput').focus(); } else { toast('계획이 대시보드에 연결되었습니다.'); document.querySelector('[data-view="dashboard"]').click(); } });
   </script>
