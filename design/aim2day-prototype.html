@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aim2Day 디자인 시안</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: light; }
+    body { font-family: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #9dc5ff; outline-offset: 3px; }
+    .view { display: none; }
+    .view.active { display: block; }
+  </style>
+</head>
+<body class="min-h-screen bg-[#F5F6F8] text-[#171C26] antialiased">
+  <header class="border-b border-[#E5E8ED] bg-white/90">
+    <div class="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-4 md:px-10">
+      <div class="flex items-center gap-11">
+        <button data-view="dashboard" class="flex items-center gap-2 text-[19px] font-bold tracking-[-0.04em]" aria-label="Aim2Day 대시보드">
+          <span class="flex size-8 items-center justify-center rounded-[11px] bg-[#225C9C] text-white">A</span>Aim2Day
+        </button>
+        <nav class="hidden items-center gap-7 text-[14px] md:flex" aria-label="주요 메뉴">
+          <button data-view="dashboard" class="font-semibold text-[#1B4E85]">대시보드</button>
+          <button data-view="onboarding" class="text-[#697586] hover:text-[#171C26]">첫 방문 화면</button>
+          <button type="button" class="text-[#697586]" id="reportButton">리포트</button>
+        </nav>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="hidden text-[13px] text-[#687386] sm:block">2026년 11월 10일</span>
+        <button type="button" class="flex size-9 items-center justify-center rounded-full bg-[#E9EFF6] text-sm font-semibold text-[#315B84]" aria-label="계정">고</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="dashboard" class="view active mx-auto max-w-[1440px] px-5 pb-16 pt-9 md:px-10">
+    <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p class="mb-2 text-[13px] font-semibold text-[#55708F]">화요일 · 11월 둘째 주</p>
+        <h1 class="text-[31px] font-bold tracking-[-0.055em] md:text-[38px]">오늘도 목표에 한 걸음.</h1>
+      </div>
+      <button data-view="onboarding" class="rounded-xl bg-[#225C9C] px-5 py-3 text-[14px] font-semibold text-white shadow-sm hover:bg-[#194D85]">새 목표 계획하기</button>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
+      <div class="space-y-6">
+        <section class="rounded-[24px] border border-[#E4E8EE] bg-white p-6 shadow-[0_8px_28px_rgba(31,49,75,0.04)] md:p-7" aria-labelledby="annual-title">
+          <div class="mb-6 flex items-center justify-between gap-4">
+            <div><p class="text-[12px] font-semibold text-[#708096]">2026년</p><h2 id="annual-title" class="mt-1 text-[20px] font-bold tracking-[-0.03em]">올해 목표</h2></div>
+            <button class="text-[13px] font-semibold text-[#225C9C]" id="goalDetailButton">목표 자세히 보기 →</button>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <article class="rounded-[18px] border border-[#D5E1ED] bg-[#F2F7FC] p-5">
+              <p class="mb-5 text-[13px] font-semibold text-[#426888]">진로 · 개발</p>
+              <h3 class="mb-4 text-[18px] font-bold leading-snug tracking-[-0.03em]">백엔드 개발자 취업 준비</h3>
+              <div class="flex items-baseline gap-2"><strong class="text-[30px] tracking-[-0.06em] text-[#194E87]">20%</strong><span class="text-[12px] text-[#627487]">달성 기준 완료</span></div>
+              <div class="mt-3 h-2 rounded-full bg-[#D7E5F2]"><div class="h-2 w-1/5 rounded-full bg-[#3177B9]"></div></div>
+              <p class="mt-4 text-[12px] leading-relaxed text-[#627487]">취업 목표의 달성 기준을 직접 확인하면 올라가요.</p>
+            </article>
+            <article class="rounded-[18px] border border-[#E7E9ED] bg-[#FAFBFC] p-5">
+              <p class="mb-5 text-[13px] font-semibold text-[#718094]">학습 · 영어</p>
+              <h3 class="mb-4 text-[18px] font-bold leading-snug tracking-[-0.03em]">영어로 기술 문서 읽기</h3>
+              <div class="flex items-baseline gap-2"><strong class="text-[30px] tracking-[-0.06em]">40%</strong><span class="text-[12px] text-[#718094]">달성 기준 완료</span></div>
+              <div class="mt-3 h-2 rounded-full bg-[#E5E9ED]"><div class="h-2 w-2/5 rounded-full bg-[#8092A5]"></div></div>
+              <p class="mt-4 text-[12px] leading-relaxed text-[#718094]">이번 달 목표와 연결된 계획을 살펴보세요.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="rounded-[24px] border border-[#E4E8EE] bg-white p-6 shadow-[0_8px_28px_rgba(31,49,75,0.04)] md:p-7" aria-labelledby="monthly-title">
+          <div class="mb-6 flex items-center justify-between"><div><p class="text-[12px] font-semibold text-[#708096]">2026.11</p><h2 id="monthly-title" class="mt-1 text-[20px] font-bold tracking-[-0.03em]">이번 달의 방향</h2></div><span class="rounded-full bg-[#F0F4F8] px-3 py-1 text-[12px] text-[#526781]">실행 진행</span></div>
+          <div class="rounded-[16px] border border-[#E6EAF0] p-5">
+            <p class="mb-2 text-[12px] text-[#6D7D91]">백엔드 개발자 취업 준비 <span class="mx-1">›</span> 11월</p>
+            <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="text-[16px] font-semibold">알고리즘 문제 40개 풀기</h3><span class="text-[14px] font-semibold text-[#225C9C]">22 / 40</span></div>
+            <div class="mt-4 h-2 rounded-full bg-[#EBEFF4]"><div class="h-2 w-[55%] rounded-full bg-[#5C91C2]"></div></div>
+            <p class="mt-3 text-[12px] text-[#76869A]">월간 목표 실행 진행률 55%</p>
+          </div>
+        </section>
+
+        <section class="rounded-[24px] border border-[#E4E8EE] bg-white p-6 shadow-[0_8px_28px_rgba(31,49,75,0.04)] md:p-7" aria-labelledby="today-title">
+          <div class="mb-5 flex items-center justify-between"><div><p class="text-[12px] font-semibold text-[#708096]">2026.11.10</p><h2 id="today-title" class="mt-1 text-[20px] font-bold tracking-[-0.03em]">오늘 해내고 싶은 행동</h2></div><span id="doneCount" class="text-[12px] text-[#718094]">0 / 2 완료</span></div>
+          <div id="actions" class="divide-y divide-[#EEF0F3]">
+            <label class="flex cursor-pointer items-center gap-4 py-4"><input type="checkbox" class="action-check size-[19px] accent-[#225C9C]"><span class="min-w-0 flex-1"><span class="action-text block text-[15px] font-medium">알고리즘 문제 2개 풀기</span><span class="mt-1 block text-[12px] text-[#8190A1]">백엔드 개발자 취업 준비 › 11월 목표 › 이번 주</span></span></label>
+            <label class="flex cursor-pointer items-center gap-4 py-4"><input type="checkbox" class="action-check size-[19px] accent-[#225C9C]"><span class="min-w-0 flex-1"><span class="action-text block text-[15px] font-medium">풀이 과정에서 막힌 부분 정리하기</span><span class="mt-1 block text-[12px] text-[#8190A1]">백엔드 개발자 취업 준비 › 11월 목표 › 이번 주</span></span></label>
+          </div>
+          <form id="actionForm" class="mt-4 flex gap-2"><input id="actionInput" aria-label="오늘 행동" placeholder="오늘 해내고 싶은 행동 추가" class="min-w-0 flex-1 rounded-xl border border-[#DFE5EB] bg-[#FAFBFC] px-4 py-3 text-[14px] placeholder:text-[#9AA6B3]"><button class="rounded-xl bg-[#EEF4FA] px-4 py-3 text-[13px] font-semibold text-[#225C9C]">추가</button></form>
+        </section>
+
+        <section class="rounded-[24px] border border-[#E4E8EE] bg-white p-6 md:p-7" aria-labelledby="maintenance-title">
+          <div class="mb-4 flex items-center justify-between"><h2 id="maintenance-title" class="text-[18px] font-bold tracking-[-0.03em]">챙길 일</h2><span class="text-[12px] text-[#8B97A5]">목표 진행률에 포함되지 않아요</span></div>
+          <label class="flex items-center gap-3 py-2 text-[14px] text-[#576576]"><input type="checkbox" class="size-[18px] accent-[#8495A8]">장학금 신청 서류 제출 <span class="ml-auto text-[12px]">11월 12일</span></label>
+        </section>
+      </div>
+
+      <aside class="space-y-6">
+        <section class="rounded-[24px] border border-[#E4E8EE] bg-white p-6 shadow-[0_8px_28px_rgba(31,49,75,0.04)]" aria-labelledby="time-title">
+          <h2 id="time-title" class="mb-5 text-[17px] font-bold tracking-[-0.03em]">시간의 흐름</h2>
+          <div class="space-y-5"><div><div class="mb-2 flex justify-between text-[13px]"><span>올해 시간 경과</span><strong>86%</strong></div><div class="h-[7px] rounded-full bg-[#ECEDF0]"><div class="h-[7px] w-[86%] rounded-full bg-[#8CA2B7]"></div></div></div><div><div class="mb-2 flex justify-between text-[13px]"><span>이번 달 시간 경과</span><strong>33%</strong></div><div class="h-[7px] rounded-full bg-[#ECEDF0]"><div class="h-[7px] w-1/3 rounded-full bg-[#8CA2B7]"></div></div></div></div>
+          <p class="mt-5 text-[12px] leading-relaxed text-[#8190A1]">시간 경과는 목표 달성률과 별개의 지표예요.</p>
+        </section>
+        <section class="rounded-[24px] border border-[#E4E8EE] bg-white p-6 shadow-[0_8px_28px_rgba(31,49,75,0.04)]" aria-labelledby="calendar-title">
+          <div class="mb-5 flex items-center justify-between"><h2 id="calendar-title" class="text-[17px] font-bold tracking-[-0.03em]">2026년 11월</h2><button aria-label="이전 달과 다음 달 보기" class="text-[#718094]">‹ &nbsp; ›</button></div>
+          <div class="grid grid-cols-7 text-center text-[11px] font-semibold text-[#8A98A7]"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div>
+          <div id="calendar" class="mt-3 grid grid-cols-7 gap-y-1 text-center text-[12px]"></div>
+          <div class="mt-5 flex flex-wrap gap-x-4 gap-y-2 border-t border-[#EFF1F3] pt-4 text-[11px] text-[#6F7E8E]"><span><i class="mr-1 inline-block size-2 rounded-full bg-[#3177B9]"></i>목표 일정</span><span><i class="mr-1 inline-block size-2 rounded-full bg-[#B39D7C]"></i>챙길 일</span></div>
+        </section>
+        <section class="rounded-[24px] bg-[#EAF2FA] p-6" aria-labelledby="week-title"><p class="text-[12px] font-semibold text-[#5A7592]">이번 주 · 11월 9일–15일</p><h2 id="week-title" class="mt-2 text-[17px] font-bold tracking-[-0.03em]">이번 주 결과</h2><p class="mt-3 text-[14px] leading-relaxed text-[#465F78]">알고리즘 문제 10개를 풀고, 틀린 유형을 정리하기</p><div class="mt-5 h-[7px] rounded-full bg-[#D2E2F1]"><div class="h-[7px] w-[40%] rounded-full bg-[#3177B9]"></div></div><p class="mt-2 text-right text-[12px] font-semibold text-[#255E94]">실행 진행 40%</p></section>
+      </aside>
+    </div>
+  </main>
+
+  <main id="onboarding" class="view mx-auto max-w-[930px] px-5 pb-16 pt-10 md:px-10">
+    <div class="mb-9 flex items-center justify-between"><button data-view="dashboard" class="text-[13px] font-medium text-[#63778E]">← 대시보드</button><span id="stepLabel" class="text-[13px] font-semibold text-[#6E8092]">1 / 4</span></div>
+    <div class="mb-8 grid grid-cols-4 gap-2" aria-hidden="true"><div class="step-bar h-1.5 rounded-full bg-[#225C9C]"></div><div class="step-bar h-1.5 rounded-full bg-[#DCE5EE]"></div><div class="step-bar h-1.5 rounded-full bg-[#DCE5EE]"></div><div class="step-bar h-1.5 rounded-full bg-[#DCE5EE]"></div></div>
+    <section class="rounded-[28px] border border-[#E4E8EE] bg-white p-7 shadow-[0_12px_40px_rgba(31,49,75,0.06)] md:p-12">
+      <p id="stepPeriod" class="mb-3 text-[13px] font-semibold text-[#55708F]">2026년</p>
+      <h1 id="stepQuestion" class="max-w-[600px] text-[28px] font-bold leading-[1.35] tracking-[-0.05em] md:text-[36px]">올해 남은 기간에 어떤 일에 집중하고 싶나요?</h1>
+      <p id="stepHint" class="mt-4 text-[14px] leading-relaxed text-[#718094]">이미 세워둔 올해 목표가 있다면 그대로 적어도 좋아요.</p>
+      <label for="planInput" id="inputLabel" class="mt-10 block text-[13px] font-semibold text-[#526478]">올해 목표</label>
+      <input id="planInput" class="mt-3 w-full rounded-[14px] border border-[#DCE3EA] bg-[#FAFBFC] px-5 py-4 text-[16px] outline-none placeholder:text-[#A0AAB5] focus:border-[#3E83C3]" placeholder="예: 백엔드 개발자 취업 준비">
+      <div class="mt-10 flex items-center justify-between gap-3"><button id="backButton" class="rounded-xl px-5 py-3 text-[14px] font-semibold text-[#63768B] disabled:opacity-40" disabled>이전</button><button id="nextButton" class="rounded-xl bg-[#225C9C] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#194D85]">다음</button></div>
+    </section>
+  </main>
+
+  <div id="toast" class="pointer-events-none fixed bottom-6 left-1/2 hidden -translate-x-1/2 rounded-xl bg-[#263747] px-5 py-3 text-[13px] font-medium text-white shadow-lg" role="status"></div>
+  <script>
+    const views = document.querySelectorAll('.view');
+    document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => {
+      views.forEach(view => view.classList.toggle('active', view.id === button.dataset.view));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
+    const toast = message => { const el = document.getElementById('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(window.toastTimer); window.toastTimer = setTimeout(() => el.classList.add('hidden'), 3000); };
+    document.getElementById('reportButton').addEventListener('click', () => toast('리포트 화면은 다음 시안에서 살펴볼게요.'));
+    document.getElementById('goalDetailButton').addEventListener('click', () => toast('목표 상세 화면은 다음 시안에서 살펴볼게요.'));
+    const updateCount = () => { const checks = [...document.querySelectorAll('.action-check')]; document.getElementById('doneCount').textContent = `${checks.filter(x => x.checked).length} / ${checks.length} 완료`; checks.forEach(x => x.closest('label').querySelector('.action-text').classList.toggle('line-through', x.checked)); };
+    document.getElementById('actions').addEventListener('change', updateCount);
+    document.getElementById('actionForm').addEventListener('submit', event => { event.preventDefault(); const input = document.getElementById('actionInput'); const value = input.value.trim(); if (!value) return; const label = document.createElement('label'); label.className = 'flex cursor-pointer items-center gap-4 py-4'; const check = document.createElement('input'); check.type = 'checkbox'; check.className = 'action-check size-[19px] accent-[#225C9C]'; const content = document.createElement('span'); content.className = 'min-w-0 flex-1'; const title = document.createElement('span'); title.className = 'action-text block text-[15px] font-medium'; title.textContent = value; const path = document.createElement('span'); path.className = 'mt-1 block text-[12px] text-[#8190A1]'; path.textContent = '백엔드 개발자 취업 준비 › 11월 목표 › 이번 주'; content.append(title, path); label.append(check, content); document.getElementById('actions').append(label); input.value = ''; updateCount(); });
+    const calendar = document.getElementById('calendar');
+    for (let i = 0; i < 6; i++) calendar.insertAdjacentHTML('beforeend', '<span></span>');
+    for (let day = 1; day <= 30; day++) { const cell = document.createElement('div'); cell.className = 'relative mx-auto flex size-9 items-center justify-center rounded-full ' + (day === 10 ? 'bg-[#225C9C] font-semibold text-white' : 'text-[#4D5C6D]'); cell.textContent = day; if ([10, 12, 18].includes(day)) { const dot = document.createElement('i'); dot.className = 'absolute bottom-1 size-1 rounded-full ' + (day === 12 ? 'bg-[#B39D7C]' : day === 10 ? 'bg-white' : 'bg-[#3177B9]'); cell.append(dot); } calendar.append(cell); }
+    const steps = [
+      { period: '2026년', question: '올해 남은 기간에 어떤 일에 집중하고 싶나요?', hint: '이미 세워둔 올해 목표가 있다면 그대로 적어도 좋아요.', label: '올해 목표', placeholder: '예: 백엔드 개발자 취업 준비' },
+      { period: '2026.11', question: '그 목표를 위해 이번 달에 이루고 싶은 건 무엇인가요?', hint: '올해 목표와 연결해 이번 달의 결과를 정해보세요.', label: '이번 달 목표', placeholder: '예: 알고리즘 문제 40개 풀기' },
+      { period: '11월 9일–15일', question: '이번 주에는 어떤 결과를 만들고 싶나요?', hint: '이번 달 목표에서 한 걸음 더 구체적으로 정해보세요.', label: '이번 주 목표', placeholder: '예: 알고리즘 문제 10개 풀기' },
+      { period: '2026.11.10', question: '그러면 오늘 해내고 싶은 행동은 무엇인가요?', hint: '이번 주 목표에 연결되는 행동을 적어보세요.', label: '오늘 행동', placeholder: '예: 알고리즘 문제 2개 풀기' }
+    ];
+    const answers = ['', '', '', '']; let step = 0;
+    function renderStep() { const data = steps[step]; document.getElementById('stepLabel').textContent = `${step + 1} / 4`; document.getElementById('stepPeriod').textContent = data.period; document.getElementById('stepQuestion').textContent = data.question; document.getElementById('stepHint').textContent = data.hint; document.getElementById('inputLabel').textContent = data.label; const input = document.getElementById('planInput'); input.placeholder = data.placeholder; input.value = answers[step]; document.getElementById('backButton').disabled = step === 0; document.getElementById('nextButton').textContent = step === 3 ? '계획 완료' : '다음'; document.querySelectorAll('.step-bar').forEach((bar, index) => bar.classList.toggle('bg-[#225C9C]', index <= step)); document.querySelectorAll('.step-bar').forEach((bar, index) => bar.classList.toggle('bg-[#DCE5EE]', index > step)); }
+    document.getElementById('backButton').addEventListener('click', () => { answers[step] = document.getElementById('planInput').value; step--; renderStep(); });
+    document.getElementById('nextButton').addEventListener('click', () => { const value = document.getElementById('planInput').value.trim(); if (!value) { toast('내용을 입력해 주세요.'); return; } answers[step] = value; if (step < 3) { step++; renderStep(); document.getElementById('planInput').focus(); } else { toast('계획이 대시보드에 연결되었습니다.'); document.querySelector('[data-view="dashboard"]').click(); } });
+  </script>
+</body>
+</html>
