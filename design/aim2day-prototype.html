@@ -21,10 +21,23 @@
     .morning summary { cursor:pointer; color:#20559a; font-weight:600; }
     .priority-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; flex-wrap:wrap; }
     .priority-row select { padding:6px; border:1px solid #aebaca; border-radius:6px; }
-    .quadrants { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border:1px solid #d3dae2; margin-block:18px; }
-    .quadrants section { padding:12px; border:1px solid #e6eaf0; }
-    .quadrants strong { font-size:14px; }
-    .quadrants p { font-size:13px; margin-top:5px; overflow-wrap:anywhere; }
+    .priority-plot { position:relative; margin:18px 0 26px; padding:24px 0; }
+    .quadrants { position:relative; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,1fr); min-height:250px; }
+    .quadrants::before, .quadrants::after { content:""; position:absolute; background:#8194a6; pointer-events:none; }
+    .quadrants::before { left:50%; top:0; bottom:0; width:1px; }
+    .quadrants::after { top:50%; left:0; right:0; height:1px; }
+    .quadrants { height:clamp(280px,40vw,420px); }
+    .plot-point { position:absolute; z-index:2; width:24px; height:24px; transform:translate(-50%,-50%); cursor:grab; touch-action:none; user-select:none; border:0; background:transparent; }
+    .plot-point:active { cursor:grabbing; }
+    .plot-point:focus, .plot-point:hover { z-index:4; }
+    .plot-point::before { content:""; position:absolute; inset:7px; border-radius:50%; background:#2469c9; }
+    .point-label { position:absolute; left:22px; top:50%; transform:translateY(-50%); width:max-content; max-width:min(38vw,200px); padding:1px 3px; background:white; font-size:13px; line-height:1.4; overflow-wrap:anywhere; text-align:left; }
+    .point-left .point-label { left:auto; right:22px; }
+    .axis { position:absolute; z-index:1; background:white; color:#44586a; font-size:12px; font-weight:600; padding:0 4px; }
+    .axis-top,.axis-bottom { left:50%; transform:translateX(-50%); }
+    .axis-top { top:2px; } .axis-bottom { bottom:2px; }
+    .axis-left,.axis-right { top:50%; transform:translateY(-50%); }
+    .axis-left { left:0; } .axis-right { right:0; }
     </style>
 </head>
 <body class="min-h-screen bg-[#F5F6F8] text-[#171C26] antialiased">
@@ -51,12 +64,18 @@
           <div class="mb-5 flex items-center justify-between"><div><p class="text-[12px] font-semibold text-[#708096]"><button data-view="schedule" aria-label="2026.11.10 달력 열기">▦　2026.11.10 ↗</button></p><h2 id="today-title" class="mt-1 text-[28px] font-bold tracking-[-0.03em]">오늘 할 일</h2></div><span id="doneCount" class="text-[12px] text-[#718094]">0 / 2 완료</span></div>
           <details class="morning" id="morning" open>
             <summary id="morningTitle">오늘의 사분면 정하기</summary>
-            <p class="mt-3 text-sm">오늘 할 일마다 중요도와 긴급도를 골라주세요.</p>
+            <p class="mt-3 text-sm">분류를 고른 뒤 점을 옮겨보세요. 오른쪽은 중요도, 위쪽은 긴급도가 높아요.</p>
             <div id="priorityRows"></div>
-            <div class="quadrants" id="quadrants"></div>
             <button id="approve" class="rounded-lg bg-blue-800 px-4 py-2 text-white">오늘 분류 확정</button>
             <button id="suggest" class="px-4 py-2 text-sm">AI 추천</button>
           </details>
+          <figure class="priority-plot" aria-label="오늘 할 일 좌표판. 오른쪽일수록 중요하고 위쪽일수록 급함">
+            <span class="axis axis-top">급함 ↑</span>
+            <span class="axis axis-left">중요도 낮음</span>
+            <span class="axis axis-right">중요함 →</span>
+            <span class="axis axis-bottom">여유 있음</span>
+            <div class="quadrants" id="quadrants"></div>
+          </figure>
           <div id="actions" class="divide-y divide-[#EEF0F3]">
             <label class="flex cursor-pointer items-center gap-4 py-4"><input type="checkbox" class="action-check size-[19px] accent-[#2469C9]"><span class="min-w-0 flex-1"><span class="action-text block text-[15px] font-medium">알고리즘 문제 2개 풀기</span><span class="mt-1 block text-[12px] text-[#8190A1]">백엔드 개발자 취업 준비 › 11월 목표 › 이번 주</span></span></label>
             <label class="flex cursor-pointer items-center gap-4 py-4"><input type="checkbox" class="action-check size-[19px] accent-[#2469C9]"><span class="min-w-0 flex-1"><span class="action-text block text-[15px] font-medium">풀이 과정에서 막힌 부분 정리하기</span><span class="mt-1 block text-[12px] text-[#8190A1]">백엔드 개발자 취업 준비 › 11월 목표 › 이번 주</span></span></label>
@@ -76,23 +95,41 @@
             <div><p class="text-[12px] font-semibold text-[#708096]">2026년 · 2 / 3개</p><h2 id="annual-title" class="mt-1 text-[20px] font-bold tracking-[-0.03em]">올해 목표</h2></div>
             <button class="text-[13px] font-semibold text-[#2469C9]" id="reorder">순서 편집</button>
           </div>
-          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <article class="rounded-[18px] border border-[#D5E1ED] bg-[#F2F7FC] p-5">
+          <div class="grid gap-3 md:flex">
+            <article class="min-w-0 rounded-[18px] border border-[#D5E1ED] bg-[#F2F7FC] p-5 md:flex-1">
               <p class="mb-5 text-[13px] font-semibold text-[#426888]">진로 · 개발</p>
               <h3 class="mb-4 text-[18px] font-bold leading-snug tracking-[-0.03em]">백엔드 개발자 취업 준비</h3>
               <div class="flex items-baseline gap-2"><strong class="text-[30px] tracking-[-0.06em] text-[#194E87]">20%</strong><span class="text-[12px] text-[#627487]">달성 기준 완료</span></div>
               <div class="mt-3 h-2 rounded-full bg-[#D7E5F2]"><div class="h-2 w-1/5 rounded-full bg-[#3177B9]"></div></div>
-              <p class="mt-4 text-[12px] leading-relaxed text-[#627487]"></p>
-            <details><summary class="cursor-pointer text-sm text-blue-800">달성 기준 보기</summary><p class="py-3 text-sm">확인한 기준 · 코딩 테스트 목표 등급 달성 (20점)</p></details><button hidden class="move text-sm text-blue-800">앞으로 이동</button></article>
-            <article class="rounded-[18px] border border-[#E7E9ED] bg-[#FAFBFC] p-5">
+              <button type="button" class="goal-detail mt-5 text-sm font-semibold text-[#2469C9]" data-goal="backend">목표 상세 보기 →</button>
+              <button hidden class="move text-sm text-blue-800">앞으로 이동</button>
+            </article>
+            <article class="min-w-0 rounded-[18px] border border-[#E7E9ED] bg-[#FAFBFC] p-5 md:flex-1">
               <p class="mb-5 text-[13px] font-semibold text-[#718094]">학습 · 영어</p>
               <h3 class="mb-4 text-[18px] font-bold leading-snug tracking-[-0.03em]">영어로 기술 문서 읽기</h3>
               <div class="flex items-baseline gap-2"><strong class="text-[30px] tracking-[-0.06em]">40%</strong><span class="text-[12px] text-[#718094]">달성 기준 완료</span></div>
               <div class="mt-3 h-2 rounded-full bg-[#E5E9ED]"><div class="h-2 w-2/5 rounded-full bg-[#8092A5]"></div></div>
-              <p class="mt-4 text-[12px] leading-relaxed text-[#718094]"></p>
-            <details><summary class="cursor-pointer text-sm text-blue-800">달성 기준 보기</summary><p class="py-3 text-sm">확인한 기준 · 기술 문서 한 편 요약하기 (40점)</p></details><button hidden class="move text-sm text-blue-800">앞으로 이동</button></article>
+              <button type="button" class="goal-detail mt-5 text-sm font-semibold text-[#2469C9]" data-goal="english">목표 상세 보기 →</button>
+              <button hidden class="move text-sm text-blue-800">앞으로 이동</button>
+            </article>
           </div>
         </section><button data-view="onboarding" class="rounded-xl bg-blue-800 px-4 py-2 text-white">새 목표 계획하기</button></main>
+<main id="goalDetail" class="view mx-auto max-w-[1080px] space-y-6 px-5 py-8 md:px-10">
+  <button data-view="goals" class="text-sm font-semibold text-[#2469C9]">← 올해 목표</button>
+  <header class="border-0 bg-transparent">
+    <p class="text-sm text-[#718094]">2026년 연간 목표</p>
+    <h1 id="detailTitle" class="mt-2 text-3xl font-bold tracking-tight"></h1>
+    <p id="detailProgress" class="mt-4 text-xl font-semibold text-[#2469C9]"></p>
+  </header>
+  <section class="border-t border-[#DCE2E9] pt-6">
+    <h2 class="text-lg font-bold">달성 기준</h2>
+    <ul id="detailCriteria" class="mt-3 space-y-3 text-sm"></ul>
+  </section>
+  <section class="border-t border-[#DCE2E9] pt-6">
+    <h2 class="text-lg font-bold">연결된 계획</h2>
+    <div id="detailPlans" class="mt-3 space-y-3 text-sm"></div>
+  </section>
+</main>
 <main id="schedule" class="view mx-auto max-w-[1080px] space-y-5 px-5 py-8 md:px-10">
 <section class="rounded-3xl border border-slate-200 bg-white p-6"><div class="flex flex-wrap items-center justify-between gap-3"><h1 class="text-2xl font-bold">달력</h1><input type="month" id="month" aria-label="표시 월" value="2026-11"></div>
 <div class="my-4 flex flex-wrap gap-4 text-sm" id="filters"></div>
@@ -126,6 +163,41 @@
     document.getElementById('actions').addEventListener('change', updateCount);
     document.getElementById('actionForm').addEventListener('submit', event => { event.preventDefault(); const input = document.getElementById('actionInput'); const value = input.value.trim(); if (!value) return; const label = document.createElement('label'); label.className = 'flex cursor-pointer items-center gap-4 py-4'; const check = document.createElement('input'); check.type = 'checkbox'; check.className = 'action-check size-[19px] accent-[#2469C9]'; const content = document.createElement('span'); content.className = 'min-w-0 flex-1'; const title = document.createElement('span'); title.className = 'action-text block text-[15px] font-medium'; title.textContent = value; const path = document.createElement('span'); path.className = 'mt-1 block text-[12px] text-[#8190A1]'; path.textContent = '백엔드 개발자 취업 준비 › 11월 목표 › 이번 주'; content.append(title, path); label.append(check, content); document.getElementById('actions').append(label); input.value = ''; updateCount(); });
     const id = key => document.getElementById(key);
+    const goalDetails = {
+      backend: {
+        title: '백엔드 개발자 취업 준비',
+        progress: '달성 기준 20% 완료',
+        criteria: ['✓ 코딩 테스트 목표 등급 달성 · 20점', '○ 포트폴리오 프로젝트 공개 · 40점', '○ 지원서 준비 완료 · 40점'],
+        plans: ['2026.11 · 알고리즘 문제 40개 풀기 · 실행 진행 55%', '이번 주 · 알고리즘 문제 10개 풀고 틀린 유형 정리하기 · 실행 진행 40%']
+      },
+      english: {
+        title: '영어로 기술 문서 읽기',
+        progress: '달성 기준 40% 완료',
+        criteria: ['✓ 기술 문서 한 편 요약하기 · 40점', '○ 기술 문서 다섯 편 읽기 · 60점'],
+        plans: ['2026.11 · 기술 문서 두 편 읽고 정리하기', '이번 주 · 문서 한 편의 핵심 내용 정리하기']
+      }
+    };
+    document.querySelectorAll('.goal-detail').forEach(button => {
+      button.addEventListener('click', () => {
+        const goal = goalDetails[button.dataset.goal];
+        id('detailTitle').textContent = goal.title;
+        id('detailProgress').textContent = goal.progress;
+        id('detailCriteria').replaceChildren();
+        id('detailPlans').replaceChildren();
+        goal.criteria.forEach(text => {
+          const item = document.createElement('li');
+          item.textContent = text;
+          id('detailCriteria').append(item);
+        });
+        goal.plans.forEach(text => {
+          const item = document.createElement('p');
+          item.textContent = text;
+          id('detailPlans').append(item);
+        });
+        views.forEach(view => view.classList.toggle('active', view.id === 'goalDetail'));
+        window.scrollTo({top: 0, behavior: 'smooth'});
+      });
+    });
     const dayKey = new Date().toLocaleDateString('sv-SE');
     const storageKey = 'aim2day-priority-' + dayKey;
     let approved = {};
@@ -138,14 +210,6 @@
       const grid = id('quadrants');
       rows.replaceChildren();
       grid.replaceChildren();
-      const buckets = cells.map(name => {
-        const cell = document.createElement('section');
-        const title = document.createElement('strong');
-        title.textContent = name;
-        cell.append(title);
-        grid.append(cell);
-        return cell;
-      });
       document.querySelectorAll('.action-text').forEach((item,index) => {
         const key = index + ':' + item.textContent;
         const row = document.createElement('label');
@@ -154,19 +218,72 @@
         const select = document.createElement('select');
         select.add(new Option('분류 선택', ''));
         cells.forEach((name,i) => select.add(new Option(name,String(i))));
-        select.value = draft[key] ?? '';
+        function initialPosition(cell) {
+          return {
+            x: cell % 2 ? 72 : 25,
+            y: (cell < 2 ? 72 : 24) + (index % 4) * 5
+          };
+        }
+        let position = draft[key];
+        // Older drafts stored only the quadrant number.
+        if (typeof position === 'string' && /^[0-3]$/.test(position)) {
+          position = initialPosition(Number(position));
+          draft[key] = position;
+        }
         select.onchange = () => {
-          draft[key] = select.value;
+          if (select.value) draft[key] = initialPosition(Number(select.value));
+          else delete draft[key];
           renderPriorities();
           rows.querySelectorAll('select')[index].focus();
         };
         row.append(select);
         rows.append(row);
-        if (select.value !== '') {
-          const task = document.createElement('p');
-          task.textContent = item.textContent;
-          buckets[Number(select.value)].append(task);
+        if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
+
+        const point = document.createElement('button');
+        point.type = 'button';
+        point.className = 'plot-point';
+        const caption = document.createElement('span');
+        caption.className = 'point-label';
+        caption.textContent = item.textContent;
+        point.append(caption);
+        grid.append(point);
+
+        function place(x, y) {
+          const clamp = value => Math.max(2, Math.min(98, value));
+          position = {x:clamp(x), y:clamp(y)};
+          draft[key] = position;
+          const cell = (position.y >= 50 ? 0 : 2) + (position.x >= 50 ? 1 : 0);
+          select.value = String(cell);
+          point.style.left = position.x + '%';
+          point.style.top = (100-position.y) + '%';
+          point.classList.toggle('point-left', position.x > 55);
+          point.setAttribute('aria-label', item.textContent + ', ' + cells[cell] + '. 방향키로 위치 조정');
         }
+        place(position.x, position.y);
+        let drag;
+        point.onpointerdown = event => {
+          if (event.button !== 0 || drag) return;
+          drag = {id:event.pointerId, left:event.clientX, top:event.clientY, ...position};
+          point.setPointerCapture(event.pointerId);
+        };
+        point.onpointermove = event => {
+          if (!drag || drag.id !== event.pointerId) return;
+          const rect = grid.getBoundingClientRect();
+          place(drag.x + 100*(event.clientX-drag.left)/rect.width,
+                drag.y - 100*(event.clientY-drag.top)/rect.height);
+        };
+        point.onlostpointercapture = () => {
+          if (drag && (drag.x !== position.x || drag.y !== position.y)) id('morning').open = true;
+          drag = null;
+        };
+        point.onkeydown = event => {
+          const delta = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,1], ArrowDown:[0,-1]}[event.key];
+          if (!delta) return;
+          event.preventDefault();
+          place(position.x + delta[0], position.y + delta[1]);
+          id('morning').open = true;
+        };
       });
     }
     id('suggest').onclick = () => toast('해당 기능은 현재 개발 중입니다.');
