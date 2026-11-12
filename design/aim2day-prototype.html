@@ -610,7 +610,37 @@
           </div>
         </details>
       </section>
-      <div id="due" hidden></div>
+      <section
+        class="rounded-[24px] border border-[#E4E8EE] bg-white p-6"
+        aria-labelledby="due-title"
+      >
+        <h2 id="due-title" class="text-[17px] font-bold">해야 할 일과 일정</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          마감일과 일정을 보며 이번 주 목표와 오늘 할 일을 정해 보세요.
+        </p>
+        <div class="mt-5 grid gap-6 md:grid-cols-2 md:gap-8">
+          <div>
+            <h3 class="font-semibold">해야 할 일</h3>
+            <p class="mt-1 text-xs text-slate-500">
+              완료할 때까지 모두 보여요.
+            </p>
+            <div id="dueTasks" class="mt-3 divide-y divide-slate-100"></div>
+          </div>
+          <div>
+            <h3 class="font-semibold">일정</h3>
+            <p class="mt-1 text-xs text-slate-500">오늘부터 7일 안의 일정</p>
+            <div id="dueEvents" class="mt-3 divide-y divide-slate-100"></div>
+            <details class="mt-4 border-t border-slate-200 pt-3">
+              <summary
+                class="cursor-pointer text-sm font-medium text-slate-600"
+              >
+                지난 일정 · 최근 7일
+              </summary>
+              <div id="pastEvents" class="mt-2 divide-y divide-slate-100"></div>
+            </details>
+          </div>
+        </div>
+      </section>
       <section
         id="weekSection"
         class="rounded-[24px] bg-[#EAF2FA] p-6"
@@ -1153,8 +1183,8 @@
           </div>
         </div>
         <p class="mt-2 text-xs text-slate-500">
-          시연용 예시 일정이며 날짜는 수행일입니다. 기한은 별도로 입력된
-          경우에만 표시합니다.
+          해야 할 일은 마감일에, 일정은 해당 날짜에 표시합니다. 기간 일정은
+          시작일부터 종료일까지 보여요.
         </p>
         <div class="my-4 flex flex-wrap gap-4 text-sm" id="filters"></div>
         <div
@@ -1170,15 +1200,32 @@
         <h2 id="selectedDay" class="text-lg font-bold"></h2>
         <div id="agenda"></div>
         <form id="eventForm" class="mt-4 flex flex-wrap gap-3">
+          <select
+            id="eventKind"
+            aria-label="항목 종류"
+            class="rounded-lg border p-2"
+          >
+            <option value="task">해야 할 일</option>
+            <option value="event">일정</option>
+          </select>
           <input
             required
-            placeholder="일정 이름"
-            aria-label="일정 이름"
+            placeholder="제목"
+            aria-label="항목 제목"
             class="rounded-lg border p-2"
             id="eventTitle"
-          /><select id="category" aria-label="일정 분류"></select
+          />
+          <label id="eventStartWrap" class="text-sm" hidden>
+            기간 시작일
+            <input
+              id="eventStartDate"
+              type="date"
+              class="ml-1 rounded-lg border p-2"
+            />
+          </label>
+          <select id="category" aria-label="일정 분류"></select
           ><button class="rounded-lg bg-blue-800 px-4 py-2 text-white">
-            일정 추가
+            추가
           </button>
         </form>
       </section>
@@ -2628,24 +2675,48 @@
       let selected = sampleToday;
       const events = [
         {
-          performedDate: "2026-11-14",
+          kind: "task",
+          dueDate: "2026-11-14",
           title: "프로젝트 과제 제출",
           group: 0,
           done: false,
         },
         {
-          performedDate: "2026-11-12",
+          kind: "task",
+          dueDate: "2026-11-12",
           title: "장학금 신청 서류 제출",
           group: 2,
           done: false,
         },
         {
-          performedDate: "2026-11-10",
-          title: "영문 기술 문서 읽기",
+          kind: "event",
+          dueDate: "2026-11-10",
+          title: "영어 스터디",
+          group: 1,
+          done: false,
+        },
+        {
+          kind: "event",
+          dueDate: "2026-11-13",
+          title: "프로젝트 발표",
+          group: 0,
+          done: false,
+        },
+        {
+          kind: "event",
+          startDate: "2026-11-11",
+          dueDate: "2026-11-14",
+          title: "학회 방문",
           group: 1,
           done: false,
         },
       ];
+      const dayDifference = (date) =>
+        (Date.parse(date) - Date.parse(sampleToday)) / 86400000;
+      const calendarMatches = (event, date) =>
+        event.kind === "event" && event.startDate
+          ? event.startDate <= date && date <= event.dueDate
+          : event.dueDate === date;
       categories.forEach((name, index) => {
         id("category").add(new Option(name, index));
         const label = document.createElement("label");
@@ -2725,7 +2796,7 @@
           cell.append(dayButton);
           const chips = document.createElement("div");
           chips.className = "space-y-1";
-          for (const item of visible.filter((e) => e.performedDate === date)) {
+          for (const item of visible.filter((e) => calendarMatches(e, date))) {
             const chip = document.createElement("button");
             chip.type = "button";
             chip.className = "calendar-chip" + (item.done ? " done" : "");
@@ -2736,8 +2807,8 @@
             chips.append(chip);
           }
           cell.append(chips);
-          const dayItems = visible.filter(
-            (event) => event.performedDate === date,
+          const dayItems = visible.filter((event) =>
+            calendarMatches(event, date),
           );
           if (dayItems.length) {
             const summary = document.createElement("div");
@@ -2759,8 +2830,8 @@
         }
         id("selectedDay").textContent = selected.replaceAll("-", ".");
         id("agenda").replaceChildren();
-        for (const event of visible.filter(
-          (e) => e.performedDate === selected,
+        for (const event of visible.filter((e) =>
+          calendarMatches(e, selected),
         )) {
           const label = document.createElement("label");
           label.className =
@@ -2785,32 +2856,78 @@
         }
         if (!id("agenda").childElementCount)
           id("agenda").textContent = "표시할 일정이 없어요.";
-        id("due").replaceChildren();
-        for (const event of events
-          .filter((e) => !e.done)
-          .sort((a, b) => a.performedDate.localeCompare(b.performedDate))) {
-          const days =
-            (Date.parse(event.performedDate) - Date.parse(sampleToday)) /
-            86400000;
-          const row = document.createElement("button");
-          row.className = "block py-2 text-sm";
-          row.textContent =
-            event.title +
-            " · " +
-            (days === 0
-              ? "오늘"
-              : days > 0
-                ? days + "일 남음"
-                : -days + "일 지남");
-          row.onclick = () => {
-            selected = event.performedDate;
+        const showDashboardItem = (container, event, caption) => {
+          const row = document.createElement("div");
+          row.className = "flex items-center gap-2 py-2 text-sm";
+          const check = document.createElement("input");
+          check.type = "checkbox";
+          check.checked = event.done;
+          check.setAttribute("aria-label", event.title + " 완료");
+          check.onchange = () => {
+            event.done = check.checked;
+            refreshCalendar();
+          };
+          const link = document.createElement("button");
+          link.type = "button";
+          link.className =
+            "min-w-0 text-left hover:text-blue-700" +
+            (event.done ? " opacity-45 line-through" : "");
+          link.textContent = event.title + " · " + caption;
+          link.onclick = () => {
+            selected =
+              event.startDate &&
+              event.startDate <= sampleToday &&
+              sampleToday <= event.dueDate
+                ? sampleToday
+                : event.startDate && event.startDate > sampleToday
+                  ? event.startDate
+                  : event.dueDate;
             id("month").value = selected.slice(0, 7);
             id("filters").querySelectorAll("input")[event.group].checked = true;
             refreshCalendar();
             document.querySelector('[data-view="schedule"]').click();
           };
-          id("due").append(row);
+          row.append(check, link);
+          container.append(row);
+        };
+        for (const name of ["dueTasks", "dueEvents", "pastEvents"])
+          id(name).replaceChildren();
+        for (const event of [...events].sort((a, b) =>
+          a.dueDate.localeCompare(b.dueDate),
+        )) {
+          const days = dayDifference(event.dueDate);
+          if (event.kind === "task") {
+            if (!event.done)
+              showDashboardItem(
+                id("dueTasks"),
+                event,
+                days === 0 ? "오늘" : days > 0 ? `D-${days}` : "기한 지남",
+              );
+          } else if (
+            (event.startDate
+              ? dayDifference(event.startDate) <= 7
+              : days <= 7) &&
+            days >= 0
+          ) {
+            showDashboardItem(
+              id("dueEvents"),
+              event,
+              event.startDate && event.startDate <= sampleToday
+                ? "진행 중"
+                : days === 0
+                  ? "오늘"
+                  : `${event.startDate || event.dueDate} · D-${event.startDate ? dayDifference(event.startDate) : days}`,
+            );
+          } else if (days < 0 && days >= -7) {
+            showDashboardItem(id("pastEvents"), event, `D+${-days}`);
+          }
         }
+        if (!id("dueTasks").childElementCount)
+          id("dueTasks").textContent = "남은 일이 없어요.";
+        if (!id("dueEvents").childElementCount)
+          id("dueEvents").textContent = "가까운 일정이 없어요.";
+        if (!id("pastEvents").childElementCount)
+          id("pastEvents").textContent = "최근 지난 일정이 없어요.";
       }
       id("month").onchange = () => {
         if (id("month").value) {
@@ -2838,16 +2955,40 @@
           refreshCalendar();
         });
       id("filters").onchange = refreshCalendar;
+      id("eventKind").onchange = () => {
+        id("eventStartWrap").hidden = id("eventKind").value !== "event";
+        if (id("eventStartWrap").hidden) id("eventStartDate").value = "";
+      };
       id("eventForm").onsubmit = (event) => {
         event.preventDefault();
         const title = id("eventTitle").value.trim();
         if (!title) return;
         const group = Number(id("category").value);
-        events.push({ performedDate: selected, title, group, done: false });
+        const kind = id("eventKind").value;
+        const startDate = id("eventStartDate").value;
+        if (kind === "event" && startDate && startDate > selected) {
+          id("eventStartDate").setCustomValidity(
+            "시작일은 선택한 날짜보다 늦을 수 없어요.",
+          );
+          id("eventStartDate").reportValidity();
+          return;
+        }
+        id("eventStartDate").setCustomValidity("");
+        events.push({
+          kind,
+          startDate: kind === "event" ? startDate || null : null,
+          dueDate: selected,
+          title,
+          group,
+          done: false,
+        });
         id("filters").querySelectorAll("input")[group].checked = true;
         id("eventTitle").value = "";
+        id("eventStartDate").value = "";
         refreshCalendar();
       };
+      id("eventStartDate").oninput = () =>
+        id("eventStartDate").setCustomValidity("");
       refreshCalendar();
       const moves = document.querySelectorAll(".move");
       id("reorder").onclick = () => {
