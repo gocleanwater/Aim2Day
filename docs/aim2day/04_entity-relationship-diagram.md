@@ -115,7 +115,6 @@ erDiagram
     monthly_goals {
         bigint id PK
         bigint yearly_goal_id FK "연간 목표 ID"
-        varchar year_month "대상 월 (YYYY-MM)"
         date start_date "해당 월 시작일"
         date end_date "해당 월 종료일"
         varchar title "이번 달 결과 제목"
@@ -354,8 +353,7 @@ erDiagram
 |---|---|---|---|---|---|
 | `id` | 월간 목표 ID | BIGINT | N | AUTO_INCREMENT | PK |
 | `yearly_goal_id` | 부모 연간 목표 ID | BIGINT | N | - | FK → `yearly_goals(id)` ON DELETE RESTRICT |
-| `year_month` | 대상 년월 | VARCHAR(7) | N | - | 형식: 'YYYY-MM'. 생성 시 현재 달로 고정 (`GOAL-014`) |
-| `start_date` | 월 시작일 | DATE | N | - | 해당 월 1일 (예: 2026-11-01) |
+| `start_date` | 월 시작일 | DATE | N | - | 해당 월 1일 (예: 2026-11-01). 생성 시 계정 시간대의 현재 달로 고정 (`GOAL-014`). 화면의 `2026.11` 표기는 이 값에서 만든다 |
 | `end_date` | 월 종료일 | DATE | N | - | 해당 월 말일 (예: 2026-11-30) |
 | `title` | 목표/결과 제목 | VARCHAR(100) | N | - | 이번 달에 이루고 싶은 결과 |
 | `description` | 설명 / 기대 결과 | TEXT | Y | NULL | 상세 설명 |
@@ -367,7 +365,7 @@ erDiagram
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **인덱스**:
-  - `idx_mg_yearly_goal`: `(yearly_goal_id, year_month, deleted_at)`
+  - `idx_mg_yearly_goal`: `(yearly_goal_id, start_date, deleted_at)`
 
 ---
 
@@ -688,3 +686,6 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 
 ### 결정 11 — 월간·주간 목표 표시 색상 (`GOAL-011`, `FN-GOAL-02`)
 월간·주간 목표에도 `color`를 둔다. 값이 NULL이면 부모 목표의 색을 그대로 쓰므로, 사용자가 따로 바꾸지 않으면 한 목표 경로가 같은 색으로 보인다. 달력 항목은 결정 2대로 연간 목표 색을 사용한다.
+
+### 결정 12 — `monthly_goals.year_month` 제거
+`YEAR_MONTH`는 MySQL 예약어이고, 대상 월은 `start_date`로 알 수 있어 중복 컬럼이다. 월 조회·인덱스는 `start_date`를 사용하고 `end_date`는 주간 목표와 기간 겹침 검사를 단순하게 하려고 유지한다.
