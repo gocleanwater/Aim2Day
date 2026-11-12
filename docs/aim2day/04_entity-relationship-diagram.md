@@ -266,6 +266,7 @@ erDiagram
 
 #### 2) `user_settings` (사용자 환경설정)
 - **설명**: 주 시작 요일과 계정 기준 시간대를 관리한다. 오늘·주 경계·남은 일수·리포트 집계에 적용된다. (`PLAN-001`, `PLAN-004`, `FN-SET-01`, `FN-SET-02`)
+- **소유 서비스**: `goal-service`. 읽기와 쓰기 모두 `goal-service`만 하며, `user-service`는 이 테이블에 접근하지 않는다. 설정 행이 없으면 `goal-service`가 기본값(SUNDAY, Asia/Seoul)으로 처음 생성한다. 이유는 결정 14 참고.
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
 |---|---|---|---|---|---|
@@ -642,6 +643,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
            │                                │
    /api/auth                       /api/goals, /api/actions
    /api/users                      /api/calendar, /api/reports
+                                   /api/settings
            │                                │ Round-Robin 분산
            ▼                                ▼
   [ user-service (1대) ]    [ goal-service-1 | goal-service-2 | goal-service-3 ]
@@ -701,3 +703,13 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 
 ### 결정 13 — 진행률은 소수점 둘째 자리까지 저장
 주간·월간 진행률과 진행률 이력은 DECIMAL(5,2)로 저장하고 소수점 셋째 자리에서 반올림한다. 연간 달성률은 정수 배점의 합이므로 `initial_baseline_rate`는 INT를 유지한다.
+
+### 결정 14 — `user_settings`는 `goal-service`가 소유 (`PLAN-001`, `PLAN-004`)
+주 시작 요일과 시간대는 사용자 정보이지만, 이를 사용하는 곳은 오늘·주 경계·남은 일수·리포트 기간을 계산하는 `goal-service`뿐이다. 따라서 설정 테이블과 설정 API(`/api/settings`)를 `goal-service`가 소유하고 `user-service`는 접근하지 않는다. 설정 화면은 기본 정보(사용자명·이메일)를 `user-service`에서, 주 시작 요일·시간대를 `goal-service`에서 각각 조회한다.
+
+`user-service`가 테이블을 소유하고 `goal-service`가 읽기만 하는 방식도 검토했으나, 한 테이블을 두 서비스가 공유하면 다음 문제가 생기므로 채택하지 않았다.
+- 컬럼 변경이 다른 서비스를 깨뜨린다. `user-service` 쪽에서 `week_start_day` 이름이나 형식을 바꾸면 `goal-service`가 바로 오류를 낸다. 테이블 주인은 하나인데 고칠 때는 두 서비스가 맞춰야 한다.
+- 따로 배포하기 어려워진다. 서비스를 나누는 목적은 각자 따로 바꾸고 배포하는 것인데, 테이블을 공유하면 그 장점이 줄어든다.
+- DB를 나눌 수 없다. 나중에 서비스마다 DB를 분리하려 할 때 바로 막힌다.
+
+제출판은 모든 서비스가 MySQL 하나를 사용하고 목표 테이블이 `users(id)`를 외래키로 참조하므로 DB 수준의 결합은 남아 있다. 다만 테이블별 쓰기 주체는 하나의 서비스로 정해 서비스 경계를 지킨다.
