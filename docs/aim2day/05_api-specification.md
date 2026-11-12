@@ -62,8 +62,7 @@
 | POST | `/api/actions` | 행동 추가 | FN-ACT-01 |
 | PATCH·DELETE | `/api/actions/{id}` | 행동 수정·삭제 | FN-ACT-01 |
 | PUT | `/api/actions/{id}/completion` | 행동 완료·완료 취소 | FN-ACT-02 |
-| PUT | `/api/actions/{id}/placement` | 사분면에 점 놓기·옮기기(미확정) | FN-QUAD-01 |
-| PUT | `/api/actions/{id}/placement/tray` | 트레이로 되돌리기 | FN-QUAD-01 |
+| PUT | `/api/actions/{id}/placement` | 사분면에 점 놓기·옮기기·트레이로 되돌리기(미확정, 결정 19) | FN-QUAD-01 |
 | DELETE | `/api/actions/{id}/placement/pending` | 확정하지 않은 변경 취소 | FN-QUAD-02 |
 | POST | `/api/actions/placements/confirm` | 오늘 분류 확정 | FN-QUAD-02 |
 | GET | `/api/calendar/items` | 기간별 달력 항목 | FN-CAL-01 |
@@ -189,11 +188,12 @@
 | 409 | `CRITERIA_ALREADY_CONFIRMED` | 이미 확정된 기준의 재확정 | `null` |
 | 422 | `PARENT_GOAL_UNAVAILABLE` | 부모 목표가 없음·타인 소유·삭제·과거 이력 | `{ "parentLevel": "YEARLY", "parentId": 3 }` |
 | 422 | `PARENT_PERIOD_MISMATCH` | 하위 목표 기간이 부모 기간과 겹치지 않음 | `{ "parentStartDate": "...", "parentEndDate": "..." }` |
-| 422 | `WEEKLY_GOAL_REQUIRED` | 선택한 월간 목표에 연결할 주간 목표가 없음 | `{ "monthlyGoalId": 8 }` |
+| 422 | `WEEKLY_GOAL_REQUIRED` | 선택한 월간 목표 아래에 행동의 수행일을 기간에 포함하는 주간 목표가 없음 | `{ "monthlyGoalId": 8, "performedDate": "2026-11-12" }` |
 | 422 | `WEEKLY_GOAL_SELECTION_REQUIRED` | 연결 가능한 주간 목표가 여러 개 | `{ "candidates": [{ "id": 31, "title": "...", "startDate": "...", "endDate": "..." }] }` |
 | 422 | `CRITERIA_WEIGHT_SUM_INVALID` | 확정·개정 시 배점 합계가 100이 아님 | `{ "totalWeight": 90, "required": 100 }` |
 | 422 | `CRITERIA_NOT_CONFIRMED` | 확정 전 기준의 달성 처리 | `null` |
 | 422 | `FUTURE_ACTION_COMPLETION_BLOCKED` | 수행일이 미래인 행동의 완료, 완료된 행동의 수행일을 미래로 변경 | `{ "today": "2026-11-12", "performedDate": "2026-11-13" }` |
+| 422 | `GOAL_ACTION_DATE_OUT_OF_RANGE` | 목표 연결 행동의 수행일이 현재 주 이후(결정 17) | `{ "currentWeekEndDate": "2026-11-14", "performedDate": "2026-11-20" }` |
 | 422 | `QUADRANT_OUT_OF_RANGE` | 목표 연결 행동의 x < 50 | `{ "minImportance": 50 }` |
 | 422 | `CLASSIFICATION_DATE_INVALID` | 오늘이 아닌 행동의 분류 | `{ "today": "2026-11-12", "performedDate": "2026-11-11" }` |
 | 422 | `NOT_NUMERIC_GOAL` | 체크형 주간 목표에 수치 기록·기여량 지정 | `null` |
@@ -883,7 +883,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 - `type`: `GOAL`(목표 연결) 또는 `MAINTENANCE`(`그 밖의 할 일`). `MAINTENANCE`는 `goalPath`, `contributionValue`가 `null`이다.
 - `daysUntilDue`: 오늘 기준 남은 일수다. 0이면 `오늘`, 음수면 `기한 지남`으로 표시한다. 기한이 없으면 `null`이고 남은 일수를 표시하지 않는다.
-- `placement`: 행동 목록을 조회한 날짜(`date`)의 분류다. `state`는 ERD 9번 테이블의 상태와 같다. 오늘이 아닌 날짜는 보기 전용이다.
+- `placement`: 행동 목록을 조회한 날짜(`date`)의 분류다. `state`는 ERD 9번 테이블의 상태와 같다. 오늘이 아닌 날짜는 보기 전용이며, 그 날짜에 남아 있는 확정하지 않은 변경(`pending` 좌표, 되돌리기 대기)은 없는 것으로 본다. 확정 좌표가 있으면 `CONFIRMED`, 없으면 `UNCLASSIFIED`로 응답한다. (결정 18)
 
 | `state` | `confirmed` | `pending` | `displayed`(화면의 점 위치) |
 |---|---|---|---|
@@ -901,9 +901,9 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 | 조회 날짜 | 행동 추가 | 완료 체크 | 사분면 분류 | `pastIncomplete` |
 |---|---|---|---|---|
-| 지난 날짜 | 가능 (`performedDate`=그 날짜) | 가능 | 보기만 | `null` |
+| 지난 날짜 | 가능 (`performedDate`=그 날짜). 목표 연결은 그 주의 주간 목표가 있을 때만(§4.9 `POST`) | 가능 | 보기만 | `null` |
 | 오늘 | 가능 | 가능 | 가능 | 채움 |
-| 미래 날짜 | 가능 (`performedDate`=그 날짜) | 불가 (`FUTURE_ACTION_COMPLETION_BLOCKED`) | 보기만 | `null` |
+| 미래 날짜 | 가능 (`performedDate`=그 날짜). 현재 주 이후 날짜는 `MAINTENANCE`만(결정 17) | 불가 (`FUTURE_ACTION_COMPLETION_BLOCKED`) | 보기만 | `null` |
 
 | `sort` | 순서 |
 |---|---|
@@ -931,7 +931,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 }
 ```
 
-- `classification.unconfirmedChanges`는 확정하지 않은 변경이 있는 행동 수다(`PENDING`, `RECLASSIFYING`, `PENDING_UNCLASSIFY`). `confirmedToday`는 오늘 한 번이라도 분류를 확정했는지다. 화면은 이 값으로 그날 분류 안내를 줄인다.
+- `classification.unconfirmedChanges`는 확정하지 않은 변경이 있는 행동 수다(`PENDING`, `RECLASSIFYING`, `PENDING_UNCLASSIFY`). 오늘이 아닌 날짜는 항상 0이다. `confirmedToday`는 오늘 한 번이라도 분류를 확정했는지다. 화면은 이 값으로 그날 분류 안내를 줄인다.
 - **`pastIncomplete`** (`FOCUS-017`): `date`가 오늘일 때만 채운다. 다른 날짜면 `null`이다. 수행일이 오늘보다 앞선 미완료 행동이다(`GOAL`·`MAINTENANCE` 모두). 삭제됐거나 상위 목표 삭제로 숨겨진 행동은 빠진다. 화면은 오늘 목록 아래 접힌 `지난 미완료 N개` 영역에 보여준다. 이 행동들은 `summary`의 완료 수와 사분면 분류에 포함하지 않는다.
   - `[오늘로 옮기기]`: `PATCH /api/actions/{id}`로 `performedDate`를 오늘로 바꾼다. 그 뒤 오늘 목록에 들어간다.
   - `[완료]`: `PUT /api/actions/{id}/completion`. 수행일은 원래 날짜 그대로다. 그날 실제로 했는데 체크를 잊은 경우에 쓴다.
@@ -954,13 +954,15 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - `title` 1~255자. `performedDate`는 생략하면 오늘이다. (`FN-ACT-01`)
 - `type=GOAL`이면 연결 주간 목표를 다음과 같이 정한다. (`FOCUS-002`)
   - `weeklyGoalId`가 있으면 그 목표에 연결한다.
-  - 없고 `monthlyGoalId`만 있으면, 그 월간 목표 아래에서 기간에 `performedDate`가 들어가는 활성 주간 목표를 찾는다. 1개면 자동으로 연결한다. 0개면 422 `WEEKLY_GOAL_REQUIRED`(화면은 `먼저 이번 주 목표를 만들어 주세요` 안내)를 반환한다. 여러 개면 422 `WEEKLY_GOAL_SELECTION_REQUIRED`와 후보 목록을 반환한다.
+  - 없고 `monthlyGoalId`만 있으면, 그 월간 목표 아래에서 기간에 `performedDate`가 들어가는 활성 주간 목표를 찾는다. 1개면 자동으로 연결한다. 0개면 422 `WEEKLY_GOAL_REQUIRED`(수행일이 이번 주이면 화면은 `먼저 이번 주 목표를 만들어 주세요`, 지난 주이면 `그 주에 만들어 둔 주간 목표가 없어요` 안내)를 반환한다. 여러 개면 422 `WEEKLY_GOAL_SELECTION_REQUIRED`와 후보 목록을 반환한다.
+  - 지난 주 날짜도 같은 방식으로 찾는다. 그 주에 만들어 둔 주간 목표가 남아 있으면 연결하고, 없으면 `WEEKLY_GOAL_REQUIRED`다. 없는 주간 목표를 새로 만들어 주지 않는다.
+  - `performedDate`가 현재 주(주 시작 요일 기준, §2.3)의 마지막 날보다 뒤이면 위 판단에 앞서 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`를 반환한다. 주간 목표는 현재 주로만 만들 수 있어(결정 5) 그 이후 주에는 연결할 주간 목표가 있을 수 없다. 그 주가 오면 주간 목표를 만든 뒤 추가한다. (결정 17)
   - 둘 다 없으면 400 `VALIDATION_FAILED`다. 목표 없는 핵심 행동은 만들 수 없다. (`FOCUS-009`)
-- `type=MAINTENANCE`이면 `monthlyGoalId`, `weeklyGoalId`, `contributionValue`를 보내지 않는다.
+- `type=MAINTENANCE`이면 `monthlyGoalId`, `weeklyGoalId`, `contributionValue`를 보내지 않는다. 수행일 제한은 없어 미래 날짜에도 추가할 수 있다.
 - `contributionValue`는 연결 주간 목표가 `NUMERIC`일 때만 받으며 0 초과다.
 - 체크형 주간 목표에 연결하면 분모가 늘어나므로 주간·월간 진행률을 다시 계산한다.
 - 201 응답: 행동 객체
-- 오류: 400 `VALIDATION_FAILED`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `WEEKLY_GOAL_REQUIRED`, 422 `WEEKLY_GOAL_SELECTION_REQUIRED`, 422 `NOT_NUMERIC_GOAL`
+- 오류: 400 `VALIDATION_FAILED`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `WEEKLY_GOAL_REQUIRED`, 422 `WEEKLY_GOAL_SELECTION_REQUIRED`, 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`, 422 `NOT_NUMERIC_GOAL`
 
 #### PATCH `/api/actions/{id}`
 
@@ -971,7 +973,8 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
   - `contributionValue`를 바꾸면 기록의 `amount`를 새 값으로 바꾸고 실제값에 (새 값 − 이전 값)을 더한다. 예: 실제값 2, 기여량 2 → 5로 수정하면 실제값 5. `null`로 바꾸면 기록을 지우고 이전 값을 뺀다.
   - `weeklyGoalId`를 바꾸면 이전 주간 목표에서 기여량을 빼고 새 주간 목표에 더한다. 새 목표가 체크형이면 같은 요청에서 `contributionValue`를 `null`로 보내야 한다.
 - `performedDate`를 바꾸면 이전 날짜의 분류 좌표는 그대로 두고, 행동은 새 수행일의 목록에 보인다. 완료된 행동의 수행일은 미래로 바꿀 수 없다.
-- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `NOT_NUMERIC_GOAL`, 422 `FUTURE_ACTION_COMPLETION_BLOCKED`
+- 목표 연결(`GOAL`) 행동의 `performedDate`를 현재 주의 마지막 날보다 뒤로 바꿀 수 없다. 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`다. `MAINTENANCE`는 제한이 없다. 지난 주 날짜로 바꾸는 것과 `[오늘로 옮기기]`는 막지 않는다. (결정 17)
+- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `NOT_NUMERIC_GOAL`, 422 `FUTURE_ACTION_COMPLETION_BLOCKED`, 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`
 
 #### PUT `/api/actions/{id}/completion`
 
@@ -1011,31 +1014,32 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 ### 4.10 사분면 분류
 
-분류는 오늘 수행일인 행동에만 한다. 점을 옮기는 요청은 미확정 좌표만 바꾸고, `[오늘 분류 확정]`을 눌러야 확정 좌표가 바뀐다. 이미 확정한 점을 옮기거나 트레이로 되돌린 뒤 확정하지 않으면 이전 확정 좌표가 그대로 남는다. (`FN-QUAD-02`, ERD 9번 테이블)
+분류는 오늘 수행일인 행동에만 한다. 점을 놓거나 옮기거나 트레이로 되돌리는 요청은 하나의 API(`PUT .../placement`)이며 미확정 변경만 만든다. `[오늘 분류 확정]`을 눌러야 확정 좌표가 바뀐다. 이미 확정한 점을 옮기거나 트레이로 되돌린 뒤 확정하지 않으면 이전 확정 좌표가 그대로 남는다. (`FN-QUAD-02`, ERD 9번 테이블)
 
 예: 아침에 "보고서 쓰기"를 (80, 90)으로 확정했다. 오후에 (60, 30)으로 옮기고 확정하지 않았다. 이 상태는 `RECLASSIFYING`이며 확정 좌표는 (80, 90), 화면의 점은 (60, 30)이다. `[변경 취소]`를 누르면 점이 (80, 90)으로 돌아간다.
 
+날이 지나도록 확정하지 못한 변경은 그 날짜에 대해 확인·취소·확정할 방법이 없다(분류는 오늘만 가능). 그래서 오늘이 아닌 날짜를 조회할 때는 미확정 좌표와 되돌리기 대기를 응답에 반영하지 않고 확정 좌표만 쓴다. DB의 해당 값은 지우지 않는다. (결정 18)
+
 #### PUT `/api/actions/{id}/placement`
 
-점을 사분면에 놓거나 옮긴다. 미확정 좌표만 저장한다.
+점을 사분면에 놓거나 옮기거나 트레이로 되돌린다. 행동의 미확정 위치를 지정하는 하나의 요청이며, 미확정 좌표만 저장한다. (`FN-QUAD-01`, 결정 19)
 
 ```json
 { "importance": 72, "urgency": 70 }
 ```
 
-- 두 값은 0~100의 정수다. `GOAL` 행동은 `importance >= 50`이어야 한다. `MAINTENANCE`는 제한이 없다. (`FOCUS-016`)
-- 되돌리기 대기 상태였다면 그 대기를 풀고 새 미확정 좌표를 둔다.
+트레이로 되돌릴 때는 두 값을 모두 `null`로 보낸다. 트레이는 좌표가 없는 위치다.
+
+```json
+{ "importance": null, "urgency": null }
+```
+
+- 두 필드는 항상 함께 보낸다. 둘 다 0~100의 정수이거나 둘 다 `null`이어야 한다. 하나만 `null`이거나 필드가 빠지면 400 `VALIDATION_FAILED`다.
+- **좌표를 보낼 때**: `GOAL` 행동은 `importance >= 50`이어야 한다. `MAINTENANCE`는 제한이 없다. (`FOCUS-016`) 되돌리기 대기 상태였다면 그 대기를 풀고 새 미확정 좌표를 둔다.
+- **`null`을 보낼 때**: 확정 좌표가 없으면(미분류·미확정) 행을 지워 바로 `UNCLASSIFIED`가 된다. 확정 좌표가 있으면 `PENDING_UNCLASSIFY`가 된다. 확정을 눌러야 미분류가 되고, 그 전까지 확정 좌표는 남는다. 이미 트레이에 있는 점이면 아무것도 바꾸지 않고 200이다.
 - 좌표는 완료 상태, 진행률, 저장 순서를 바꾸지 않는다.
 - 응답: `{ "actionId": 101, "placement": { /* §4.9 placement */ } }`
 - 오류: 400 `VALIDATION_FAILED`, 404 `RESOURCE_NOT_FOUND`, 422 `QUADRANT_OUT_OF_RANGE`, 422 `CLASSIFICATION_DATE_INVALID`
-
-#### PUT `/api/actions/{id}/placement/tray`
-
-점을 트레이로 되돌린다.
-
-- 확정 좌표가 없으면(미분류·미확정) 행을 지워 바로 미분류가 된다.
-- 확정 좌표가 있으면 `PENDING_UNCLASSIFY`가 된다. 확정을 눌러야 미분류가 되고, 그 전까지 확정 좌표는 남는다.
-- 응답: `{ "actionId": 101, "placement": { /* §4.9 placement */ } }`
 
 #### DELETE `/api/actions/{id}/placement/pending`
 
@@ -1289,3 +1293,31 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 ### 결정 16 — 진행률 동시 갱신과 `version` 분리 (ERD 결정 16·17 참조)
 서로 다른 행동의 동시 완료에서 기여량이 사라지지 않게 하고, 진행률 변경이 목표 수정 화면의 `version`과 충돌하지 않게 하는 방법은 DB 구조와 직결되어 ERD 결정 16·17에 상세히 적었다. API에서는 §2.4와 §4.6·§4.9의 규칙을 따른다. 요약하면 `current_value`는 원자적 UPDATE로, 진행률 재계산은 잠금 순서(주간 → 월간)를 고정한 같은 트랜잭션에서 처리하고, 이 컬럼들은 엔티티에서 읽기 전용이라 `version`을 올리지 않는다.
+
+### 결정 17 — 목표 연결 행동은 현재 주 안의 날짜까지만 추가한다 (`FOCUS-002`, `DASH-011`)
+**문제.** 대시보드는 미래 날짜에도 행동을 미리 추가하게 한다. 그런데 목표 연결 행동은 주간 목표 아래에 저장되고, 주간 목표는 현재 주로만 만들 수 있다(결정 5). 예를 들어 오늘이 11월 12일(목)이고 이번 주가 11월 8~14일일 때 11월 20일 행동을 월간 목표에 연결하려 하면 그 주에는 주간 목표가 없다. 서버는 `WEEKLY_GOAL_REQUIRED`를 주겠지만 화면이 안내하는 `먼저 이번 주 목표를 만들어 주세요`는 이번 주가 아닌 날짜에는 틀린 말이다. 이번 주 목표를 만들어도 그 날짜의 문제는 풀리지 않는다.
+
+**결정.** 목표 연결 행동의 `performedDate`는 현재 주의 마지막 날 이전이어야 한다. 현재 주 이후 날짜에서는 `그 밖의 할 일`(`MAINTENANCE`)만 추가할 수 있고, 목표 행동은 그 주가 되어 주간 목표를 만든 뒤 추가한다. 이를 어기면 `POST /api/actions`와 `PATCH /api/actions/{id}`가 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`를 반환한다. 화면은 같은 날짜에서 폼의 목표 선택을 막고 안내 문구를 보여 주므로 이 오류는 방어용이다. 지난 주 날짜에는 새 규칙을 두지 않고 기존 방식으로 그 날짜를 기간에 포함하는 주간 목표를 찾는다. 그 주에 만든 주간 목표가 있으면 연결하고 없으면 `WEEKLY_GOAL_REQUIRED`다. 이때 응답 `details`에 `performedDate`를 넣어 화면이 이번 주와 지난 주 문구를 가르게 했다. `[오늘로 옮기기]`처럼 지난 주 연결을 그대로 둔 채 수행일만 오늘로 바꾸는 요청은 현재 주 안이므로 막지 않는다.
+
+**버린 대안.** (1) 미래 주간 목표를 미리 만들 수 있게 한다: 결정 5와 월간 목표의 현재 달 규칙을 깨고, 주간 목표 기간 겹침·리포트 기간 계산·`이번 주` 판단이 복잡해진다. (2) `WEEKLY_GOAL_REQUIRED`를 그대로 쓴다: 미래 주에서는 사용자가 할 수 있는 조치가 없어 안내가 틀린다. 오류 원인(날짜가 범위 밖)이 코드에 드러나는 편이 낫다. (3) 미래 날짜 행동을 아예 막는다: `그 밖의 할 일`은 주간 목표가 필요 없고 미리 적어 두는 쓰임이 있어(`DASH-011`) 유지한다.
+
+### 결정 18 — 지난 날짜의 확정하지 않은 변경은 없는 것으로 본다 (`FOCUS-016`, `FN-QUAD-02`)
+**문제.** 분류는 수행일이 오늘인 행동에만 할 수 있다(`CLASSIFICATION_DATE_INVALID`). 그래서 어제 점을 옮기고 확정하지 않은 채 날이 지나면, 그 변경은 확정할 수도 취소할 수도 없다. 그대로 두면 어제 날짜를 조회할 때 확정하지 않은 위치가 확정 좌표처럼 보이거나, `RECLASSIFYING`·`PENDING_UNCLASSIFY` 상태가 영원히 남는다.
+
+**결정.** 오늘이 아닌 날짜를 조회할 때는 확정 좌표만 쓰고, 미확정 좌표와 되돌리기 대기는 없는 것으로 응답한다. 확정 좌표가 있으면 `CONFIRMED`, 없으면 `UNCLASSIFIED`다. `classification.unconfirmedChanges`도 0이다. DB의 미확정 값은 지우지 않는다. 읽을 때만 무시하면 요청 경로에 쓰기가 생기지 않고, 별도 정리 코드가 필요 없으며, 규칙이 읽는 한 곳에만 있어 인스턴스마다 결과가 같다. 기존 예약 작업은 30일 지난 삭제 목표를 정리하는 작업(ERD §4.4)이라 사분면 값을 지우는 일과 성격이 맞지 않는다. 남은 값은 어디에서도 쓰이지 않으므로 저장 공간 외의 문제가 없다.
+
+**버린 대안.** (1) 자정에 예약 작업으로 지난 날짜의 미확정 값을 지운다: 시간대별 자정 판단이 필요하고 작업이 실패하면 읽기 결과가 달라진다. 읽을 때 무시하는 규칙은 어차피 필요해 이중이 된다. (2) 지난 날짜도 확정·취소를 허용한다: `오늘 분류`라는 기능 정의와 맞지 않고 지난 기록이 소급해서 바뀐다. (3) 날이 바뀔 때 미확정 변경을 자동 확정한다: 사용자가 확정하지 않은 위치가 확정 기록이 된다.
+
+### 결정 19 — 점 배치와 트레이 되돌리기를 하나의 `PUT .../placement`로 합친다 (`FN-QUAD-01`)
+**문제.** 이전 문서는 `PUT /api/actions/{id}/placement`(놓기·옮기기)와 `PUT /api/actions/{id}/placement/tray`(트레이로 되돌리기)를 따로 두었다. 둘 다 같은 행동의 같은 미확정 위치를 바꾸고 응답도 같다. 경로가 둘이면 클라이언트가 어느 쪽을 부를지 판단해야 하고, 오늘 날짜 검사·소유권 검사·응답 규칙을 두 곳에 같게 구현해야 한다.
+
+**결정.** 행동의 위치(placement)를 하나의 리소스로 보고, `PUT /api/actions/{id}/placement` 하나로 미확정 위치를 지정한다. 트레이는 좌표가 없는 위치이므로 `importance`와 `urgency`를 둘 다 `null`로 보낸다. 서버가 확정 좌표 유무에 따라 `UNCLASSIFIED`·`PENDING`·`RECLASSIFYING`·`PENDING_UNCLASSIFY`를 정하는 규칙은 그대로다. `{ "tray": true }` 같은 별도 플래그 대신 같은 두 필드를 쓰면 요청 모양이 하나이고, "좌표를 지정하거나 좌표 없음을 지정한다"는 한 가지 동작이 된다. 두 필드를 항상 함께 보내게 해 한쪽만 `null`인 요청은 400으로 거른다.
+
+**버린 대안.** (1) 경로 두 개 유지: 위의 중복이 남는다. (2) `DELETE .../placement`로 트레이 되돌리기: 확정 좌표가 있으면 행을 지우지 않고 `PENDING_UNCLASSIFY`로 바꾸는 상태 변경이라 DELETE의 의미와 어긋나고 `DELETE .../placement/pending`(변경 취소)과 헷갈린다. (3) `{ "tray": true }` 플래그: 좌표 필드와 동시에 올 때의 충돌 규칙이 더 필요하다.
+
+### 결정 20 — 연간 리포트 탭은 12월에만, 분기 탭은 3·6·9·12월에만 둔다 (`REVIEW-004`)
+**문제.** 진행 중인 연간·분기 기간도 보고 싶을 수 있어, 해당 탭을 항상 보여 줄지 정해야 한다.
+
+**결정.** 연간 리포트는 요구사항(`REVIEW-001`)대로 연말에 보는 리포트라 12월에만, 분기 리포트는 분기 마지막 달에만 탭을 보여 준다. 진행 중인 기간의 탭은 만들지 않는다. 끝나지 않은 기간을 지난 기간과 비교하면 아직 쌓이지 않은 기록 때문에 변화가 작게 보여 성과가 줄어든 것처럼 오해하기 쉽다. 탭 수가 달마다 고정되지 않으면 화면과 서버(`startBase`, 진행 중 표시)가 처리할 경우도 늘어난다. 다만 `GET /api/reports`는 진행 중인 기간도 계산해 주므로(§4.12) 탭이 없을 뿐 API가 막는 것은 아니다.
+
+**버린 대안.** (1) 모든 달에 분기·연간 탭 표시: 위의 오해와 복잡도 문제가 있다. (2) 진행 중 탭에 `진행 중` 배지를 붙여 표시: 배지로도 막대 두 개의 비교 의미가 달라지지 않아 오해를 막지 못한다.

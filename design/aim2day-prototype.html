@@ -309,6 +309,15 @@
         padding: 8px;
         background: #f8fafc;
       }
+      .unclassified-tray:empty::before {
+        content: "점을 이곳으로 끌어 놓으면 트레이로 돌아가요";
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      .unclassified-tray.drop-target {
+        border-color: #2469c9;
+        background: #edf5ff;
+      }
       .unclassified-tray .plot-point:not(.dragging) {
         position: relative;
         left: auto;
@@ -610,6 +619,16 @@
           class="mt-2 text-xs text-slate-600"
           role="status"
         ></p>
+        <!-- 현재 주 이후 날짜에는 주간 목표가 없으므로 그 밖의 할 일만 추가할 수 있다(API 결정 17). -->
+        <p
+          id="beyondWeekHint"
+          hidden
+          class="mt-2 text-xs text-[#8A5A12]"
+          role="status"
+        >
+          다음 주 이후 날짜에는 목표 행동을 추가할 수 없어요. 그 주가 되면 주간
+          목표를 만든 뒤 추가하세요.
+        </p>
         <!-- 지난 미완료: 오늘 목록에만 표시하며 오늘 완료 수와 사분면에 포함하지 않는다. -->
         <details
           id="pastIncompleteArea"
@@ -648,7 +667,8 @@
           <p id="unclassifiedCount" class="mt-2 text-sm font-medium"></p>
           <div id="unclassifiedArea">
             <p class="mt-4 mb-2 text-xs font-semibold text-slate-600">
-              미분류 · 점을 아래 좌표 평면으로 옮겨 주세요
+              미분류 트레이 · 점을 아래 좌표 평면으로 끌어 놓고, 되돌릴 점은 이
+              트레이로 끌어 놓으세요
             </p>
             <div
               id="unclassifiedTray"
@@ -2160,6 +2180,15 @@
         const [y, m, d] = value.split("-").map(Number);
         return new Date(y, m - 1, d + days).toLocaleDateString("sv-SE");
       };
+      // 오늘이 속한 주의 마지막 날. 주 시작 요일 설정(localStorage)을 따른다.
+      const currentWeekEnd = () => {
+        const [y, m, d] = demoToday.split("-").map(Number);
+        const dow = new Date(y, m - 1, d).getDay();
+        const start = Number(localStorage.getItem("aim2day-week-start") || 0);
+        return shiftDate(demoToday, 6 - ((dow - start + 7) % 7));
+      };
+      // 주간 목표는 현재 주에만 만들 수 있으므로, 현재 주 이후 날짜에는 목표 행동을 추가할 수 없다.
+      const isBeyondCurrentWeek = () => viewDate > currentWeekEnd();
       const actionModel = [
         {
           id: "sample-action-01",
@@ -2371,7 +2400,8 @@
           const classification = document.createElement("span");
           classification.className = "mt-1 block text-[11px] text-slate-500";
           classification.dataset.classificationSummary = "";
-          // 다른 날짜는 그날 확정한 좌표를 보여 준다. 기록이 없으면 미분류.
+          // 다른 날짜는 그날 확정한 좌표만 보여 준다. 확정하지 않은 변경(미확정 좌표,
+          // 되돌리기 대기)은 없는 것으로 본다(API 결정 18). 확정 기록이 없으면 미분류.
           if (!isToday())
             classification.textContent = action.savedPosition
               ? `확정 · ${positionText(action.savedPosition)}`
@@ -2445,6 +2475,20 @@
         id("quadrantDetails").hidden = !isToday();
         id("openClassification").hidden = !isToday();
         id("pastIncompleteArea").hidden = !isToday();
+        applyActionFormScope();
+      }
+      // 현재 주 이후 날짜에서는 추가 폼에 `그 밖의 할 일`만 허용하고 안내 문구를 보여 준다.
+      function applyActionFormScope() {
+        const beyond = isBeyondCurrentWeek();
+        const select = id("actionDestination");
+        for (const option of select.options)
+          if (option.value && option.value !== "maintenance")
+            option.disabled = beyond;
+        id("beyondWeekHint").hidden = !beyond;
+        if (beyond && select.value !== "maintenance") {
+          select.value = "maintenance";
+          select.dispatchEvent(new Event("change"));
+        }
       }
       // 날짜 이동. 해야 할 일·일정, 이번 주, 이번 달 영역은 날짜와 무관하게 유지한다.
       function moveViewDate(value) {
@@ -2527,6 +2571,9 @@
 
           const weekly = document.getElementById("weeklyDestination");
           if (destination.value !== "maintenance" && !weekly.value) return;
+          // 서버도 같은 규칙으로 거부한다(GOAL_ACTION_DATE_OUT_OF_RANGE).
+          if (destination.value !== "maintenance" && isBeyondCurrentWeek())
+            return;
           actionModel.push({
             id: crypto.randomUUID
               ? crypto.randomUUID()
@@ -2820,7 +2867,8 @@
               stateSummary(row.dataset.actionId);
           });
       }
-      // 좌표판에서 마지막으로 선택한 점. [선택한 점 트레이로 보내기]와 Delete 키가 사용한다.
+      // 좌표판에서 마지막으로 선택한 점. 트레이로 끌어 놓기가 기본이고,
+      // [선택한 점 트레이로 보내기]와 Delete 키는 드래그가 어려운 사용자를 위한 대체 수단이다.
       let selectedPointKey = "";
       // 배치된 점을 미분류 트레이로 되돌린다. 확정된 점이면 확정 전까지 되돌리기 대기 상태다.
       function sendToTray(key) {
@@ -3013,6 +3061,10 @@
               }
               const rect = grid.getBoundingClientRect();
               point.classList.add("dragging");
+              id("unclassifiedTray").classList.toggle(
+                "drop-target",
+                overTray(event),
+              );
               place(
                 drag.x + (100 * (event.clientX - drag.left)) / rect.width,
                 drag.y - (100 * (event.clientY - drag.top)) / rect.height,
@@ -3020,7 +3072,26 @@
               );
               showDetail();
             };
+            // 좌표판의 점을 트레이로 끌어 놓았는지 확인한다.
+            const overTray = (event) => {
+              const rect = id("unclassifiedTray").getBoundingClientRect();
+              return (
+                event.clientX >= rect.left &&
+                event.clientX <= rect.right &&
+                event.clientY >= rect.top &&
+                event.clientY <= rect.bottom
+              );
+            };
             point.onpointerup = (event) => {
+              id("unclassifiedTray").classList.remove("drop-target");
+              // 좌표판의 점을 트레이로 끌어 놓으면 트레이로 보낸다(기본 방법).
+              if (drag && !drag.fromTray && drag.id === event.pointerId) {
+                if (point.classList.contains("dragging") && overTray(event)) {
+                  drag = null;
+                  sendToTray(key);
+                }
+                return;
+              }
               if (!drag?.fromTray || drag.id !== event.pointerId) return;
               const rect = grid.getBoundingClientRect();
               const dropped =
@@ -3133,7 +3204,8 @@
               }, 350);
             };
           });
-        id("unclassifiedArea").hidden = tray.childElementCount === 0;
+        // 트레이는 비어 있어도 보여 준다. 좌표판의 점을 끌어 되돌릴 목적지이기 때문이다.
+        id("unclassifiedArea").hidden = false;
       }
       id("suggest").onclick = () => toast("해당 기능은 현재 개발 중입니다.");
       id("approve").onclick = () => {
