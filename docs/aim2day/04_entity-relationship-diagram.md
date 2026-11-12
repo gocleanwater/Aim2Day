@@ -376,7 +376,7 @@ erDiagram
 | `id` | 주간 목표 ID | BIGINT | N | AUTO_INCREMENT | PK |
 | `monthly_goal_id` | 귀속 월간 목표 ID | BIGINT | N | - | FK → `monthly_goals(id)` ON DELETE RESTRICT. 월 경계 주도 단일 귀속 |
 | `start_date` | 주간 시작일 | DATE | N | - | 사용자 주 시작 요일 기준 시작일 |
-| `end_date` | 주간 종료일 | DATE | N | - | 주간 시작일 + 6일 (7일 기간) |
+| `end_date` | 주간 종료일 | DATE | N | - | 주간 시작일 + 6일 (7일 기간). 사용자가 나중에 주 시작 요일을 바꿔도 이미 만든 주간 목표의 기간은 바꾸지 않는다 |
 | `title` | 이번 주 결과 제목 | VARCHAR(100) | N | - | 주간 목표 제목 |
 | `description` | 설명 | TEXT | Y | NULL | 다음 단계 및 상세 계획 설명 |
 | `measurement_type` | 측정 방식 | VARCHAR(20) | N | 'CHECKLIST' | 'CHECKLIST'(행동완료비율) 또는 'NUMERIC'(수치형) |
