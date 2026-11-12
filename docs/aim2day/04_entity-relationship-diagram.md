@@ -60,7 +60,7 @@ erDiagram
     users {
         bigint id PK
         varchar email UK "이메일 (UNIQUE)"
-        varchar username UK "사용자명 (UNIQUE, 이메일·사용자명 로그인 지원)"
+        varchar username "사용자명 (중복 허용, 화면 표시용)"
         varchar password_hash "단방향 암호화 해시 (BCrypt)"
         boolean is_verified "이메일 인증 여부"
         datetime created_at "가입 일시"
@@ -255,7 +255,7 @@ erDiagram
 |---|---|---|---|---|---|
 | `id` | 사용자 고유 ID | BIGINT | N | AUTO_INCREMENT | PK |
 | `email` | 이메일 주소 | VARCHAR(255) | N | - | UNIQUE. 로그인 및 인증 링크 수신용 |
-| `username` | 사용자명 | VARCHAR(50) | N | - | **UNIQUE**. 로그인 화면에서 "이메일 또는 사용자명" 로그인 지원(`AUTH-002`). UI 표시명 겸용 |
+| `username` | 사용자명 | VARCHAR(50) | N | - | 중복 허용. 화면 표시명으로만 사용하며 로그인 식별자로 사용하지 않음 |
 | `password_hash` | 비밀번호 해시 | VARCHAR(255) | N | - | 단방향 해시(BCrypt). 로그 출력 엄격 금지(`NFR-010`) |
 | `is_verified` | 이메일 인증 여부 | BOOLEAN | N | FALSE | 메일 인증 링크 클릭 완료 시 TRUE |
 | `created_at` | 가입 일시 | DATETIME | N | CURRENT_TIMESTAMP | 계정 생성 일시 |
@@ -263,7 +263,6 @@ erDiagram
 
 - **인덱스**:
   - `idx_users_email` (UNIQUE): `email`
-  - `idx_users_username` (UNIQUE): `username`
 
 ---
 
@@ -710,8 +709,8 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 ### 결정 6 — `criteria_last_revised_at` 추가 (`GOAL-006`, `REVIEW-001`)
 "기준·배점 변경으로 비교 불가" 리포트 사유 판단을 위해 최종 개정 일시 컬럼 추가. `criteria_confirmed_at`은 최초 확정 시각만 가리킴.
 
-### 결정 7 — `username` UNIQUE 제약 추가 (`AUTH-002`)
-로그인 화면("이메일 또는 사용자명")에서 사용자명이 로그인 식별자로 사용되므로 UNIQUE 제약 필수.
+### 결정 7 — 이메일 전용 로그인과 사용자명 중복 허용 (`AUTH-002`)
+로그인 식별자는 UNIQUE 제약이 있는 `email`만 사용한다. `username`은 화면 표시명이며 다른 사용자와 같아도 된다.
 
 ### 결정 8 — `calendar_items` hard-delete 정책
 달력 항목은 삭제 복원·아카이빙 요구사항이 없으므로 소프트 삭제 없이 hard-delete 적용. 과제 범위 단순화.
