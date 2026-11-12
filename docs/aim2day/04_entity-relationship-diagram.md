@@ -71,6 +71,7 @@ erDiagram
         varchar week_start_day "주 시작 요일 (기본 SUNDAY)"
         varchar timezone "시간대 (기본 Asia/Seoul)"
         datetime created_at "생성 일시"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 
@@ -79,6 +80,7 @@ erDiagram
         bigint user_id FK,UK "사용자 ID (사용자당 1행)"
         int current_step "진행 단계 (1~4)"
         json draft_data "중도 입력 임시 데이터"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 
@@ -97,6 +99,7 @@ erDiagram
         datetime criteria_last_revised_at "기준 최종 개정 일시"
         datetime deleted_at "소프트 삭제 일시 (30일 유예)"
         datetime created_at "생성 일시"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 
@@ -124,6 +127,7 @@ erDiagram
         decimal progress_rate "월간 실행률 (0.00~100.00 가중평균)"
         datetime deleted_at "소프트 삭제 일시 (30일 유예)"
         datetime created_at "생성 일시"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 
@@ -143,6 +147,7 @@ erDiagram
         decimal progress_rate "주간 진행률 (0.00~100.00, 막대 상한 100)"
         datetime deleted_at "소프트 삭제 일시 (30일 유예)"
         datetime created_at "생성 일시"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 
@@ -159,6 +164,7 @@ erDiagram
         text result_summary "기록된 결과물 (리포트 조회용)"
         datetime deleted_at "삭제 일시"
         datetime created_at "생성 일시 (입력 순서 tie-break에 id ASC 사용)"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 
@@ -166,10 +172,12 @@ erDiagram
         bigint id PK
         bigint action_id FK "행동 ID"
         date classification_date "분류 기준 날짜"
-        int importance_x "중요도 (0~100, 목표연결은 >=50)"
-        int urgency_y "긴급도 (0~100)"
-        boolean is_confirmed "확정 여부 (기본 FALSE: 미확정/pending)"
-        datetime confirmed_at "확정 일시 (NULL이면 미확정)"
+        int importance_x "확정 중요도 (0~100, 목표연결은 >=50, NULL이면 확정 전)"
+        int urgency_y "확정 긴급도 (0~100, NULL이면 확정 전)"
+        datetime confirmed_at "마지막 확정 일시"
+        int pending_importance_x "미확정 중요도 (NULL이면 미확정 변경 없음)"
+        int pending_urgency_y "미확정 긴급도"
+        boolean is_pending_unclassify "트레이로 되돌리기 대기 여부"
         datetime created_at "생성 일시"
         datetime updated_at "수정 일시"
     }
@@ -186,6 +194,7 @@ erDiagram
         boolean is_completed "완료 여부"
         datetime completed_at "완료 처리 일시"
         datetime created_at "생성 일시"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 
@@ -220,6 +229,7 @@ erDiagram
         text improvements "전보다 할 수 있게 된 일"
         text next_focus "다음 기간에 집중할 일"
         datetime created_at "생성 일시"
+        bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
     }
 ```
@@ -254,13 +264,13 @@ erDiagram
 
 | 목적 | Redis 키 | 값 | 만료 |
 |---|---|---|---|
-| 이메일 인증 | `auth:verify:{token_hash}` | `user_id` | 발급 시 TTL 설정 |
-| 비밀번호 재설정 | `auth:reset:{token_hash}` | `user_id` | 발급 시 TTL 설정 |
+| 이메일 인증 | `auth:verify:{token_hash}` | `user_id` | 24시간 |
+| 비밀번호 재설정 | `auth:reset:{token_hash}` | `user_id` | 30분 |
 
 - 서버는 예측하기 어려운 임의 토큰을 만들고 원문은 메일 링크로만 전달한다. Redis 키에는 원문 대신 토큰의 해시를 사용하고, 원문 토큰을 DB·Redis·로그에 저장하지 않는다.
 - 인증 완료 또는 새 비밀번호 제출 요청 때 전달된 토큰을 해시해 조회한다. 토큰은 만료 전에 한 번만 사용할 수 있도록 Redis 6.2+의 `GETDEL` 또는 동등한 원자적 연산으로 소비한다. 비밀번호 재설정 화면을 단순히 여는 것만으로 토큰을 소비하지 않는다.
 - Redis에서 토큰을 소비한 뒤 MySQL 상태 변경이 실패하면 두 저장소를 한 트랜잭션으로 되돌릴 수 없다. 이 경우 사용자가 새 링크를 요청하도록 안내한다.
-- Redis 재시작 등으로 토큰이 사라져도 계정과 비밀번호는 MySQL에 남는다. 사용자는 새 인증·재설정 링크를 요청할 수 있다. 구체적인 TTL 길이는 인증 API 설계에서 정한다.
+- Redis 재시작 등으로 토큰이 사라져도 계정과 비밀번호는 MySQL에 남는다. 사용자는 새 인증·재설정 링크를 요청할 수 있다. 메일 재요청 제한 등 인증 API 규칙은 [API 명세서](05_api-specification.md) §3.1을 따른다.
 
 ---
 
@@ -275,6 +285,7 @@ erDiagram
 | `week_start_day` | 주 시작 요일 | VARCHAR(10) | N | 'SUNDAY' | SUNDAY, MONDAY, ..., SATURDAY 중 하나 |
 | `timezone` | 계정 시간대 | VARCHAR(50) | N | 'Asia/Seoul' | IANA Timezone 명칭 |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **인덱스**:
@@ -291,6 +302,7 @@ erDiagram
 | `user_id` | 사용자 ID | BIGINT | N | - | FK → `users(id)` ON DELETE CASCADE. UNIQUE |
 | `current_step` | 진행 단계 | INT | N | 1 | 1~4 단계 식별 |
 | `draft_data` | 입력 초안 데이터 | JSON | N | - | 각 단계별 임시 입력값 (목표명, 결과, 행동 등) |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 최종 임시저장 시각 |
 
 - **설계 결정**: 브라우저 로컬스토리지만 사용하면 다른 기기 접속·쿠키 삭제 시 유실되므로 DB에 보관한다. 온보딩 완료 후 이 행은 삭제한다.
@@ -318,6 +330,7 @@ erDiagram
 | `criteria_last_revised_at` | 기준 최종 개정 일시 | DATETIME | Y | NULL | 확정 후 기준·배점을 개정할 때마다 갱신. 화면에 최근 개정 시각 표시 |
 | `deleted_at` | 소프트 삭제 일시 | DATETIME | Y | NULL | 삭제 시각 기록. 30일간 복구 유예 |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **인덱스**:
@@ -360,9 +373,10 @@ erDiagram
 | `description` | 설명 / 기대 결과 | TEXT | Y | NULL | 상세 설명 |
 | `color` | 표시 색상 | VARCHAR(20) | Y | NULL | NULL이면 부모 연간 목표의 `color`를 사용 (`GOAL-011`) |
 | `status` | 상태 | VARCHAR(20) | N | 'PROGRESS' | PROGRESS, COMPLETED, ON_HOLD, DROPPED |
-| `progress_rate` | 월간 실행률 (%) | DECIMAL(5,2) | N | 0.00 | 하위 주간 목표 가중 평균. 소수점 셋째 자리에서 반올림 (0.00~100.00) |
+| `progress_rate` | 월간 실행률 (%) | DECIMAL(5,2) | N | 0.00 | 하위 주간 목표 가중 평균. 소수점 셋째 자리에서 반올림 (0.00~100.00). 직접 UPDATE로만 변경, 엔티티는 `updatable=false`(결정 16·17) |
 | `deleted_at` | 소프트 삭제 일시 | DATETIME | Y | NULL | 삭제 시각 기록 (30일 유예) |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **인덱스**:
@@ -384,12 +398,13 @@ erDiagram
 | `color` | 표시 색상 | VARCHAR(20) | Y | NULL | NULL이면 부모 월간 목표의 색(그것도 NULL이면 연간 목표 색)을 사용 (`GOAL-011`) |
 | `measurement_type` | 측정 방식 | VARCHAR(20) | N | 'CHECKLIST' | 'CHECKLIST'(행동완료비율) 또는 'NUMERIC'(수치형) |
 | `target_value` | 수치형 목표값 | DECIMAL(10,2) | Y | NULL | NUMERIC일 때 필수. 양수 |
-| `current_value` | 수치형 현재 완료값 | DECIMAL(10,2) | N | 0.00 | 실제 완료 합산값. 초과 달성값 원본 그대로 보존 |
+| `current_value` | 수치형 현재 완료값 | DECIMAL(10,2) | N | 0.00 | 실제 완료 합산값. 초과 달성값 원본 그대로 보존. 직접 UPDATE로만 변경, 엔티티는 `updatable=false`(결정 16·17) |
 | `weight` | 월간 반영 가중치 | DECIMAL(5,2) | N | 1.00 | 월간 진행률 가중 평균 산출 가중치 |
 | `status` | 상태 | VARCHAR(20) | N | 'PROGRESS' | PROGRESS, COMPLETED, ON_HOLD, DROPPED |
-| `progress_rate` | 주간 진행률 (%) | DECIMAL(5,2) | N | 0.00 | 0.00~100.00. 소수점 셋째 자리에서 반올림. 수치 초과 시에도 상한 100 |
+| `progress_rate` | 주간 진행률 (%) | DECIMAL(5,2) | N | 0.00 | 0.00~100.00. 소수점 셋째 자리에서 반올림. 수치 초과 시에도 상한 100. 직접 UPDATE로만 변경, 엔티티는 `updatable=false`(결정 16·17) |
 | `deleted_at` | 소프트 삭제 일시 | DATETIME | Y | NULL | 삭제 시각 기록 (30일 유예) |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **인덱스**:
@@ -416,12 +431,15 @@ erDiagram
 | `result_summary` | 기록된 결과물 | TEXT | Y | NULL | 수행 후 남긴 산출물 요약. 리포트의 "기록된 결과물" 조회용 |
 | `deleted_at` | 삭제 일시 | DATETIME | Y | NULL | 소프트 삭제 시각 |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 등록 시각 |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **비즈니스 규칙**:
   - `weekly_goal_id IS NOT NULL` → 목표 연결 행동(Focus Action): 리포트·진행률 집계 대상
   - `weekly_goal_id IS NULL` → Maintenance(`그 밖의 할 일`): 목표 진행률·리포트에서 자동 제외
   - `contribution_value`는 생성 시 약속한 값이고, 실제 완료 가산은 `weekly_goal_numeric_records.amount`로 추적한다. 완료 취소 시 해당 `weekly_goal_numeric_records` 행을 삭제하고 `weekly_goals.current_value`를 차감한다.
+  - 완료된 행동의 `contribution_value`를 바꾸면 같은 트랜잭션에서 해당 기록의 `amount`를 새 값으로 바꾸고 `current_value`에 (새 값 − 이전 값)을 더한다. 연결 주간 목표를 바꾸면 이전 목표에서 기여량을 빼고 기록을 새 목표로 옮겨 더한다.
+  - 완료된 행동을 삭제하면 `deleted_at`만 기록해 목록에서 숨긴다. 완료 기록이므로 리포트 집계, 수치 기록, 체크형 진행률의 분자·분모에 그대로 남는다. 미완료 행동을 삭제하면 체크형 진행률의 분모에서 빠진다.
 - **인덱스**:
   - `idx_act_user_perf_date`: `(user_id, performed_date, deleted_at)`
   - `idx_act_weekly_goal`: `(weekly_goal_id, is_completed)`
@@ -429,26 +447,36 @@ erDiagram
 ---
 
 #### 9) `action_quadrant_placements` (일일 사분면 중요도/긴급도 좌표)
-- **설명**: 오늘 할 일에 대해 사용자가 드래그/키보드로 사분면에 배치하고 최종 확정한 중요도(x)와 긴급도(y) 좌표를 저장한다. 2단계 흐름: **트레이→사분면 배치(미확정, `is_confirmed=FALSE`)** → **`[오늘 분류 확정]` 클릭(확정, `is_confirmed=TRUE`)**. (`FOCUS-014~016`, `FN-QUAD-01~02`)
+- **설명**: 오늘 할 일에 대해 사용자가 드래그/키보드로 사분면에 배치한 좌표를 저장한다. **확정 좌표**와 **미확정 좌표**를 따로 둔다. 점을 옮기면 미확정 좌표만 바뀌고, `[오늘 분류 확정]`을 눌러야 확정 좌표가 바뀐다. 이미 확정한 점을 다시 옮기고 확정하지 않으면 이전 확정 좌표가 그대로 남는다. (`FOCUS-014~016`, `FN-QUAD-01~02`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
 |---|---|---|---|---|---|
 | `id` | 분류 배치 ID | BIGINT | N | AUTO_INCREMENT | PK |
 | `action_id` | 대상 행동 ID | BIGINT | N | - | FK → `actions(id)` ON DELETE CASCADE |
 | `classification_date` | 분류 기준 날짜 | DATE | N | - | 해당 좌표가 적용된 날짜. 계정 시간대 기준 |
-| `importance_x` | 중요도 좌표 | INT | N | - | 0~100. 목표 연결 행동은 반드시 ≥ 50 (`FOCUS-016`) |
-| `urgency_y` | 긴급도 좌표 | INT | N | - | 0~100 |
-| `is_confirmed` | 분류 확정 여부 | BOOLEAN | N | **FALSE** | 사분면 배치 직후는 FALSE(미확정/pending). `[오늘 분류 확정]` 클릭 시 TRUE로 UPDATE |
-| `confirmed_at` | 확정 일시 | DATETIME | Y | **NULL** | 미확정 상태에서는 NULL. 확정 클릭 시 현재 시각으로 UPDATE |
+| `importance_x` | 확정 중요도 | INT | Y | NULL | 0~100. 목표 연결 행동은 반드시 ≥ 50 (`FOCUS-016`). 한 번도 확정하지 않았으면 NULL |
+| `urgency_y` | 확정 긴급도 | INT | Y | NULL | 0~100. `importance_x`와 함께 NULL이거나 함께 값이 있다 |
+| `confirmed_at` | 마지막 확정 일시 | DATETIME | Y | NULL | 확정 좌표가 바뀔 때마다 현재 시각으로 갱신 |
+| `pending_importance_x` | 미확정 중요도 | INT | Y | NULL | 0~100. 목표 연결 행동은 ≥ 50. 확정하지 않은 변경이 없으면 NULL |
+| `pending_urgency_y` | 미확정 긴급도 | INT | Y | NULL | 0~100. `pending_importance_x`와 함께 NULL이거나 함께 값이 있다 |
+| `is_pending_unclassify` | 트레이로 되돌리기 대기 | BOOLEAN | N | FALSE | 확정된 점을 트레이로 옮긴 뒤 아직 확정하지 않은 상태. TRUE이면 미확정 좌표는 NULL |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 사분면 배치 시각 |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 당일 재분류·확정 시 변경 시각 |
 
 - **인덱스**:
   - `idx_aqp_action_date` (UNIQUE): `(action_id, classification_date)`
 - **상태 흐름**:
-  - 미분류(트레이): 레코드 없음
-  - 미확정: 레코드 존재, `is_confirmed=FALSE`, `confirmed_at=NULL`
-  - 확정: 레코드 존재, `is_confirmed=TRUE`, `confirmed_at` 채워짐
+
+| 상태 | 확정 좌표 | 미확정 좌표 | `is_pending_unclassify` | 화면 |
+|---|---|---|---|---|
+| 미분류 | 행 없음 | 행 없음 | - | 트레이의 점 |
+| 미확정 | NULL | 있음 | FALSE | 미확정 위치의 점 |
+| 확정 | 있음 | NULL | FALSE | 확정 위치의 점 |
+| 재분류 중 | 있음 | 있음 | FALSE | 미확정 위치의 점. 확정 전까지 확정 좌표 유지 |
+| 되돌리기 대기 | 있음 | NULL | TRUE | 트레이의 점. 확정 전까지 확정 좌표 유지 |
+
+- **확정 처리**: 미확정 좌표가 있으면 확정 좌표로 옮기고 미확정 좌표를 NULL로 만든다. `is_pending_unclassify=TRUE`인 행은 지운다(미분류).
+- **변경 취소**: 미확정 좌표와 `is_pending_unclassify`만 초기화한다. 확정 좌표가 없던 행이면 행을 지운다.
 
 ---
 
@@ -470,6 +498,7 @@ erDiagram
 | `is_completed` | 완료 여부 | BOOLEAN | N | FALSE | 완료 체크 여부. 완료 항목은 달력에서 옅게 표시 |
 | `completed_at` | 완료 처리 일시 | DATETIME | Y | NULL | 완료 체크 시각 |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 등록 시각 |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **주의**: 달력 항목 완료는 목표 행동의 실제 수행일(`performed_date`)이나 목표 진행률을 생성·변경하지 않는다.
@@ -517,7 +546,7 @@ erDiagram
 | `created_at` | 기록 일시 | DATETIME | N | CURRENT_TIMESTAMP | 기록 시각 |
 
 - **중복 방지 전략**:
-  - `action_id`에 UNIQUE 제약을 둔다. 같은 행동 완료 요청이 여러 인스턴스에 동시에 도착해도 행동 기여 기록은 한 행만 삽입할 수 있다. 기록 삽입과 `weekly_goals.current_value` 증가는 같은 MySQL 트랜잭션에서 처리한다.
+  - `action_id`에 UNIQUE 제약을 둔다. 같은 행동 완료 요청이 여러 인스턴스에 동시에 도착해도 행동 기여 기록은 한 행만 삽입할 수 있다. 서로 다른 행동의 동시 완료까지 막지는 못하므로 `current_value`는 `UPDATE weekly_goals SET current_value = current_value + :delta WHERE id = :id`로 DB에서 원자적으로 바꾼다(결정 16). 기록 삽입·삭제와 `current_value` 변경, 진행률 재계산은 같은 MySQL 트랜잭션에서 처리한다.
   - `DIRECT_INPUT`의 `action_id`는 NULL이다. MySQL UNIQUE 인덱스는 여러 NULL을 허용하므로 같은 주간 목표에 직접 기록을 여러 번 추가할 수 있다.
   - 완료 취소 시 행동 기여 기록을 삭제하고 기여량을 차감하는 작업도 같은 트랜잭션에서 처리한다.
 - **인덱스**:
@@ -540,6 +569,7 @@ erDiagram
 | `improvements` | 전보다 할 수 있게 된 일 | TEXT | Y | NULL | 사용자가 직접 작성한 성과/역량 회고 |
 | `next_focus` | 다음 기간에 집중할 일 | TEXT | Y | NULL | 사용자가 직접 작성한 다음 기간 집중 계획 |
 | `created_at` | 작성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 최초 작성 시각 |
+| `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 수정 시각 |
 
 - **인덱스**:
@@ -579,6 +609,7 @@ $$\text{주간 진행률} = \text{ROUND}\left( \frac{\text{완료 연결 행동 
 연결 행동이 0개 → '기록 없음' 반환 (퍼센트 미표시)
 
 **수치형 주간 목표**:
+- `current_value`의 모든 변경(완료·완료 취소·기여량 수정·완료한 행동의 주간 목표 이동·직접 입력 추가·삭제)은 Java에서 읽어 더하지 않고 `UPDATE weekly_goals SET current_value = current_value + :delta WHERE id = :id`로 DB에서 처리한다. 이어서 같은 트랜잭션에서 `SELECT ... FOR UPDATE`로 주간 목표 → 월간 목표(연간 목표에는 저장하는 진행률이 없다) 순서로 잠그고, 값을 다시 읽어 `progress_rate`를 계산한다(결정 16)
 - 행동 완료 시: `actions.contribution_value` → `weekly_goal_numeric_records` (source=ACTION_COMPLETION) 삽입 + `weekly_goals.current_value` 증가
 - 직접 입력 시: 사용자 입력 증분 → `weekly_goal_numeric_records` (source=DIRECT_INPUT) 삽입 + `weekly_goals.current_value` 증가
 - 완료 취소 시: 해당 `weekly_goal_numeric_records` 행 삭제 + `weekly_goals.current_value` 차감
@@ -624,8 +655,9 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 - **목표 연결 행동** (`weekly_goal_id IS NOT NULL`): 중요도 `x ≥ 50`만 허용, 긴급도 `y`는 0~100 자유.
 - **Maintenance** (`weekly_goal_id IS NULL`): `x`, `y` 모두 0~100 자유.
 - **미분류(트레이)**: 레코드 없음.
-- **미확정(pending)**: 레코드 존재, `is_confirmed=FALSE`, `confirmed_at=NULL`. 사용자가 사분면에 점을 놓는 순간 생성.
-- **확정**: `is_confirmed=TRUE`, `confirmed_at` 채워짐. `[오늘 분류 확정]` 클릭 시 트랜잭션으로 모든 미확정 행의 `is_confirmed=TRUE`, `confirmed_at=NOW()` 일괄 업데이트.
+- **미확정(pending)**: 사용자가 사분면에 점을 놓거나 옮기면 `pending_importance_x`, `pending_urgency_y`만 바꾼다. 확정 좌표는 건드리지 않는다.
+- **확정**: `[오늘 분류 확정]` 클릭 시 한 트랜잭션에서 그날의 모든 미확정 좌표를 확정 좌표로 옮기고 `confirmed_at=NOW()`로 갱신한다. 되돌리기 대기 행은 지운다.
+- 이미 확정한 점을 다시 옮기거나 트레이로 되돌려도 확정을 누르기 전까지 이전 확정 좌표를 유지한다(`FN-QUAD-02`).
 - 트레이에 남은 점은 미분류 상태를 유지 (레코드 없음).
 - 사분면 좌표는 순수 표시/정렬용이며 목표 진행률·행동 순서를 변경하지 않는다.
 
@@ -666,7 +698,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 ## 6. 문서 간 정합성 검토 및 결정 사항
 
 ### 결정 1 — 사분면 좌표 테이블 분리 (`FOCUS-016`)
-행동 테이블에 직접 좌표를 두면 날짜별 독립성이 훼손된다. `action_quadrant_placements`로 분리해 `(action_id, classification_date)` UNIQUE 키를 적용. 미분류(레코드 없음) ↔ 미확정(`is_confirmed=FALSE`) ↔ 확정(`is_confirmed=TRUE`) 3상태를 명확히 구분.
+행동 테이블에 직접 좌표를 두면 날짜별 독립성이 훼손된다. `action_quadrant_placements`로 분리해 `(action_id, classification_date)` UNIQUE 키를 적용. 확정 좌표와 미확정 좌표를 별도 컬럼에 두어, 확정한 점을 다시 옮겨도 다시 확정하기 전까지 이전 확정 좌표가 남는다(`FN-QUAD-02`). 상태는 미분류(레코드 없음)·미확정·확정·재분류 중·되돌리기 대기로 구분한다(§3.3의 9번 테이블).
 
 ### 결정 2 — 달력 항목의 목표 연결 단위 (`DASH-007`, `DASH-010`)
 달력 필터·색상은 연간 목표 단위이므로 `calendar_items.yearly_goal_id` (NULLABLE)로 연결. 월간/주간 목표에 종속시키지 않고 독립 엔티티 유지.
@@ -713,3 +745,30 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 - DB를 나눌 수 없다. 나중에 서비스마다 DB를 분리하려 할 때 바로 막힌다.
 
 제출판은 모든 서비스가 MySQL 하나를 사용하고 목표 테이블이 `users(id)`를 외래키로 참조하므로 DB 수준의 결합은 남아 있다. 다만 테이블별 쓰기 주체는 하나의 서비스로 정해 서비스 경계를 지킨다.
+
+### 결정 15 — 수정 가능한 테이블에 `version` 컬럼 추가 (`PROG-008`)
+`user_settings`, `onboarding_drafts`, `yearly_goals`, `monthly_goals`, `weekly_goals`, `actions`, `calendar_items`, `period_reviews`에 `version BIGINT NOT NULL DEFAULT 0`을 둔다. JPA `@Version`으로 처리한다. 같은 목표를 두 브라우저 탭에서 고치거나, RR로 나뉜 요청이 서로 다른 인스턴스에서 동시에 처리될 때 오래된 요청이 최신 값을 덮어쓰지 않게 한다. 수정 요청의 `version`이 저장된 값과 다르면 API는 409 `VERSION_CONFLICT`를 반환한다([API 명세서](05_api-specification.md) §2.4).
+
+- 달성 기준 목록은 부모 `yearly_goals.version`으로 함께 보호한다.
+- 하위 행동 완료로 주간·월간 `progress_rate`만 다시 계산할 때는 `version`을 올리지 않는다. 사용자가 고치는 필드와 서버가 계산하는 필드를 구분해, 행동 완료가 열려 있는 목표 수정 화면과 충돌하지 않게 한다. Hibernate는 기본적으로 엔티티를 저장(flush)할 때 어느 필드든 바뀌면 `@Version`을 올리므로, 이 규칙은 엔티티 저장으로는 지킬 수 없고 결정 17의 방식으로 지킨다.
+- `action_quadrant_placements`, `weekly_goal_numeric_records`, `goal_progress_logs`, `yearly_goal_criteria`에는 두지 않는다. 앞의 둘은 UNIQUE 제약과 트랜잭션으로, 진행 기록은 추가만 하므로 충돌하지 않는다.
+
+### 결정 16 — 진행률은 원자적 UPDATE와 고정 잠금 순서로 갱신 (`PROG-003`, `PROG-004`, `DIST-002`)
+**문제.** `weekly_goal_numeric_records.action_id` UNIQUE는 같은 행동이 두 번 가산되는 것만 막는다. 서로 다른 행동 A(기여 2)와 B(기여 1)를 두 인스턴스에서 동시에 완료하고 두 행동이 같은 주간 목표를 가리키면, 각 인스턴스가 `current_value`를 3으로 읽어 한쪽은 5, 다른 쪽은 4를 써서 최종값이 5나 4가 된다(맞는 값은 6). 기여량 하나가 사라지고, 오류도 나지 않아 알 수 없다. 월간 진행률도 같다. 같은 달의 주간 목표 W1, W2가 동시에 바뀌면 각 요청이 상대 변경이 반영되기 전의 값으로 평균을 내고 마지막에 쓴 쪽이 이긴다.
+
+**결정.**
+- `weekly_goals.current_value`의 모든 변경(완료, 완료 취소, 기여량 수정, 완료한 행동의 주간 목표 변경, `DIRECT_INPUT` 추가·삭제)은 `UPDATE weekly_goals SET current_value = current_value + :delta WHERE id = :id`로 DB에서 원자적으로 처리한다. Java에서 읽어 더한 값을 저장하지 않는다. DB가 행 잠금을 잡고 현재 저장값에 더하므로 5나 4 대신 6이 된다.
+- `progress_rate`(주간, 이어서 월간)는 같은 트랜잭션에서 `SELECT ... FOR UPDATE`로 행을 잠근 뒤 값을 다시 읽어 계산한다. 잠금 전에 읽은 값은 쓰지 않는다. 잠금 순서는 주간 목표 → 월간 목표로 고정한다. 현재 저장하는 연간 진행률은 없으므로 연간 목표 행은 잠그지 않으며, 나중에 생기면 월간 다음에 잠근다. 순서를 고정하지 않으면 요청 X는 주간→월간, 요청 Y는 월간→주간으로 잠가 서로 기다리는 교착 상태가 생긴다.
+- 수치 기록 삽입·삭제는 같은 트랜잭션에서 처리한다. 중간에 실패하면 기록과 `current_value`가 함께 롤백된다.
+
+**버린 대안.** (1) `@Version` 낙관적 잠금을 진행률에도 적용하고 충돌 시 재시도: 같은 목표에서 행동이 동시에 완료될 때마다 `OptimisticLockException`이 나 재시도 코드가 필요하고, 열려 있는 목표 수정 화면이 행동 완료마다 409가 된다(결정 17). (2) `SERIALIZABLE` 격리 수준: 모든 쓰기에 적용되어 불필요하게 느리고 교착이 늘어난다. (3) 잠금 없이 `current_value`만 원자적 UPDATE하고 진행률은 그냥 계산: 두 요청이 각자 잠금 없이 읽은 값으로 비율을 계산해 마지막에 쓴 쪽이 이기므로, `current_value`는 맞아도 `progress_rate`가 한 단계 전 값으로 남을 수 있다.
+
+### 결정 17 — 진행률 컬럼은 엔티티에서 읽기 전용으로 두고 `version`을 올리지 않는다 (`PROG-008`)
+**문제.** 결정 15는 "진행률만 바뀔 때 `version`을 올리지 않는다"고 했지만, Hibernate는 기본적으로 관리 중인 엔티티의 어느 필드든 바뀌어 flush되면 `@Version`을 올린다. 일반적인 엔티티 저장으로는 이 규칙을 지킬 수 없다. 더 큰 문제는 값 덮어쓰기다. 사용자가 목표 제목을 고치는 요청이 주간 목표를 읽었을 때 `current_value`는 3이었다. 그 사이 다른 인스턴스에서 행동 완료가 DB를 5로 바꿨다. 수정 요청이 flush되면서 모든 컬럼을 쓰면 `current_value`가 3으로 되돌아가 완료한 기여량이 사라진다. 진행률 변경은 `version`을 올리지 않으므로 낙관적 잠금도 이를 잡지 못한다.
+
+**결정.**
+- `current_value`, `progress_rate`(주간·월간)처럼 서버가 계산하는 컬럼은 결정 16의 직접 JPQL/SQL UPDATE로만 바꾼다. 벌크·직접 UPDATE는 `version`을 건드리지 않는다(`versioned` 키워드를 쓰지 않는다). 연간 목표에는 저장하는 진행률이 없고, 기준 달성은 기준 테이블 변경이며 `yearly_goals.version`으로 보호한다(결정 15).
+- 엔티티에서는 이 컬럼들을 `@Column(updatable = false)`로 매핑해 엔티티 관점에서 읽기 전용으로 둔다. 제목 수정 같은 저장이 오래된 `current_value`나 `progress_rate`를 다시 쓰지 않는다. 위 예에서 DB의 5가 유지된다.
+- 사용자 수정이 `target_value`, `weight`, `monthly_goal_id`처럼 진행률에 영향을 주는 값을 바꾸면, 엔티티 저장 뒤에 결정 16과 같은 잠금·직접 UPDATE 경로로 진행률을 다시 계산한다.
+
+**버린 대안.** 진행률이 바뀔 때도 `version`을 올리는 방법: 같은 목표에서 행동이 동시에 완료되면 `OptimisticLockException`이 나 재시도가 필요하고, 사용자가 목표 수정 화면을 열어 둔 동안 행동을 하나 완료할 때마다 저장이 409 `VERSION_CONFLICT`가 된다. 사용자가 고치지 않은 값 때문에 충돌하는 것은 의도와 맞지 않는다.
