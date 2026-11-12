@@ -2,7 +2,7 @@
 
 ## 1. 개요 및 설계 원칙
 
-본 문서는 Aim2Day의 [요구사항 명세서](01_requirements.md), [화면 흐름과 와이어프레임](02_user-flow-and-wireframes.md), [기능 명세서](03_functional-specification.md) 및 [프로젝트 채점 기준](../project-grading-criteria.md)을 바탕으로 작성된 관계형 데이터베이스(MySQL 8.0+) ERD 및 데이터 모델 명세서다.
+본 문서는 Aim2Day의 [요구사항 명세서](01_requirements.md), [화면 흐름과 와이어프레임](02_user-flow-and-wireframes.md), [기능 명세서](03_functional-specification.md) 및 [프로젝트 채점 기준](../project-grading-criteria.md)을 바탕으로 작성된 관계형 데이터베이스(MySQL 8.0+) ERD 및 데이터 모델 명세서다. 일회용 인증 토큰처럼 Redis에만 보관하는 데이터는 관계형 ERD 밖에서 별도로 설명한다.
 
 ### 1.1 핵심 설계 원칙
 
@@ -13,7 +13,7 @@
 2. **연간 달성 기준(Criteria)과 실제 행동 기록(Execution)의 분리 (`GOAL-006`, `PLAN-002`, `REVIEW-001`, `수용기준 4`)**
    - 연간 목표의 진행률은 사용자가 정의하고 합계 100점으로 확정한 **달성 기준(Criteria)의 배점 합**으로만 산출한다.
    - 주간/월간 목표의 진행률은 하위 행동 완료율 및 실적 수치로 산출하며, 행동 완료가 연간 달성 기준을 자동으로 완료시키지 않는다.
-   - 확정 시점의 달성률을 **최초 기준선(Initial Baseline)**으로 기록하여, 이후 리포트는 기준선 이후의 순수 변화량(%p)만 집계한다.
+   - 확정 시점의 달성률을 **최초 기준선(Initial Baseline)**으로 기록한다. 리포트는 해당 기간의 시작과 끝에서 관측한 달성률 차이를 표시하며, 기준선보다 앞선 성과는 추정하지 않는다.
 
 3. **달력 일정 항목(Calendar Items)과 목표 행동(Actions)의 분리 (`DASH-006`, `DASH-010`, `FN-CAL-02`)**
    - 달력의 `해야 할 일(TASK)`과 `일정(EVENT)`은 날짜/기간 관리 데이터이며, 목표 행동의 실제 수행일(`performed_date`) 및 완료 기록과 엄격히 분리된다.
@@ -27,7 +27,7 @@
 
 5. **분산 마이크로서비스 환경 지원 (`DIST-001~007`, `NFR-004`, `NFR-008`)**
    - 인증/계정을 담당하는 `user-service`와 목표/계획/기록을 담당하는 3개의 `goal-service` 인스턴스가 동일한 MySQL 단일 데이터베이스(영속 볼륨 마운트)를 참조한다.
-   - 로그인 사용자 세션은 Redis에서 공유하며, DB는 `user_id` 외래키를 중심으로 완벽한 사용자 격리를 보장한다.
+   - 로그인 세션과 만료되는 인증·재설정 토큰은 Redis에서 관리한다. MySQL에는 계정과 목표 등 유지할 데이터를 저장하고, 사용자별 접근 권한은 서비스에서 검증한다.
 
 ---
 
@@ -35,8 +35,6 @@
 
 ```mermaid
 erDiagram
-    users ||--o{ email_verification_tokens : "has"
-    users ||--o{ password_reset_tokens : "has"
     users ||--|| user_settings : "configures"
     users |o--|| onboarding_drafts : "saves"
     users ||--o{ yearly_goals : "owns"
@@ -65,24 +63,6 @@ erDiagram
         boolean is_verified "이메일 인증 여부"
         datetime created_at "가입 일시"
         datetime updated_at "수정 일시"
-    }
-
-    email_verification_tokens {
-        bigint id PK
-        bigint user_id FK "사용자 ID"
-        varchar token UK "인증 일회용 토큰"
-        datetime expires_at "만료 일시"
-        datetime used_at "사용 일시 (NULL이면 미사용)"
-        datetime created_at "생성 일시"
-    }
-
-    password_reset_tokens {
-        bigint id PK
-        bigint user_id FK "사용자 ID"
-        varchar token UK "재설정 일회용 토큰"
-        datetime expires_at "만료 일시"
-        datetime used_at "사용 일시 (NULL이면 미사용)"
-        datetime created_at "생성 일시"
     }
 
     user_settings {
@@ -114,7 +94,7 @@ erDiagram
         boolean is_criteria_confirmed "달성 기준 100점 확정 여부"
         int initial_baseline_rate "최초 기준선 달성률 (NULL이면 미확정)"
         datetime criteria_confirmed_at "기준 최초 확정 일시"
-        datetime criteria_last_revised_at "기준 최종 개정 일시 (리포트 비교 불가 판단용)"
+        datetime criteria_last_revised_at "기준 최종 개정 일시"
         datetime deleted_at "소프트 삭제 일시 (30일 유예)"
         datetime created_at "생성 일시"
         datetime updated_at "수정 일시"
@@ -215,6 +195,7 @@ erDiagram
         bigint target_id "대상 목표 ID (폴리모픽 참조, DB FK 미적용)"
         int previous_rate "변경 전 진행률"
         int new_rate "변경 후 진행률"
+        varchar change_type "변경 종류 (PROGRESS_UPDATE/CRITERIA_REVISION)"
         date log_date "기록 기준 날짜"
         varchar memo "변경 사유 및 메모"
         datetime created_at "기록 일시"
@@ -266,43 +247,23 @@ erDiagram
 
 ---
 
-#### 2) `email_verification_tokens` (이메일 인증 토큰)
-- **설명**: 가입 후 이메일 소유권 검증을 위한 일회용 만료 토큰을 관리한다. (`AUTH-007`, `FN-AUTH-02`)
+#### Redis 임시 인증 토큰 (MySQL ERD 외부)
 
-| 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
-|---|---|---|---|---|---|
-| `id` | 토큰 ID | BIGINT | N | AUTO_INCREMENT | PK |
-| `user_id` | 사용자 ID | BIGINT | N | - | FK → `users(id)` ON DELETE CASCADE |
-| `token` | 인증 토큰 문자열 | VARCHAR(255) | N | - | UNIQUE. 보안 무작위 토큰 |
-| `expires_at` | 만료 일시 | DATETIME | N | - | 토큰 유효 만료 시각 |
-| `used_at` | 사용 일시 | DATETIME | Y | NULL | 일회용 검증: 사용 시 시각 기록, 재사용 거부. NULL이면 미사용 |
-| `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 토큰 발급 시각 |
+이메일 인증과 비밀번호 재설정 토큰은 MySQL 테이블 대신 기존 세션 공유 Redis에 보관한다. 계정의 영속 상태인 `users.is_verified`와 `users.password_hash`만 MySQL에서 변경한다. (`AUTH-007`, `AUTH-008`, `FN-AUTH-02`, `FN-AUTH-04`)
 
-- **인덱스**:
-  - `idx_evt_token` (UNIQUE): `token`
-  - `idx_evt_user_id`: `user_id`
+| 목적 | Redis 키 | 값 | 만료 |
+|---|---|---|---|
+| 이메일 인증 | `auth:verify:{token_hash}` | `user_id` | 발급 시 TTL 설정 |
+| 비밀번호 재설정 | `auth:reset:{token_hash}` | `user_id` | 발급 시 TTL 설정 |
+
+- 서버는 예측하기 어려운 임의 토큰을 만들고 원문은 메일 링크로만 전달한다. Redis 키에는 원문 대신 토큰의 해시를 사용하고, 원문 토큰을 DB·Redis·로그에 저장하지 않는다.
+- 인증 완료 또는 새 비밀번호 제출 요청 때 전달된 토큰을 해시해 조회한다. 토큰은 만료 전에 한 번만 사용할 수 있도록 Redis 6.2+의 `GETDEL` 또는 동등한 원자적 연산으로 소비한다. 비밀번호 재설정 화면을 단순히 여는 것만으로 토큰을 소비하지 않는다.
+- Redis에서 토큰을 소비한 뒤 MySQL 상태 변경이 실패하면 두 저장소를 한 트랜잭션으로 되돌릴 수 없다. 이 경우 사용자가 새 링크를 요청하도록 안내한다.
+- Redis 재시작 등으로 토큰이 사라져도 계정과 비밀번호는 MySQL에 남는다. 사용자는 새 인증·재설정 링크를 요청할 수 있다. 구체적인 TTL 길이는 인증 API 설계에서 정한다.
 
 ---
 
-#### 3) `password_reset_tokens` (비밀번호 재설정 토큰)
-- **설명**: 비밀번호 분실 시 재설정을 위한 일회용 만료 토큰을 관리한다. (`AUTH-008`, `FN-AUTH-04`)
-
-| 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
-|---|---|---|---|---|---|
-| `id` | 재설정 토큰 ID | BIGINT | N | AUTO_INCREMENT | PK |
-| `user_id` | 사용자 ID | BIGINT | N | - | FK → `users(id)` ON DELETE CASCADE |
-| `token` | 재설정 토큰 문자열 | VARCHAR(255) | N | - | UNIQUE. 보안 무작위 토큰 |
-| `expires_at` | 만료 일시 | DATETIME | N | - | 토큰 유효 만료 시각 |
-| `used_at` | 사용 일시 | DATETIME | Y | NULL | 일회용 검증: 재설정 완료 시 시각 기록. NULL이면 미사용 |
-| `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 토큰 발급 시각 |
-
-- **인덱스**:
-  - `idx_prt_token` (UNIQUE): `token`
-  - `idx_prt_user_id`: `user_id`
-
----
-
-#### 4) `user_settings` (사용자 환경설정)
+#### 2) `user_settings` (사용자 환경설정)
 - **설명**: 주 시작 요일과 계정 기준 시간대를 관리한다. 오늘·주 경계·남은 일수·리포트 집계에 적용된다. (`PLAN-001`, `PLAN-004`, `FN-SET-01`, `FN-SET-02`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -319,7 +280,7 @@ erDiagram
 
 ---
 
-#### 5) `onboarding_drafts` (온보딩 임시 저장)
+#### 3) `onboarding_drafts` (온보딩 임시 저장)
 - **설명**: 첫 방문 4단계 온보딩 작성 중 이탈 시 복원을 위한 중도 입력 데이터를 보관한다. 사용자당 1행 (1:0-or-1 관계). (`PLAN-002`, 요구사항 §7 수용기준 21항)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -336,7 +297,7 @@ erDiagram
 
 ### 3.2 목표 계층 및 달성 기준 도메인
 
-#### 6) `yearly_goals` (연간 목표)
+#### 4) `yearly_goals` (연간 목표)
 - **설명**: 달력연도(1.1~12.31) 기준 목표를 관리한다. 사용자·연도별 소프트 삭제 제외 최대 3개까지만 등록 가능하다. (`GOAL-001`, `GOAL-005`, `GOAL-006`, `GOAL-008`, `DASH-008`, `FN-GOAL-01`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -352,19 +313,19 @@ erDiagram
 | `is_criteria_confirmed` | 기준 확정 여부 | BOOLEAN | N | FALSE | 합계 100점 달성 기준 확정 시 TRUE |
 | `initial_baseline_rate` | 최초 기준선 달성률 | INT | Y | NULL | 확정 시점의 달성률 (0~100%). 미확정 시 NULL |
 | `criteria_confirmed_at` | 기준 최초 확정 일시 | DATETIME | Y | NULL | 달성 기준 100점 최초 확정 시각 |
-| `criteria_last_revised_at` | 기준 최종 개정 일시 | DATETIME | Y | NULL | 확정 후 기준·배점을 개정할 때마다 갱신. 리포트에서 "기준 변경으로 비교 불가" 판단에 사용 |
+| `criteria_last_revised_at` | 기준 최종 개정 일시 | DATETIME | Y | NULL | 확정 후 기준·배점을 개정할 때마다 갱신. 화면에 최근 개정 시각 표시 |
 | `deleted_at` | 소프트 삭제 일시 | DATETIME | Y | NULL | 삭제 시각 기록. 30일간 복구 유예 |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
 
 - **인덱스**:
   - `idx_yg_user_year_active`: `(user_id, target_year, deleted_at)`
-- **한도 검사**: `WHERE user_id = ? AND target_year = ? AND deleted_at IS NULL` 카운트가 3 미만이어야 신규 생성 및 복원 허용.
-- **리포트 비교 불가 판단**: `criteria_last_revised_at > 리포트_기간_시작` 이면 "기준·배점 변경으로 비교 불가"를 사유와 함께 표시한다.
+- **한도 검사**: 생성·복원 트랜잭션에서 해당 `users` 행을 먼저 잠근 뒤 `WHERE user_id = ? AND target_year = ? AND deleted_at IS NULL` 개수가 3 미만인 경우만 허용한다.
+- **리포트 비교 불가 판단**: 조회 기간 안에 기준·배점 개정 이력이 있을 때만 그 기간의 달성률 변화 비교를 생략한다. `criteria_last_revised_at`은 최근 개정 시각을 보여주는 용도로만 쓰며, 과거 기간의 개정 여부는 `goal_progress_logs`의 개정 이벤트로 판단한다.
 
 ---
 
-#### 7) `yearly_goal_criteria` (연간 목표 달성 기준)
+#### 5) `yearly_goal_criteria` (연간 목표 달성 기준)
 - **설명**: 연간 목표의 정량적/정성적 달성 기준과 배점을 관리한다. 확정 시 배점 합계는 정확히 100점이어야 한다. (`PLAN-002`, `GOAL-006`, `FN-CRIT-01`, `FN-CRIT-02`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -384,7 +345,7 @@ erDiagram
 
 ---
 
-#### 8) `monthly_goals` (월간 목표)
+#### 6) `monthly_goals` (월간 목표)
 - **설명**: 연간 목표에 연결된 달력 월 단위 목표다. 생성 당시의 현재 달을 대상으로 자동 지정된다. (`GOAL-005`, `GOAL-014`, `PLAN-003`, `FN-PLAN-02`, `PROG-004`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -407,7 +368,7 @@ erDiagram
 
 ---
 
-#### 9) `weekly_goals` (주간 목표)
+#### 7) `weekly_goals` (주간 목표)
 - **설명**: 월간 목표에 연결된 7일 단위 주간 목표다. 체크리스트형과 수치형 측정 방식을 지원한다. 월 경계를 넘는 주는 분할하지 않고 사용자가 선택한 한 월간 목표에만 귀속한다. (`PROG-001~003`, `GOAL-006`, `PLAN-003`, `FN-PLAN-03`, `FN-PROG-01`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -435,7 +396,7 @@ erDiagram
 
 ### 3.3 일일 행동 및 사분면 도메인
 
-#### 10) `actions` (행동: 핵심 행동 & Maintenance)
+#### 8) `actions` (행동: 핵심 행동 & Maintenance)
 - **설명**: 일일 수행 행동을 관리한다. 주간 목표에 연결된 핵심 행동과 연결되지 않은 생활 업무(`Maintenance`)를 모두 수용한다. (`FOCUS-001~013`, `FN-ACT-01~02`, `REVIEW-001`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -464,7 +425,7 @@ erDiagram
 
 ---
 
-#### 11) `action_quadrant_placements` (일일 사분면 중요도/긴급도 좌표)
+#### 9) `action_quadrant_placements` (일일 사분면 중요도/긴급도 좌표)
 - **설명**: 오늘 할 일에 대해 사용자가 드래그/키보드로 사분면에 배치하고 최종 확정한 중요도(x)와 긴급도(y) 좌표를 저장한다. 2단계 흐름: **트레이→사분면 배치(미확정, `is_confirmed=FALSE`)** → **`[오늘 분류 확정]` 클릭(확정, `is_confirmed=TRUE`)**. (`FOCUS-014~016`, `FN-QUAD-01~02`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -490,7 +451,7 @@ erDiagram
 
 ### 3.4 달력 및 대시보드 도메인
 
-#### 12) `calendar_items` (달력 일정 항목: 해야 할 일 & 일정)
+#### 10) `calendar_items` (달력 일정 항목: 해야 할 일 & 일정)
 - **설명**: 달력과 대시보드에서 조회되는 항목이다. 마감일 기반의 `해야 할 일(TASK)`과 하루/기간 기반의 `일정(EVENT)`으로 구분된다. 삭제는 hard-delete 적용(소프트 삭제 없음). (`DASH-001`, `DASH-006`, `DASH-010`, `FN-CAL-01~02`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -517,8 +478,8 @@ erDiagram
 
 ### 3.5 진행률 및 실적 추적 도메인
 
-#### 13) `goal_progress_logs` (목표 진행률 변경 이력)
-- **설명**: 연간·월간·주간 목표의 진행률 변경 이력을 날짜와 메모와 함께 기록한다. `target_id`는 `target_type`에 따라 연간/월간/주간 목표 PK를 가리키는 **폴리모픽 참조**이며 DB FK를 적용하지 않는다. (`PROG-007`, `DASH-005`, `FN-DASH-02`)
+#### 11) `goal_progress_logs` (목표 진행률 변경 이력)
+- **설명**: 연간·월간·주간 목표의 진행률 관측값과 연간 달성 기준 개정 이벤트를 날짜와 함께 기록한다. `target_id`는 `target_type`에 따라 연간/월간/주간 목표 PK를 가리키는 **폴리모픽 참조**이며 DB FK를 적용하지 않는다. (`PROG-007`, `DASH-005`, `FN-DASH-02`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
 |---|---|---|---|---|---|
@@ -528,16 +489,18 @@ erDiagram
 | `target_id` | 대상 목표 ID | BIGINT | N | - | **폴리모픽 참조. DB FK 미적용.** target_type에 따라 yearly_goals/monthly_goals/weekly_goals PK를 가리킴. 부모 목표가 소프트 삭제·아카이빙되어도 이력 행은 보존 |
 | `previous_rate` | 변경 전 진행률 | INT | N | - | 0~100 (%) |
 | `new_rate` | 변경 후 진행률 | INT | N | - | 0~100 (%) |
+| `change_type` | 변경 종류 | VARCHAR(30) | N | 'PROGRESS_UPDATE' | 'PROGRESS_UPDATE' 또는 'CRITERIA_REVISION'. 기준·배점 개정은 개정 전후 달성률이 같아도 기록 |
 | `log_date` | 기록 기준 날짜 | DATE | N | - | 계정 시간대 기준 날짜 |
 | `memo` | 변경 메모 / 사유 | VARCHAR(255) | Y | NULL | 예: "행동 완료에 따른 주간 목표 갱신" |
 | `created_at` | 기록 일시 | DATETIME | N | CURRENT_TIMESTAMP | 기록 시각 |
 
 - **인덱스**:
   - `idx_gpl_user_recent`: `(user_id, created_at DESC)`
+  - `idx_gpl_target_date`: `(target_type, target_id, log_date, created_at)`
 
 ---
 
-#### 14) `weekly_goal_numeric_records` (수치형 주간 목표 실적/기여 기록)
+#### 12) `weekly_goal_numeric_records` (수치형 주간 목표 실적/기여 기록)
 - **설명**: 수치형 주간 목표에 대해 직접 입력(`DIRECT_INPUT`)된 실적 증분 또는 행동 완료(`ACTION_COMPLETION`)로 반영된 기여량을 추적한다. (`PROG-003`, `FN-PROG-01`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -551,21 +514,18 @@ erDiagram
 | `created_at` | 기록 일시 | DATETIME | N | CURRENT_TIMESTAMP | 기록 시각 |
 
 - **중복 방지 전략**:
-  - **ACTION_COMPLETION** 중복 가산 방지: `(weekly_goal_id, action_id)` 조합이 이미 존재하면 거부. 애플리케이션 레벨에서 체크하거나 아래 부분 UNIQUE 적용.
-    ```sql
-    -- MySQL 8.0.13+ Partial Unique (실용적 대안: 애플리케이션 레벨 체크)
-    -- ACTION_COMPLETION 소스에서 action_id 중복 INSERT를 애플리케이션이 사전 조회 후 거부
-    ```
-  - **DIRECT_INPUT** 은 중복 허용: 같은 주간 목표에 여러 번 직접 입력 가능.
-  - MySQL UNIQUE 인덱스는 NULL 값을 중복으로 취급하지 않으므로, `(weekly_goal_id, action_id, record_source)` UNIQUE 인덱스만으로는 DIRECT_INPUT(action_id=NULL) 중복 방지가 의도와 맞지 않음. 애플리케이션 레벨 중복 체크를 명확히 적용한다.
+  - `action_id`에 UNIQUE 제약을 둔다. 같은 행동 완료 요청이 여러 인스턴스에 동시에 도착해도 행동 기여 기록은 한 행만 삽입할 수 있다. 기록 삽입과 `weekly_goals.current_value` 증가는 같은 MySQL 트랜잭션에서 처리한다.
+  - `DIRECT_INPUT`의 `action_id`는 NULL이다. MySQL UNIQUE 인덱스는 여러 NULL을 허용하므로 같은 주간 목표에 직접 기록을 여러 번 추가할 수 있다.
+  - 완료 취소 시 행동 기여 기록을 삭제하고 기여량을 차감하는 작업도 같은 트랜잭션에서 처리한다.
 - **인덱스**:
+  - `uk_wgnr_action_id` (UNIQUE): `action_id`
   - `idx_wgnr_goal_source`: `(weekly_goal_id, record_source, action_id)`
 
 ---
 
 ### 3.6 회고 및 리포트 도메인
 
-#### 15) `period_reviews` (기간별 사용자 직접 작성 회고)
+#### 13) `period_reviews` (기간별 사용자 직접 작성 회고)
 - **설명**: 월말, 달력 분기말, 연말에 사용자가 직접 작성하는 회고 내용을 보관한다. (`REVIEW-002`, `FN-REPORT-03`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
@@ -589,7 +549,7 @@ erDiagram
 ### 4.1 연간 목표 최대 3개 제약 보장 (`GOAL-001`, `FN-GOAL-01`)
 
 - 동일 사용자(`user_id`), 동일 달력연도(`target_year`)에 대해 소프트 삭제되지 않은(`deleted_at IS NULL`) 연간 목표는 목표 상태(PROGRESS, COMPLETED, ON_HOLD, DROPPED)와 상관없이 **최대 3개**다.
-- 목표 생성 및 복원 API 호출 시 트랜잭션 내에서 `SELECT COUNT(*) FROM yearly_goals WHERE user_id = ? AND target_year = ? AND deleted_at IS NULL FOR UPDATE` 락을 수행하여 3개 미만임을 검증한다.
+- 모든 목표 생성·복원 API는 MySQL 트랜잭션을 시작하고 첫 조회로 `SELECT id FROM users WHERE id = ? FOR UPDATE`를 실행해 해당 사용자 행을 잠근다. 이어서 해당 연도의 활성 연간 목표 개수를 확인하고 3개 미만일 때만 생성·복원한 뒤 커밋한다. 모든 인스턴스가 같은 잠금 순서를 따라야 동시 요청에도 한도를 지킬 수 있다.
 - 3개 초과 시 `GOAL_LIMIT_EXCEEDED` 오류 코드를 반환하며 생성·복원을 차단하고, 현재 개수·최대 개수와 가능한 조치를 안내한다.
 
 ---
@@ -603,8 +563,9 @@ erDiagram
   2. 사용자가 선택한 기달성 기준의 배점 합 → `initial_baseline_rate` 저장
   3. `criteria_confirmed_at`, `criteria_last_revised_at` 현재 시각으로 저장
   4. `is_criteria_confirmed = TRUE`
-- **기준·배점 개정 시**: `yearly_goal_criteria` 행 추가/수정/삭제 + `yearly_goals.criteria_last_revised_at` 갱신. 배점 합계 100점 재검증.
-- **리포트 집계 시**: `기간 말 달성 배점률 - initial_baseline_rate` = 기록 시작 이후 순수 변화량(%p). `criteria_last_revised_at > 리포트_기간_시작`이면 "기준·배점 변경으로 비교 불가"를 사유와 함께 표시한다.
+- 기준 확정 시 최초 달성률을 `goal_progress_logs`에도 시작 관측값으로 기록한다. 이후 달성 기준의 완료·취소와 기준 개정 때마다 변경 전후 달성률을 기록한다. 기록이 없는 날짜의 진행률은 그 날짜 직전의 마지막 관측값을 사용한다.
+- **기준·배점 개정 시**: `yearly_goal_criteria` 행 추가/수정/삭제 + `yearly_goals.criteria_last_revised_at` 갱신. 배점 합계 100점 재검증. 같은 트랜잭션에서 `goal_progress_logs`에 `change_type='CRITERIA_REVISION'` 행을 남긴다. 개정 전후 달성률이 같아도 기록한다.
+- **리포트 집계 시**: 각 기간 시작과 끝에서 관측 가능한 연간 달성률 차이를 %p로 표시한다. 최초 확정이 기간 중이라면 최초 기준선을 시작값으로 쓰고 실제 관측 시작일을 밝힌다. 최초 기준선 이전의 성과는 계산하지 않는다. 해당 기간에 `CRITERIA_REVISION` 이벤트가 있으면 그 기간의 변화량은 "기준·배점 변경으로 비교 불가"로 표시한다. 이후 기간은 새 기준에서 다시 비교할 수 있다. 과거 기간에 개정 이벤트가 없었다면 나중에 기준을 바꾸더라도 과거 리포트를 비교 불가로 바꾸지 않는다.
 
 ---
 
@@ -676,14 +637,14 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
            │         │               │               │               │
            │         └───────────────┴───────────────┘               │
            ▼                         ▼                               ▼
-     [ Redis (세션 공유) ]      [ MySQL 8.0 DB 컨테이너 (단일) ]
+     [ Redis (세션·임시 토큰) ] [ MySQL 8.0 DB 컨테이너 (단일) ]
                                              │
                                              ▼
                                [ Docker Named Volume (/var/lib/mysql) ]
 ```
 
 1. **단일 DB 영속 볼륨**: `user-service`와 3대의 `goal-service` 인스턴스는 동일한 MySQL 컨테이너에 접속. MySQL 컨테이너 재기동·재생성 후 동일 볼륨 연결 시 데이터 영구 보존.
-2. **세션 공유**: Spring Session + Redis. 역방향 프록시가 Round-Robin으로 `goal-service` 인스턴스 중 어디로 보내도 로그인 세션 유지.
+2. **세션 공유와 단기 토큰**: Spring Session + Redis. 역방향 프록시가 Round-Robin으로 `goal-service` 인스턴스 중 어디로 보내도 로그인 세션을 유지한다. 이메일 인증·비밀번호 재설정 토큰은 목적별 Redis 키와 TTL로 관리한다.
 3. **인스턴스 식별자** (`DIST-003`): 모든 `goal-service` 응답에 `X-Instance-Id` 헤더(컨테이너 호스트명/IP) 포함하여 분산 처리 입증.
 4. **소유권 검증**: `goal-service`에서 `weekly_goals`, `monthly_goals` 접근 시 `yearly_goals.user_id` 까지의 조인으로 소유권 확인. 단순 과제 범위에서는 정규화 유지.
 
@@ -707,7 +668,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중간(weekly_goals, monthly_goals) → 상위(yearly_goals) 순서로 미완료 행만 hard-delete. 완료 이력이 남은 행은 `deleted_at IS NOT NULL`로 아카이빙. 보존된 과거 이력은 리포트 집계에는 포함하되 현재 목표 선택 목록에 노출하지 않음.
 
 ### 결정 6 — `criteria_last_revised_at` 추가 (`GOAL-006`, `REVIEW-001`)
-"기준·배점 변경으로 비교 불가" 리포트 사유 판단을 위해 최종 개정 일시 컬럼 추가. `criteria_confirmed_at`은 최초 확정 시각만 가리킴.
+`criteria_last_revised_at`은 최근 개정 시각을 표시한다. 기간별 비교 불가 여부는 `goal_progress_logs.change_type='CRITERIA_REVISION'` 이벤트로 판단한다. `criteria_confirmed_at`은 최초 확정 시각만 가리킨다.
 
 ### 결정 7 — 이메일 전용 로그인과 사용자명 중복 허용 (`AUTH-002`)
 로그인 식별자는 UNIQUE 제약이 있는 `email`만 사용한다. `username`은 화면 표시명이며 다른 사용자와 같아도 된다.
@@ -717,3 +678,6 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 
 ### 결정 9 — AI·BYOK 관련 테이블 미포함
 제출판 AI·BYOK·결제 기능은 "개발 중" 안내만 표시. 미확정 보안 설계가 필요한 BYOK 키 테이블 등은 본 ERD에서 제외. 확장 시 별도 설계.
+
+### 결정 10 — 일회용 인증 토큰은 Redis에 보관
+이메일 인증·비밀번호 재설정 토큰은 수명이 짧고 한 번만 사용하므로 MySQL 테이블을 두지 않는다. Redis 키에 원문 토큰의 해시를 사용하고 TTL을 설정한다. 인증 완료와 비밀번호 변경 결과는 MySQL의 `users` 행에 영속적으로 기록한다.
