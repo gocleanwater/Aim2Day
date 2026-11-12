@@ -120,6 +120,7 @@ erDiagram
         date end_date "해당 월 종료일"
         varchar title "이번 달 결과 제목"
         text description "설명 / 기대 결과"
+        varchar color "표시 색상 (NULL이면 연간 목표 색 상속)"
         varchar status "상태 (PROGRESS/COMPLETED/ON_HOLD/DROPPED)"
         int progress_rate "월간 실행률 (0~100 가중평균 반올림)"
         datetime deleted_at "소프트 삭제 일시 (30일 유예)"
@@ -134,6 +135,7 @@ erDiagram
         date end_date "주 종료일"
         varchar title "이번 주 목표/결과 제목"
         text description "설명"
+        varchar color "표시 색상 (NULL이면 월간 목표 색 상속)"
         varchar measurement_type "측정 방식 (CHECKLIST/NUMERIC)"
         decimal target_value "수치형 목표값 (양수, NUMERIC일 때 필수)"
         decimal current_value "수치형 현재 완료값 (초과 달성값 보존)"
@@ -357,6 +359,7 @@ erDiagram
 | `end_date` | 월 종료일 | DATE | N | - | 해당 월 말일 (예: 2026-11-30) |
 | `title` | 목표/결과 제목 | VARCHAR(100) | N | - | 이번 달에 이루고 싶은 결과 |
 | `description` | 설명 / 기대 결과 | TEXT | Y | NULL | 상세 설명 |
+| `color` | 표시 색상 | VARCHAR(20) | Y | NULL | NULL이면 부모 연간 목표의 `color`를 사용 (`GOAL-011`) |
 | `status` | 상태 | VARCHAR(20) | N | 'PROGRESS' | PROGRESS, COMPLETED, ON_HOLD, DROPPED |
 | `progress_rate` | 월간 실행률 (%) | INT | N | 0 | 하위 주간 목표 가중 평균 반올림 정수 (0~100) |
 | `deleted_at` | 소프트 삭제 일시 | DATETIME | Y | NULL | 삭제 시각 기록 (30일 유예) |
@@ -379,6 +382,7 @@ erDiagram
 | `end_date` | 주간 종료일 | DATE | N | - | 주간 시작일 + 6일 (7일 기간). 사용자가 나중에 주 시작 요일을 바꿔도 이미 만든 주간 목표의 기간은 바꾸지 않는다 |
 | `title` | 이번 주 결과 제목 | VARCHAR(100) | N | - | 주간 목표 제목 |
 | `description` | 설명 | TEXT | Y | NULL | 다음 단계 및 상세 계획 설명 |
+| `color` | 표시 색상 | VARCHAR(20) | Y | NULL | NULL이면 부모 월간 목표의 색(그것도 NULL이면 연간 목표 색)을 사용 (`GOAL-011`) |
 | `measurement_type` | 측정 방식 | VARCHAR(20) | N | 'CHECKLIST' | 'CHECKLIST'(행동완료비율) 또는 'NUMERIC'(수치형) |
 | `target_value` | 수치형 목표값 | DECIMAL(10,2) | Y | NULL | NUMERIC일 때 필수. 양수 |
 | `current_value` | 수치형 현재 완료값 | DECIMAL(10,2) | N | 0.00 | 실제 완료 합산값. 초과 달성값 원본 그대로 보존 |
@@ -681,3 +685,6 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 
 ### 결정 10 — 일회용 인증 토큰은 Redis에 보관
 이메일 인증·비밀번호 재설정 토큰은 수명이 짧고 한 번만 사용하므로 MySQL 테이블을 두지 않는다. Redis 키에 원문 토큰의 해시를 사용하고 TTL을 설정한다. 인증 완료와 비밀번호 변경 결과는 MySQL의 `users` 행에 영속적으로 기록한다.
+
+### 결정 11 — 월간·주간 목표 표시 색상 (`GOAL-011`, `FN-GOAL-02`)
+월간·주간 목표에도 `color`를 둔다. 값이 NULL이면 부모 목표의 색을 그대로 쓰므로, 사용자가 따로 바꾸지 않으면 한 목표 경로가 같은 색으로 보인다. 달력 항목은 결정 2대로 연간 목표 색을 사용한다.
