@@ -121,7 +121,7 @@ erDiagram
         text description "설명 / 기대 결과"
         varchar color "표시 색상 (NULL이면 연간 목표 색 상속)"
         varchar status "상태 (PROGRESS/COMPLETED/ON_HOLD/DROPPED)"
-        int progress_rate "월간 실행률 (0~100 가중평균 반올림)"
+        decimal progress_rate "월간 실행률 (0.00~100.00 가중평균)"
         datetime deleted_at "소프트 삭제 일시 (30일 유예)"
         datetime created_at "생성 일시"
         datetime updated_at "수정 일시"
@@ -140,7 +140,7 @@ erDiagram
         decimal current_value "수치형 현재 완료값 (초과 달성값 보존)"
         decimal weight "월간 반영 가중치 (기본 1.0)"
         varchar status "상태 (PROGRESS/COMPLETED/ON_HOLD/DROPPED)"
-        int progress_rate "주간 진행률 (0~100, 막대 상한 100)"
+        decimal progress_rate "주간 진행률 (0.00~100.00, 막대 상한 100)"
         datetime deleted_at "소프트 삭제 일시 (30일 유예)"
         datetime created_at "생성 일시"
         datetime updated_at "수정 일시"
@@ -194,8 +194,8 @@ erDiagram
         bigint user_id FK "사용자 ID"
         varchar target_type "대상 (YEARLY_GOAL/MONTHLY_GOAL/WEEKLY_GOAL)"
         bigint target_id "대상 목표 ID (폴리모픽 참조, DB FK 미적용)"
-        int previous_rate "변경 전 진행률"
-        int new_rate "변경 후 진행률"
+        decimal previous_rate "변경 전 진행률"
+        decimal new_rate "변경 후 진행률"
         varchar change_type "변경 종류 (PROGRESS_UPDATE/CRITERIA_REVISION)"
         date log_date "기록 기준 날짜"
         varchar memo "변경 사유 및 메모"
@@ -359,7 +359,7 @@ erDiagram
 | `description` | 설명 / 기대 결과 | TEXT | Y | NULL | 상세 설명 |
 | `color` | 표시 색상 | VARCHAR(20) | Y | NULL | NULL이면 부모 연간 목표의 `color`를 사용 (`GOAL-011`) |
 | `status` | 상태 | VARCHAR(20) | N | 'PROGRESS' | PROGRESS, COMPLETED, ON_HOLD, DROPPED |
-| `progress_rate` | 월간 실행률 (%) | INT | N | 0 | 하위 주간 목표 가중 평균 반올림 정수 (0~100) |
+| `progress_rate` | 월간 실행률 (%) | DECIMAL(5,2) | N | 0.00 | 하위 주간 목표 가중 평균. 소수점 셋째 자리에서 반올림 (0.00~100.00) |
 | `deleted_at` | 소프트 삭제 일시 | DATETIME | Y | NULL | 삭제 시각 기록 (30일 유예) |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
@@ -386,7 +386,7 @@ erDiagram
 | `current_value` | 수치형 현재 완료값 | DECIMAL(10,2) | N | 0.00 | 실제 완료 합산값. 초과 달성값 원본 그대로 보존 |
 | `weight` | 월간 반영 가중치 | DECIMAL(5,2) | N | 1.00 | 월간 진행률 가중 평균 산출 가중치 |
 | `status` | 상태 | VARCHAR(20) | N | 'PROGRESS' | PROGRESS, COMPLETED, ON_HOLD, DROPPED |
-| `progress_rate` | 주간 진행률 (%) | INT | N | 0 | 0~100. 수치 초과 시에도 막대 표시 상한 100 |
+| `progress_rate` | 주간 진행률 (%) | DECIMAL(5,2) | N | 0.00 | 0.00~100.00. 소수점 셋째 자리에서 반올림. 수치 초과 시에도 상한 100 |
 | `deleted_at` | 소프트 삭제 일시 | DATETIME | Y | NULL | 삭제 시각 기록 (30일 유예) |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |
@@ -489,8 +489,8 @@ erDiagram
 | `user_id` | 사용자 ID | BIGINT | N | - | FK → `users(id)` ON DELETE CASCADE |
 | `target_type` | 대상 목표 단계 | VARCHAR(20) | N | - | 'YEARLY_GOAL', 'MONTHLY_GOAL', 'WEEKLY_GOAL' |
 | `target_id` | 대상 목표 ID | BIGINT | N | - | **폴리모픽 참조. DB FK 미적용.** target_type에 따라 yearly_goals/monthly_goals/weekly_goals PK를 가리킴. 부모 목표가 소프트 삭제·아카이빙되어도 이력 행은 보존 |
-| `previous_rate` | 변경 전 진행률 | INT | N | - | 0~100 (%) |
-| `new_rate` | 변경 후 진행률 | INT | N | - | 0~100 (%) |
+| `previous_rate` | 변경 전 진행률 | DECIMAL(5,2) | N | - | 0.00~100.00 (%) |
+| `new_rate` | 변경 후 진행률 | DECIMAL(5,2) | N | - | 0.00~100.00 (%) |
 | `change_type` | 변경 종류 | VARCHAR(30) | N | 'PROGRESS_UPDATE' | 'PROGRESS_UPDATE' 또는 'CRITERIA_REVISION'. 기준·배점 개정은 개정 전후 달성률이 같아도 기록 |
 | `log_date` | 기록 기준 날짜 | DATE | N | - | 계정 시간대 기준 날짜 |
 | `memo` | 변경 메모 / 사유 | VARCHAR(255) | Y | NULL | 예: "행동 완료에 따른 주간 목표 갱신" |
@@ -574,18 +574,20 @@ erDiagram
 ### 4.3 주간 목표(체크형/수치형) 및 월간 목표 진행률 산출 (`PROG-001~006`)
 
 **체크리스트형 주간 목표**:
-$$\text{주간 진행률} = \left\lfloor \frac{\text{완료 연결 행동 수}}{\text{전체 연결 행동 수}} \times 100 \right\rceil$$
+$$\text{주간 진행률} = \text{ROUND}\left( \frac{\text{완료 연결 행동 수}}{\text{전체 연결 행동 수}} \times 100,\ 2 \right)$$
 연결 행동이 0개 → '기록 없음' 반환 (퍼센트 미표시)
 
 **수치형 주간 목표**:
 - 행동 완료 시: `actions.contribution_value` → `weekly_goal_numeric_records` (source=ACTION_COMPLETION) 삽입 + `weekly_goals.current_value` 증가
 - 직접 입력 시: 사용자 입력 증분 → `weekly_goal_numeric_records` (source=DIRECT_INPUT) 삽입 + `weekly_goals.current_value` 증가
 - 완료 취소 시: 해당 `weekly_goal_numeric_records` 행 삭제 + `weekly_goals.current_value` 차감
-- `progress_rate` = MIN(100, FLOOR(current_value / target_value × 100))
+- `progress_rate` = MIN(100, ROUND(current_value / target_value × 100, 2))
+- 완료 색상은 반올림한 진행률이 아니라 `current_value >= target_value`로 판단한다. (예: 9999.99/10000은 100.00으로 반올림되지만 아직 미완료)
 - `current_value`는 초과 달성값을 원본 그대로 보존 (예: 14/10 → progress_rate=100, current_value=14.00)
 
 **월간 목표 실행률**:
-$$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진행률}_i \times \text{가중치}_i)}{\sum_{i} \text{가중치}_i} \right)$$
+$$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진행률}_i \times \text{가중치}_i)}{\sum_{i} \text{가중치}_i},\ 2 \right)$$
+- 모든 진행률은 소수점 셋째 자리에서 반올림(HALF_UP)해 둘째 자리까지 저장·표시한다. Java에서는 `BigDecimal.setScale(2, RoundingMode.HALF_UP)`를 사용한다. 월간 계산에는 이미 반올림된 주간 진행률을 사용한다.
 - 기록 없는 하위 주간 목표(0%)도 분모에 포함
 - 하위 주간 목표가 0개일 때만 '기록 없음'
 
@@ -664,7 +666,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 기능 명세서에서 미결로 남긴 "중도 작성 보존 정책"을 `onboarding_drafts` 테이블로 해결. 로컬스토리지 의존 시 다른 기기·쿠키 삭제에 취약하므로 DB 보관 선택. 온보딩 완료 후 행 삭제.
 
 ### 결정 4 — 수치형 초과 달성값 처리 (`PROG-003`)
-`weekly_goals.current_value`에 실제 달성 수치 원본 보존. `progress_rate`는 별도 100% 상한 적용 정수 저장.
+`weekly_goals.current_value`에 실제 달성 수치 원본 보존. `progress_rate`는 100 상한을 적용한 DECIMAL(5,2) 값으로 저장.
 
 ### 결정 5 — 30일 하드 딜리트 패턴 (`GOAL-008`, `GOAL-013`)
 FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중간(weekly_goals, monthly_goals) → 상위(yearly_goals) 순서로 미완료 행만 hard-delete. 완료 이력이 남은 행은 `deleted_at IS NOT NULL`로 아카이빙. 보존된 과거 이력은 리포트 집계에는 포함하되 현재 목표 선택 목록에 노출하지 않음.
@@ -689,3 +691,6 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 
 ### 결정 12 — `monthly_goals.year_month` 제거
 `YEAR_MONTH`는 MySQL 예약어이고, 대상 월은 `start_date`로 알 수 있어 중복 컬럼이다. 월 조회·인덱스는 `start_date`를 사용하고 `end_date`는 주간 목표와 기간 겹침 검사를 단순하게 하려고 유지한다.
+
+### 결정 13 — 진행률은 소수점 둘째 자리까지 저장
+주간·월간 진행률과 진행률 이력은 DECIMAL(5,2)로 저장하고 소수점 셋째 자리에서 반올림한다. 연간 달성률은 정수 배점의 합이므로 `initial_baseline_rate`는 INT를 유지한다.
