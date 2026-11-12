@@ -111,6 +111,35 @@
         outline: 2px dashed #a96b13;
         outline-offset: 3px;
       }
+      /* 재분류 중이거나 되돌리기 대기인 점이 마지막으로 확정된 위치를 흐리게 보여 준다. */
+      .plot-ghost {
+        position: absolute;
+        z-index: 1;
+        width: 22px;
+        height: 22px;
+        transform: translate(-50%, -50%);
+        border: 2px dashed #94a3b8;
+        border-radius: 50%;
+        background: #e2e8f0aa;
+        pointer-events: none;
+      }
+      /* 리포트 탭: 브라우저 탭처럼 위쪽만 둥글게 이어 붙인다. */
+      .report-tab {
+        border: 1px solid #dce2e9;
+        border-bottom: 0;
+        border-radius: 10px 10px 0 0;
+        background: #f3f6f9;
+        padding: 8px 16px;
+        font-size: 14px;
+        color: #526781;
+      }
+      .report-tab[aria-selected="true"] {
+        position: relative;
+        top: 1px;
+        background: white;
+        color: #1b4e85;
+        font-weight: 700;
+      }
       .plot-point::before {
         content: "";
         position: absolute;
@@ -436,13 +465,46 @@
               </span>
               <span
                 ><span class="block text-xl font-bold tracking-[-0.03em]"
-                  >오늘 할 일</span
+                  ><span id="todayTitleText">오늘 행동</span></span
                 ><span id="todayDate" class="text-xs text-[#718094]"></span
               ></span>
             </button>
           </h2>
           <span id="doneCount" class="text-[12px] text-[#718094]"></span>
         </div>
+        <!-- 날짜 이동: 하루씩 이동, 날짜 직접 선택, 오늘로 돌아가기 -->
+        <div id="dateNav" class="mb-2 flex flex-wrap items-center gap-2 text-sm">
+          <button
+            id="datePrev"
+            type="button"
+            aria-label="전날"
+            class="rounded-lg border border-slate-300 px-3 py-1.5"
+          >
+            ◀
+          </button>
+          <input
+            id="actionDate"
+            type="date"
+            aria-label="행동을 볼 날짜"
+            class="rounded-lg border border-slate-300 bg-white px-2 py-1.5"
+          />
+          <button
+            id="dateNext"
+            type="button"
+            aria-label="다음날"
+            class="rounded-lg border border-slate-300 px-3 py-1.5"
+          >
+            ▶
+          </button>
+          <button
+            id="dateToday"
+            type="button"
+            class="rounded-lg bg-blue-50 px-3 py-1.5 font-semibold text-blue-800"
+          >
+            오늘
+          </button>
+        </div>
+        <p id="dateHint" role="status" class="mb-2 text-xs text-[#8A5A12]"></p>
         <p class="text-sm text-[#63778E]">
           목표에 연결된 일과 그 밖의 할 일을 따로 확인하고 완료할 수 있어요.
         </p>
@@ -465,7 +527,7 @@
           ><select
             id="actionSort"
             class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
-            aria-label="오늘 할 일 정렬"
+            aria-label="오늘 행동 정렬"
           >
             <option value="priority" selected>중요도+긴급도</option>
             <option value="importance">중요도 높은 순</option>
@@ -548,6 +610,25 @@
           class="mt-2 text-xs text-slate-600"
           role="status"
         ></p>
+        <!-- 지난 미완료: 오늘 목록에만 표시하며 오늘 완료 수와 사분면에 포함하지 않는다. -->
+        <details
+          id="pastIncompleteArea"
+          class="mt-6 border-t border-slate-200 pt-4"
+        >
+          <summary
+            id="pastIncompleteSummary"
+            class="cursor-pointer font-semibold"
+          >
+            지난 미완료 0개
+          </summary>
+          <p class="mt-2 text-xs text-slate-500">
+            체크하면 원래 날짜의 기록으로 완료돼요. 오늘 하려면 오늘로 옮기세요.
+          </p>
+          <div
+            id="pastIncompleteList"
+            class="divide-y divide-[#EEF0F3]"
+          ></div>
+        </details>
         <details
           id="quadrantDetails"
           open
@@ -561,7 +642,8 @@
             class="mt-2 rounded-lg bg-[#F2F7FC] p-3 text-sm font-medium text-[#315B84]"
           >
             점을 끌어 중요도와 긴급도를 정해 보세요. 목표에 연결된 일은
-            오른쪽에만 놓을 수 있어요.
+            오른쪽에만 놓을 수 있어요. 확정한 위치는 다시 확정하기 전까지
+            유지되고, 변경 취소로 되돌릴 수 있어요.
           </p>
           <p id="unclassifiedCount" class="mt-2 text-sm font-medium"></p>
           <div id="unclassifiedArea">
@@ -599,6 +681,20 @@
             >
               오늘 분류 확정
             </button>
+            <button
+              id="cancelChanges"
+              type="button"
+              class="rounded-lg border border-slate-300 px-4 py-2 text-sm disabled:opacity-40"
+            >
+              변경 취소
+            </button>
+            <button
+              id="sendToTray"
+              type="button"
+              class="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+            >
+              선택한 점 트레이로 보내기
+            </button>
             <button id="suggest" class="px-4 py-2 text-sm">
               AI 추천 · 준비 중
             </button>
@@ -616,7 +712,7 @@
       >
         <h2 id="due-title" class="text-[17px] font-bold">해야 할 일과 일정</h2>
         <p class="mt-1 text-sm text-slate-500">
-          마감일과 일정을 보며 이번 주 목표와 오늘 할 일을 정해 보세요.
+          마감일과 일정을 보며 이번 주 목표와 오늘 행동을 정해 보세요.
         </p>
         <div class="mt-5 grid gap-6 md:grid-cols-2 md:gap-8">
           <div>
@@ -897,22 +993,40 @@
         </p>
       </header>
       <section class="rounded-2xl border border-slate-200 bg-white p-6">
-        <div class="flex flex-wrap items-end gap-3">
-          <label class="text-sm font-semibold"
-            >기간<select
-              id="reportPeriodType"
-              class="mt-1 block rounded-lg border p-2"
-            >
-              <option value="month">월간</option>
-              <option value="quarter">분기</option>
-              <option value="year">연간</option>
-            </select></label
-          ><span
-            id="reportPeriodName"
-            class="pb-2 text-sm text-slate-500"
-          ></span>
+        <!-- 기준 월 선택: 그 달에 끝나는 기간만 아래 탭으로 보여 준다. -->
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-sm font-semibold">기준 월</span>
+          <button
+            id="reportPrevMonth"
+            type="button"
+            aria-label="이전 달"
+            class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+          >
+            ◀
+          </button>
+          <input
+            id="reportMonth"
+            type="month"
+            aria-label="리포트 기준 월"
+            class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+          />
+          <button
+            id="reportNextMonth"
+            type="button"
+            aria-label="다음 달"
+            class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+          >
+            ▶
+          </button>
         </div>
-        <p class="mt-4 text-xs text-slate-500">
+        <div
+          id="reportTabs"
+          role="tablist"
+          aria-label="리포트 기간"
+          class="mt-5 flex flex-wrap gap-1 border-b border-[#DCE2E9]"
+        ></div>
+        <p id="reportPeriodName" class="mt-3 text-sm text-slate-500"></p>
+        <p class="mt-2 text-xs text-slate-500">
           시연용 예시 기록입니다. 그 밖의 할 일은 집계하지 않아요.
         </p>
       </section>
@@ -935,7 +1049,13 @@
       </section>
       <section class="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 class="text-lg font-bold">올해 목표는 얼마나 가까워졌나요?</h2>
-        <div id="reportGoalChanges" class="mt-4 space-y-3 text-sm"></div>
+        <p class="mt-1 text-xs text-slate-500">
+          왼쪽은 지난 기간 말, 오른쪽은 이번 기간 말의 달성률이에요.
+        </p>
+        <div
+          id="reportGoalChanges"
+          class="mt-4 grid gap-6 text-sm sm:grid-cols-3"
+        ></div>
       </section>
       <section
         class="rounded-2xl border border-slate-200 bg-white p-6 space-y-4"
@@ -1772,53 +1892,220 @@
         id("cancelWeeklyEdit").hidden = true;
         resetWeeklyCopy();
       };
-      const reportSamples = {
-        month: {
-          name: "2026.10 · 월간 리포트",
+      // 리포트: 기준 월을 고르면 그 달에 끝나는 기간(월간·분기·연간)을 탭으로 보여 준다.
+      // 아래 수치는 시연용 예시이며 실제 사용자 기록이 아니다.
+      const reportPad = (n) => String(n).padStart(2, "0");
+      const reportColors = ["#225c9c", "#367451", "#916632"];
+      let reportMonth = new Date().toLocaleDateString("sv-SE").slice(0, 7);
+      let reportTab = "month";
+      // 기준 월에서 보여 줄 탭 목록: 월간은 항상, 분기 마지막 달은 분기, 12월은 연간을 더한다.
+      function reportTabList(monthValue) {
+        const [year, month] = monthValue.split("-").map(Number);
+        const tabs = [
+          {
+            kind: "month",
+            key: monthValue,
+            label: `${year}.${reportPad(month)} 월간`,
+          },
+        ];
+        if (month % 3 === 0)
+          tabs.push({
+            kind: "quarter",
+            key: `${year}-Q${month / 3}`,
+            label: `${year} ${month / 3}분기`,
+          });
+        if (month === 12)
+          tabs.push({ kind: "year", key: String(year), label: `${year}년 연간` });
+        return tabs;
+      }
+      // 탭별 예시 데이터. 목표 막대는 왼쪽(지난 기간 말)·오른쪽(이번 기간 말) 달성률 한 쌍이다.
+      function reportSample(tab, monthValue) {
+        const [, month] = monthValue.split("-").map(Number);
+        const goals = [
+          "백엔드 개발자 취업 준비",
+          "영어로 기술 문서 읽기",
+          "새 목표 예시",
+        ];
+        const bars = (index, left, right) => ({
+          name: goals[index],
+          color: reportColors[index],
+          mode: "bars",
+          left,
+          right,
+        });
+        // 달성 기준이 아직 없는 목표: 막대 대신 안내
+        const noCriteria = {
+          name: goals[2],
+          color: reportColors[2],
+          mode: "none",
+          note: "기준 설정 전",
+        };
+        // 기간 중 기준·배점을 바꿔 직접 비교할 수 없는 목표
+        const incomparable = {
+          name: goals[1],
+          color: reportColors[1],
+          mode: "incomparable",
+          note: "비교 불가 (기준·배점 변경)",
+        };
+        if (tab.kind === "month") {
+          const prev = (month * 7) % 50;
+          return {
+            actions: [
+              `${reportPad(month)}.08 알고리즘 문제 2개 풀기`,
+              `${reportPad(month)}.15 알고리즘 문제 3개 풀기`,
+              `${reportPad(month)}.22 틀린 유형 정리하기`,
+            ],
+            days: 3,
+            artifacts: "기록된 결과물 없음",
+            goals: [
+              month === 1
+                ? bars(
+                    0,
+                    { label: "기록 시작 (01.05)", value: 0 },
+                    { label: "1월 말", value: 15 },
+                  )
+                : bars(
+                    0,
+                    { label: `${month - 1}월 말`, value: prev },
+                    { label: `${month}월 말`, value: prev + 15 },
+                  ),
+              // 이번 기간에 달성 기준을 처음 확정한 목표: 왼쪽 막대는 기록 시작(최초 기준선)
+              bars(
+                1,
+                { label: `기록 시작 (${reportPad(month)}.05)`, value: 0 },
+                { label: `${month}월 말`, value: 20 },
+              ),
+              noCriteria,
+            ],
+          };
+        }
+        if (tab.kind === "quarter") {
+          const q = month / 3;
+          return {
+            actions: [
+              `${reportPad(month - 2)}.12 알고리즘 문제 2개 풀기`,
+              `${reportPad(month - 1)}.04 풀이 유형 정리하기`,
+              `${reportPad(month)}.09 모의 면접 준비하기`,
+            ],
+            days: 3,
+            artifacts: "알고리즘 풀이 정리 노트 (시연용 예시)",
+            goals: [
+              q === 1
+                ? bars(
+                    0,
+                    { label: "기록 시작 (01.05)", value: 0 },
+                    { label: "1분기 말", value: 25 },
+                  )
+                : bars(
+                    0,
+                    { label: `${q - 1}분기 말`, value: 10 * q },
+                    { label: `${q}분기 말`, value: 10 * q + 25 },
+                  ),
+              incomparable,
+              noCriteria,
+            ],
+          };
+        }
+        return {
           actions: [
-            "10.08 알고리즘 문제 2개 풀기",
-            "10.15 알고리즘 문제 3개 풀기",
-            "10.22 틀린 유형 정리하기",
+            "03.02 알고리즘 문제 2개 풀기",
+            "07.21 포트폴리오 정리하기",
+            "11.18 지원서 초안 쓰기",
           ],
           days: 3,
-          changes: [
-            ["백엔드 개발자 취업 준비", "0%", "20%", "+20%p · 기록 시작 이후"],
-            [
-              "새 목표 예시",
-              "설정 전",
-              "설정 전",
-              "비교 불가 · 달성 기준 설정 전",
-            ],
+          artifacts: "기록된 결과물 없음",
+          goals: [
+            bars(
+              0,
+              { label: "기록 시작 (03.02)", value: 0 },
+              { label: "12월 말", value: 45 },
+            ),
+            incomparable,
+            noCriteria,
           ],
-        },
-        quarter: {
-          name: "2026년 3분기 리포트",
-          actions: ["07.12 알고리즘 문제 2개 풀기", "08.04 풀이 유형 정리하기"],
-          days: 2,
-          changes: [
-            [
-              "백엔드 개발자 취업 준비",
-              "설정 전",
-              "0%",
-              "비교 불가 · 기간 시작 기준 없음",
-            ],
-          ],
-        },
-        year: {
-          name: "2025년 연간 리포트",
-          actions: ["05.20 기술 문서 읽기", "09.02 프로젝트 정리하기"],
-          days: 2,
-          changes: [
-            ["영어로 기술 문서 읽기", "0%", "40%", "+40%p · 기록 시작 이후"],
-          ],
-        },
-      };
+        };
+      }
+      // 막대 한 쌍: 높이는 0~100%이며 숫자와 aria-label로도 값을 전달한다.
+      function reportBarPair(goal) {
+        const card = document.createElement("div");
+        const name = document.createElement("p");
+        name.className = "mb-2 font-semibold";
+        name.style.color = goal.color;
+        name.textContent = goal.name;
+        card.append(name);
+        if (goal.mode !== "bars") {
+          const note = document.createElement("p");
+          note.className = "rounded-lg bg-slate-50 p-3 text-slate-600";
+          note.textContent = goal.note;
+          card.append(note);
+          return card;
+        }
+        const diff = goal.right.value - goal.left.value;
+        const diffText = `${diff >= 0 ? "+" : ""}${diff}%p`;
+        const figure = document.createElement("figure");
+        figure.setAttribute("role", "img");
+        figure.setAttribute(
+          "aria-label",
+          `${goal.name}: ${goal.left.label} ${goal.left.value}%, ${goal.right.label} ${goal.right.value}%, 변화 ${diffText}`,
+        );
+        const pair = document.createElement("div");
+        pair.className = "flex items-end justify-center gap-6";
+        for (const [bar, opacity] of [
+          [goal.left, 0.4],
+          [goal.right, 1],
+        ]) {
+          const column = document.createElement("div");
+          column.className = "flex w-24 flex-col items-center";
+          const track = document.createElement("div");
+          track.className = "flex h-36 w-12 items-end rounded-t bg-[#EEF1F5]";
+          const fill = document.createElement("div");
+          fill.className = "w-full rounded-t";
+          fill.style.height = `${Math.max(0, Math.min(100, bar.value))}%`;
+          fill.style.backgroundColor = goal.color;
+          fill.style.opacity = String(opacity);
+          track.append(fill);
+          const label = document.createElement("span");
+          label.className = "mt-1 text-center text-xs text-slate-600";
+          label.textContent = bar.label;
+          const value = document.createElement("span");
+          value.className = "text-sm font-semibold";
+          value.textContent = `${bar.value}%`;
+          column.append(track, label, value);
+          pair.append(column);
+        }
+        const change = document.createElement("figcaption");
+        change.className = "mt-2 text-center font-semibold";
+        change.textContent = diffText;
+        figure.append(pair, change);
+        card.append(figure);
+        return card;
+      }
+      const currentReportTab = () =>
+        reportTabList(reportMonth).find((item) => item.kind === reportTab);
       function renderReport() {
-        const type = id("reportPeriodType").value;
-        const data = reportSamples[type];
-        id("reportPeriodName").textContent = data.name;
+        const tabs = reportTabList(reportMonth);
+        if (!tabs.some((tab) => tab.kind === reportTab)) reportTab = "month";
+        const tab = currentReportTab();
+        const data = reportSample(tab, reportMonth);
+        id("reportMonth").value = reportMonth;
+        id("reportTabs").replaceChildren();
+        for (const item of tabs) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "report-tab";
+          button.setAttribute("role", "tab");
+          button.setAttribute("aria-selected", String(item.kind === reportTab));
+          button.textContent = item.label;
+          button.onclick = () => {
+            reportTab = item.kind;
+            renderReport();
+          };
+          id("reportTabs").append(button);
+        }
+        id("reportPeriodName").textContent = `${tab.label} 리포트`;
         id("reportActionCount").textContent = `${data.actions.length}개`;
         id("reportActiveDays").textContent = `${data.days}일`;
+        id("reportArtifacts").textContent = data.artifacts;
         id("reportActions").replaceChildren();
         for (const action of data.actions) {
           const item = document.createElement("li");
@@ -1827,36 +2114,52 @@
           id("reportActions").append(item);
         }
         id("reportGoalChanges").replaceChildren();
-        for (const [goal, start, end, change] of data.changes) {
-          const row = document.createElement("div");
-          row.className =
-            "grid gap-1 border-b border-slate-100 py-3 sm:grid-cols-[2fr_1fr_1fr_2fr]";
-          for (const text of [goal, `시작 ${start}`, `끝 ${end}`, change]) {
-            const span = document.createElement("span");
-            span.textContent = text;
-            row.append(span);
-          }
-          id("reportGoalChanges").append(row);
-        }
+        for (const goal of data.goals)
+          id("reportGoalChanges").append(reportBarPair(goal));
+        // 직접 회고는 탭(기간)마다 따로 보관한다.
         for (const [field, suffix] of [
           ["reportReflection", "reflection"],
           ["reportNextFocus", "focus"],
         ])
           id(field).value =
-            sessionStorage.getItem(`aim2day-report-${type}-${suffix}`) || "";
+            sessionStorage.getItem(`aim2day-report-${tab.key}-${suffix}`) || "";
       }
-      id("reportPeriodType").onchange = renderReport;
+      // 기준 월 이동: 월을 바꾸면 첫 번째(월간) 탭으로 돌아간다.
+      function moveReportMonth(value) {
+        if (!/^\d{4}-\d{2}$/.test(value)) return;
+        reportMonth = value;
+        reportTab = "month";
+        renderReport();
+      }
+      const shiftMonth = (value, delta) => {
+        const [year, month] = value.split("-").map(Number);
+        const moved = new Date(year, month - 1 + delta, 1);
+        return `${moved.getFullYear()}-${reportPad(moved.getMonth() + 1)}`;
+      };
+      id("reportPrevMonth").onclick = () =>
+        moveReportMonth(shiftMonth(reportMonth, -1));
+      id("reportNextMonth").onclick = () =>
+        moveReportMonth(shiftMonth(reportMonth, 1));
+      id("reportMonth").onchange = () => {
+        if (id("reportMonth").value) moveReportMonth(id("reportMonth").value);
+        else id("reportMonth").value = reportMonth;
+      };
       for (const [field, suffix] of [
         ["reportReflection", "reflection"],
         ["reportNextFocus", "focus"],
       ])
         id(field).oninput = () =>
           sessionStorage.setItem(
-            `aim2day-report-${id("reportPeriodType").value}-${suffix}`,
+            `aim2day-report-${currentReportTab().key}-${suffix}`,
             id(field).value,
           );
       renderReport();
       const demoToday = new Date().toLocaleDateString("sv-SE");
+      // YYYY-MM-DD 문자열을 일 단위로 이동한다.
+      const shiftDate = (value, days) => {
+        const [y, m, d] = value.split("-").map(Number);
+        return new Date(y, m - 1, d + days).toLocaleDateString("sv-SE");
+      };
       const actionModel = [
         {
           id: "sample-action-01",
@@ -1878,7 +2181,67 @@
           dueDate: null,
           completed: false,
         },
+        // 다른 날짜 예시: 어제 완료 1개와 미완료 1개, 그저께 미완료 1개, 내일 미리 추가한 행동 1개.
+        // 어제·그저께의 미완료는 오늘 화면의 `지난 미완료`에 표시된다.
+        {
+          id: "sample-action-past-01",
+          title: "영어 기술 문서 한 단락 요약하기",
+          monthlyGoalId: "english",
+          weeklyGoalId: demoGoals.english.weekly[0],
+          quantity: 0,
+          performedDate: shiftDate(demoToday, -1),
+          dueDate: null,
+          completed: true,
+          savedPosition: { x: 70, y: 60 },
+        },
+        {
+          id: "sample-action-past-02",
+          title: "운동하기",
+          monthlyGoalId: null,
+          weeklyGoalId: null,
+          quantity: 0,
+          performedDate: shiftDate(demoToday, -1),
+          dueDate: null,
+          completed: false,
+          savedPosition: { x: 30, y: 40 },
+        },
+        {
+          id: "sample-action-past-03",
+          title: "알고리즘 오답 노트 정리하기",
+          monthlyGoalId: "backend",
+          weeklyGoalId: demoGoals.backend.weekly[0],
+          quantity: 0,
+          performedDate: shiftDate(demoToday, -2),
+          dueDate: null,
+          completed: false,
+        },
+        {
+          id: "sample-action-future-01",
+          title: "발표 자료 초안 만들기",
+          monthlyGoalId: "english",
+          weeklyGoalId: demoGoals.english.weekly[0],
+          quantity: 0,
+          performedDate: shiftDate(demoToday, 1),
+          dueDate: null,
+          completed: false,
+        },
       ];
+      // 대시보드 오늘 행동 영역이 보여 주는 날짜. 기본값은 오늘이다.
+      let viewDate = demoToday;
+      const isToday = () => viewDate === demoToday;
+      // 목록에는 보는 날짜가 수행일인 행동만 표시한다.
+      const dayActions = () =>
+        actionModel.filter(
+          (action) => action.performedDate === viewDate && visibleAction(action),
+        );
+      // 지난 미완료: 수행일이 오늘 이전이고 완료하지 않은 행동. 오늘 완료 수·사분면에 포함하지 않는다.
+      const pastIncompleteActions = () =>
+        actionModel.filter(
+          (action) =>
+            action.performedDate < demoToday &&
+            !action.completed &&
+            visibleAction(action),
+        );
       const actionPath = (action) =>
         action.monthlyGoalId
           ? `${demoGoals[action.monthlyGoalId].annual} › ${demoToday.slice(0, 7).replace("-", ".")} ${demoGoals[action.monthlyGoalId].monthly} › ${action.weeklyGoalId}`
@@ -1893,7 +2256,7 @@
         );
       };
       const updateCount = () => {
-        const shown = actionModel.filter(visibleAction);
+        const shown = dayActions();
         const goals = shown.filter((action) => action.monthlyGoalId);
         const others = shown.filter((action) => !action.monthlyGoalId);
         const count = (rows) =>
@@ -1958,7 +2321,7 @@
         id("goalGroupTitle").hidden = !grouped;
         id("otherGroupTitle").hidden = !grouped;
         otherList.hidden = !grouped;
-        const shown = actionModel.filter(visibleAction);
+        const shown = dayActions();
         const rows = shown.filter((a) => a.monthlyGoalId),
           otherRows = shown.filter((a) => !a.monthlyGoalId);
         const ordered = [...shown].sort((a, b) => {
@@ -1984,11 +2347,18 @@
           row.className = "action-row gap-2 py-3";
           row.dataset.goalLinked = String(Boolean(action.monthlyGoalId));
           row.dataset.actionId = action.id;
+          // 사분면 분류는 오늘 목록에만 연결한다. 다른 날짜는 보기만 한다.
+          row.dataset.today = String(isToday());
           const check = document.createElement("input");
           check.type = "checkbox";
           check.className = "action-check size-[19px] accent-[#2469C9]";
           check.checked = action.completed;
           check.setAttribute("aria-label", action.title + " 완료");
+          // 미래 날짜의 행동은 추가만 가능하고 완료 체크는 비활성화한다.
+          if (viewDate > demoToday) {
+            check.disabled = true;
+            check.title = "미래 날짜의 행동은 그날이 되면 완료할 수 있어요.";
+          }
           const content = document.createElement("span");
           content.className = "min-w-0 flex-1";
           const title = document.createElement("span");
@@ -2001,11 +2371,17 @@
           const classification = document.createElement("span");
           classification.className = "mt-1 block text-[11px] text-slate-500";
           classification.dataset.classificationSummary = "";
+          // 다른 날짜는 그날 확정한 좌표를 보여 준다. 기록이 없으면 미분류.
+          if (!isToday())
+            classification.textContent = action.savedPosition
+              ? `확정 · ${positionText(action.savedPosition)}`
+              : "미분류";
           content.append(title, path, classification);
           check.addEventListener("change", () => {
             action.completed = check.checked;
             title.classList.toggle("line-through", action.completed);
             updateCount();
+            renderPastIncomplete();
           });
           row.append(check, content);
           if (!grouped) {
@@ -2039,11 +2415,97 @@
         } else if (!displayed.length) {
           const p = document.createElement("p");
           p.className = "py-3 text-sm text-slate-500";
-          p.textContent = "오늘 추가한 일이 없어요.";
+          p.textContent = isToday()
+            ? "오늘 추가한 일이 없어요."
+            : "이 날짜에 기록한 행동이 없어요.";
           goalList.append(p);
         } else displayed.forEach(renderRow);
         updateCount();
         updateClassificationSummaries();
+        renderDateNav();
+        renderPastIncomplete();
+      }
+      // 위치를 "중요도 72 · 긴급도 70" 형태의 문구로 만든다.
+      const positionText = (pos) =>
+        `중요도 ${Math.round(pos.x)} · 긴급도 ${Math.round(pos.y)}`;
+      // 날짜 이동 영역: 제목, 안내 문구, 오늘에만 쓰는 영역의 표시 여부를 갱신한다.
+      function renderDateNav() {
+        const label = viewDate.replaceAll("-", ".");
+        id("actionDate").value = viewDate;
+        id("todayTitleText").textContent = isToday() ? "오늘 행동" : `${label} 행동`;
+        id("todayDate").textContent = label;
+        id("todayNumber").textContent = Number(viewDate.slice(8));
+        id("dateHint").textContent =
+          viewDate > demoToday
+            ? "미래 날짜에는 행동을 미리 추가할 수 있어요. 완료 체크는 그날부터 할 수 있어요."
+            : viewDate < demoToday
+              ? "지난 날짜에는 행동을 추가하고, 체크를 잊은 행동을 완료할 수 있어요."
+              : "";
+        // 사분면 분류와 지난 미완료는 오늘에만 표시한다.
+        id("quadrantDetails").hidden = !isToday();
+        id("openClassification").hidden = !isToday();
+        id("pastIncompleteArea").hidden = !isToday();
+      }
+      // 날짜 이동. 해야 할 일·일정, 이번 주, 이번 달 영역은 날짜와 무관하게 유지한다.
+      function moveViewDate(value) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) {
+          id("actionDate").value = viewDate;
+          id("dateHint").textContent = "올바른 날짜를 입력해 주세요.";
+          return;
+        }
+        viewDate = value;
+        renderActions();
+        renderPriorities();
+        refreshUnclassified();
+      }
+      id("datePrev").onclick = () => moveViewDate(shiftDate(viewDate, -1));
+      id("dateNext").onclick = () => moveViewDate(shiftDate(viewDate, 1));
+      id("dateToday").onclick = () => moveViewDate(demoToday);
+      id("actionDate").onchange = () => moveViewDate(id("actionDate").value);
+      // 지난 미완료 영역: 제목·원래 날짜, 완료 체크(원래 날짜 유지), 오늘로 옮기기.
+      function renderPastIncomplete() {
+        const list = id("pastIncompleteList");
+        const items = pastIncompleteActions();
+        id("pastIncompleteSummary").textContent = `지난 미완료 ${items.length}개`;
+        list.replaceChildren();
+        if (!items.length) {
+          const p = document.createElement("p");
+          p.className = "py-3 text-sm text-slate-500";
+          p.textContent = "지난 미완료 행동이 없어요.";
+          list.append(p);
+          return;
+        }
+        for (const action of items) {
+          const row = document.createElement("div");
+          row.className = "flex items-center gap-2 py-3";
+          const check = document.createElement("input");
+          check.type = "checkbox";
+          check.className = "size-[19px] accent-[#2469C9]";
+          check.setAttribute("aria-label", action.title + " 완료");
+          // 완료해도 수행일은 원래 날짜로 남아 그날 리포트에 집계된다.
+          check.onchange = () => {
+            action.completed = true;
+            renderActions();
+            toast(`${action.performedDate.slice(5).replace("-", ".")} 기록으로 완료했어요.`);
+          };
+          const text = document.createElement("span");
+          text.className = "min-w-0 flex-1 text-sm";
+          text.textContent = `${action.title} · ${action.performedDate.replaceAll("-", ".")}`;
+          const move = document.createElement("button");
+          move.type = "button";
+          move.className = "rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800";
+          move.textContent = "오늘로 옮기기";
+          // 수행일을 오늘로 바꿔 오늘 목록에 넣는다. 날이 바뀌어도 자동으로 옮기지 않는다.
+          move.onclick = () => {
+            action.performedDate = demoToday;
+            renderActions();
+            renderPriorities();
+            refreshUnclassified();
+            toast("오늘 목록으로 옮겼어요.");
+          };
+          row.append(check, text, move);
+          list.append(row);
+        }
       }
       document
         .getElementById("actionSort")
@@ -2074,7 +2536,7 @@
               destination.value === "maintenance" ? null : destination.value,
             weeklyGoalId:
               destination.value === "maintenance" ? null : weekly.value,
-            performedDate: demoToday,
+            performedDate: viewDate,
             dueDate: null,
             quantity: !id("quantityField").hidden
               ? Number(id("actionQuantity").value || 0)
@@ -2086,8 +2548,9 @@
           id("actionQuantity").value = "0";
           renderPriorities();
           refreshUnclassified();
-          id("classificationStatus").textContent =
-            "새 할 일이 있어요. 분류를 확인한 뒤 확정해 주세요.";
+          if (isToday())
+            id("classificationStatus").textContent =
+              "새 할 일이 있어요. 분류를 확인한 뒤 확정해 주세요.";
         });
       document
         .getElementById("actionDestination")
@@ -2329,17 +2792,68 @@
       function samePosition(a, b) {
         return Boolean(a && b && a.x === b.x && a.y === b.y);
       }
-      function updateClassificationSummaries() {
-        document.querySelectorAll(".action-row").forEach((row) => {
-          const pos = draft[row.dataset.actionId],
-            saved = samePosition(approved[row.dataset.actionId], pos);
-          const summary = row.querySelector("[data-classification-summary]");
-          if (!pos || !placed.has(row.dataset.actionId))
-            summary.textContent = "미분류";
-          else
-            summary.textContent = `${saved ? "" : "미확정 · "}중요도 ${Math.round(pos.x)} · 긴급도 ${Math.round(pos.y)}`;
-        });
+      // 점 하나의 분류 상태: 미분류 / 미확정 / 확정 / 재분류 중 / 되돌리기 대기
+      // 확정 위치(approved)는 [오늘 분류 확정]을 누르기 전까지 바뀌지 않는다.
+      function stateOf(key) {
+        const current = placed.has(key) ? draft[key] : null;
+        const confirmed = approved[key] || null;
+        if (!current) return confirmed ? "되돌리기 대기" : "미분류";
+        if (!confirmed) return "미확정";
+        return samePosition(confirmed, current) ? "확정" : "재분류 중";
       }
+      // 상태와 위치를 한 줄 문구로 만든다. 확정된 점을 옮겼으면 기존 확정 위치도 함께 적는다.
+      function stateSummary(key) {
+        const state = stateOf(key);
+        if (state === "미분류") return state;
+        if (state === "되돌리기 대기")
+          return `${state} · 확정 위치 ${positionText(approved[key])}`;
+        const base = `${state} · ${positionText(draft[key])}`;
+        return state === "재분류 중"
+          ? `${base} (확정 위치 ${positionText(approved[key])})`
+          : base;
+      }
+      function updateClassificationSummaries() {
+        document
+          .querySelectorAll('.action-row[data-today="true"]')
+          .forEach((row) => {
+            row.querySelector("[data-classification-summary]").textContent =
+              stateSummary(row.dataset.actionId);
+          });
+      }
+      // 좌표판에서 마지막으로 선택한 점. [선택한 점 트레이로 보내기]와 Delete 키가 사용한다.
+      let selectedPointKey = "";
+      // 배치된 점을 미분류 트레이로 되돌린다. 확정된 점이면 확정 전까지 되돌리기 대기 상태다.
+      function sendToTray(key) {
+        if (!key || !placed.has(key)) {
+          toast("좌표판에 놓인 점을 먼저 선택해 주세요.");
+          return;
+        }
+        placed.delete(key);
+        selectedPointKey = "";
+        id("classificationStatus").textContent = approved[key]
+          ? "확정된 점을 트레이로 보냈어요. 확정하면 미분류로 바뀌고, 변경 취소로 되돌릴 수 있어요."
+          : "점을 트레이로 보냈어요.";
+        renderActions();
+        renderPriorities();
+        refreshUnclassified();
+        id("plot-point-" + key)?.focus();
+      }
+      id("sendToTray").onclick = () => sendToTray(selectedPointKey);
+      // 변경 취소: 확정하지 않은 변경을 모두 버리고 마지막 확정 상태로 되돌린다.
+      id("cancelChanges").onclick = () => {
+        for (const key of Object.keys(draft)) delete draft[key];
+        placed.clear();
+        for (const [key, pos] of Object.entries(approved)) {
+          draft[key] = { ...pos };
+          placed.add(key);
+        }
+        selectedPointKey = "";
+        id("classificationStatus").textContent =
+          "변경을 취소하고 마지막 확정 상태로 되돌렸어요.";
+        renderActions();
+        renderPriorities();
+        refreshUnclassified();
+      };
       // Rows are today's action entries, including repeated titles.
       const cells = [
         "중요도 낮음 · 급함",
@@ -2353,7 +2867,9 @@
         grid.replaceChildren();
         tray.replaceChildren();
         document
-          .querySelectorAll("#actions .action-text, #otherActions .action-text")
+          .querySelectorAll(
+            '#actions .action-row[data-today="true"] .action-text, #otherActions .action-row[data-today="true"] .action-text',
+          )
           .forEach((item, index) => {
             const row = item.closest(".action-row");
             const key = row.dataset.actionId;
@@ -2381,6 +2897,21 @@
             caption.textContent = item.textContent;
             point.append(caption);
             (position ? grid : tray).append(point);
+            // 확정 위치 표시: 재분류 중이거나 되돌리기 대기인 동안만 보인다.
+            const confirmedPos = approved[key];
+            let ghost = null;
+            if (confirmedPos) {
+              ghost = document.createElement("span");
+              ghost.className = "plot-ghost";
+              ghost.setAttribute("aria-hidden", "true");
+              ghost.title = `${item.textContent} · 확정 위치`;
+              ghost.style.left = confirmedPos.x + "%";
+              ghost.style.top = 100 - confirmedPos.y + "%";
+              grid.append(ghost);
+            }
+            const refreshGhost = () => {
+              if (ghost) ghost.hidden = stateOf(key) === "확정";
+            };
 
             function showDetail() {
               document
@@ -2390,13 +2921,13 @@
               const action = actionModel.find((entry) => entry.id === key);
               if (!position) {
                 id("pointDetail").textContent =
-                  `${item.textContent} · ${actionPath(action)} · 미분류. 점을 사분면으로 끌거나 Enter 키를 눌러 배치하세요.`;
+                  `${item.textContent} · ${actionPath(action)} · ${stateSummary(key)}. 점을 사분면으로 끌거나 Enter 키를 눌러 배치하세요.`;
                 return;
               }
               const cell =
                 (position.y >= 50 ? 0 : 2) + (position.x >= 50 ? 1 : 0);
               id("pointDetail").textContent =
-                `${item.textContent} · ${actionPath(action)} · 중요도 ${Math.round(position.x)} · 긴급도 ${Math.round(position.y)} · ${cells[cell]}${samePosition(approved[key], position) ? " · 확정됨" : " · 미확정"}`;
+                `${item.textContent} · ${actionPath(action)} · ${cells[cell]} · ${stateSummary(key)}`;
             }
             function place(x, y, userAction = false) {
               const clamp = (value, min) => Math.max(min, Math.min(98, value));
@@ -2409,29 +2940,34 @@
               point.style.top = 100 - position.y + "%";
               point.classList.toggle("point-left", position.x > 55);
               point.classList.remove("unclassified");
-              point.classList.toggle(
-                "pending",
-                !samePosition(approved[key], position),
-              );
+              point.classList.toggle("pending", stateOf(key) !== "확정");
               point.setAttribute(
                 "aria-label",
-                `${index + 1}. ${item.textContent}, ${cells[cell]}${samePosition(approved[key], position) ? ", 확정됨" : ", 미확정"}. 방향키로 위치 조정`,
+                `${index + 1}. ${item.textContent}, ${cells[cell]}, ${stateOf(key)}. 방향키로 위치 조정, Delete 키로 트레이로 보내기`,
               );
-              point.title = `${item.textContent} · ${cells[cell]}`;
+              point.title = `${item.textContent} · ${cells[cell]} · ${stateOf(key)}`;
+              refreshGhost();
               if (userAction) updateClassificationSummaries();
             }
             if (position) place(position.x, position.y);
             else {
               point.classList.add("unclassified");
+              // 확정된 점을 트레이로 보낸 경우(되돌리기 대기)는 변경 대기 표시를 함께 쓴다.
+              if (confirmedPos) point.classList.add("pending");
               point.setAttribute(
                 "aria-label",
-                `${index + 1}. ${item.textContent}, 미분류. 사분면으로 끌거나 Enter 키로 배치`,
+                `${index + 1}. ${item.textContent}, ${stateOf(key)}. 사분면으로 끌거나 Enter 키로 배치`,
               );
-              point.title = `${item.textContent} · 미분류`;
+              point.title = `${item.textContent} · ${stateOf(key)}`;
+              refreshGhost();
             }
-            point.onfocus = showDetail;
+            point.onfocus = () => {
+              selectedPointKey = key;
+              showDetail();
+            };
             point.onpointerenter = showDetail;
             point.onclick = () => {
+              selectedPointKey = key;
               document
                 .querySelectorAll(".plot-point.selected")
                 .forEach((entry) => entry.classList.remove("selected"));
@@ -2441,6 +2977,7 @@
             let drag;
             point.onpointerdown = (event) => {
               if (event.button !== 0 || drag) return;
+              selectedPointKey = key;
               document
                 .querySelectorAll(".plot-point.selected")
                 .forEach((entry) => entry.classList.remove("selected"));
@@ -2551,13 +3088,25 @@
                 (delta || event.key === "Enter" || event.key === " ")
               ) {
                 event.preventDefault();
-                place(goalLinked ? 65 : 25, 50, true);
+                // 되돌리기 대기 중인 점은 확정 위치로 다시 놓는다.
+                const back = approved[key];
+                place(
+                  back ? back.x : goalLinked ? 65 : 25,
+                  back ? back.y : 50,
+                  true,
+                );
                 renderActions();
                 renderPriorities();
                 refreshUnclassified();
                 id("classificationStatus").textContent =
                   "위치가 바뀌었어요. 확정하면 저장돼요.";
                 id("plot-point-" + key)?.focus();
+                return;
+              }
+              // Delete·Backspace: 배치된 점을 미분류 트레이로 보낸다.
+              if (position && ["Delete", "Backspace"].includes(event.key)) {
+                event.preventDefault();
+                sendToTray(key);
                 return;
               }
               if (!delta) return;
@@ -2588,14 +3137,23 @@
       }
       id("suggest").onclick = () => toast("해당 기능은 현재 개발 중입니다.");
       id("approve").onclick = () => {
+        // 확정할 좌표: 좌표판에 놓인 점만 저장하고, 트레이에 있는 점은 미분류로 만든다.
+        const next = { ...approved };
+        for (const action of actionModel) {
+          if (placed.has(action.id) && draft[action.id])
+            next[action.id] = { ...draft[action.id] };
+          else {
+            delete next[action.id];
+            delete draft[action.id];
+          }
+        }
         try {
-          sessionStorage.setItem(storageKey, JSON.stringify(draft));
+          sessionStorage.setItem(storageKey, JSON.stringify(next));
         } catch {
           toast("이 브라우저에서 분류를 저장할 수 없어요.");
           return;
         }
-        approved = { ...draft };
-        Object.keys(draft).forEach((key) => placed.add(key));
+        approved = next;
         renderPriorities();
         refreshUnclassified();
         updateClassificationSummaries();
@@ -2604,18 +3162,21 @@
         toast("오늘 분류를 확정했어요.");
       };
       function refreshUnclassified() {
-        const rows = [...document.querySelectorAll(".action-row")];
-        const count = rows.filter(
-          (row) =>
-            !samePosition(
-              approved[row.dataset.actionId],
-              draft[row.dataset.actionId],
-            ),
+        const states = [
+          ...document.querySelectorAll('.action-row[data-today="true"]'),
+        ].map((row) => stateOf(row.dataset.actionId));
+        const unclassified = states.filter((state) => state === "미분류").length;
+        // 확정 대기: 미확정·재분류 중·되돌리기 대기
+        const pending = states.filter(
+          (state) => state !== "미분류" && state !== "확정",
         ).length;
-        id("unclassifiedCount").textContent = `미분류 또는 미확정 ${count}개`;
-        id("openClassification").textContent = count
-          ? `오늘 분류하기 · ${count}개 남음`
-          : "오늘 분류 다시 보기";
+        id("unclassifiedCount").textContent =
+          `미분류 ${unclassified}개 · 확정 대기 ${pending}개`;
+        id("openClassification").textContent =
+          unclassified + pending
+            ? `오늘 분류하기 · ${unclassified + pending}개 남음`
+            : "오늘 분류 다시 보기";
+        id("cancelChanges").disabled = pending === 0;
       }
       id("openClassification").onclick = () => {
         id("quadrantDetails").open = true;
