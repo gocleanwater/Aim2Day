@@ -598,11 +598,18 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 **삭제 즉시**: `deleted_at = NOW()` 기록. 하위 목표·미완료 행동을 일반 조회·대시보드에서 숨김.
 
 **30일 경과 후 영구 정리 배치**:
-1. 대상 연간 목표의 하위 `actions` 중 `is_completed=FALSE` → hard-delete
-2. 하위 `weekly_goals` 중 미완료 행동이 모두 제거된 것 → hard-delete
-3. 하위 `monthly_goals` 중 미완료 주간 목표가 모두 제거된 것 → hard-delete
-4. 완료된 `actions`, `weekly_goals`, `monthly_goals` 행은 `deleted_at`을 유지한 채 **보존** (과거 이력)
-5. 완료 하위 이력이 남아있는 `yearly_goals` 행 역시 hard-delete 불가. `deleted_at IS NOT NULL` 상태를 유지하며 아카이빙됨.
+
+목표를 남길지는 `status` 값이 아니라 **완료 기록이 하나라도 연결되어 있는지**로 판단한다. 완료 기록은 다음 세 가지다.
+- 완료한 행동: `actions.is_completed = TRUE`
+- 달성한 기준: `yearly_goal_criteria.is_achieved = TRUE` (연간 목표에만 해당)
+- 수치형 실적 기록: `weekly_goal_numeric_records` 행
+
+처리 순서:
+1. 대상 경로의 `actions` 중 `is_completed=FALSE` → hard-delete (`action_quadrant_placements`는 CASCADE로 함께 삭제)
+2. `weekly_goals` 중 남은 완료 행동도, 수치형 실적 기록도 없는 것 → hard-delete. 하나라도 있으면 보존
+3. `monthly_goals` 중 남은 하위 주간 목표가 없는 것 → hard-delete. 있으면 보존
+4. `yearly_goals` 중 남은 하위 월간 목표도, 달성한 기준도 없는 것 → hard-delete (기준 행은 CASCADE). 하나라도 있으면 보존
+5. 보존된 행은 `deleted_at`을 유지한 채 과거 이력으로 남고, 복원·부모 선택 대상에서 제외한다.
 6. `goal_progress_logs`의 target_id는 소프트 삭제된 목표를 가리켜도 이력 행 보존 (폴리모픽 참조이므로 DB FK 미강제).
 
 > **FK ON DELETE RESTRICT 설계 유지**: 배치에서 하위 → 상위 순서로 처리하면 RESTRICT와 충돌하지 않는다. 완료 이력이 남은 경우 부모 행을 hard-delete 하지 않으므로 RESTRICT가 보호 역할을 올바르게 수행한다.
@@ -669,7 +676,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 `weekly_goals.current_value`에 실제 달성 수치 원본 보존. `progress_rate`는 100 상한을 적용한 DECIMAL(5,2) 값으로 저장.
 
 ### 결정 5 — 30일 하드 딜리트 패턴 (`GOAL-008`, `GOAL-013`)
-FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중간(weekly_goals, monthly_goals) → 상위(yearly_goals) 순서로 미완료 행만 hard-delete. 완료 이력이 남은 행은 `deleted_at IS NOT NULL`로 아카이빙. 보존된 과거 이력은 리포트 집계에는 포함하되 현재 목표 선택 목록에 노출하지 않음.
+FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중간(weekly_goals, monthly_goals) → 상위(yearly_goals) 순서로 진행한다. 목표는 완료 기록(완료 행동·달성 기준·수치 기록)이 하나도 없을 때만 hard-delete하고, 하나라도 있으면 `deleted_at IS NOT NULL`로 아카이빙한다. 목표의 `status`는 이 판단에 쓰지 않는다. 보존된 과거 이력은 리포트 집계에는 포함하되 현재 목표 선택 목록에 노출하지 않음.
 
 ### 결정 6 — `criteria_last_revised_at` 추가 (`GOAL-006`, `REVIEW-001`)
 `criteria_last_revised_at`은 최근 개정 시각을 표시한다. 기간별 비교 불가 여부는 `goal_progress_logs.change_type='CRITERIA_REVISION'` 이벤트로 판단한다. `criteria_confirmed_at`은 최초 확정 시각만 가리킨다.
