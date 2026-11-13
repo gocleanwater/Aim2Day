@@ -673,7 +673,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 [ 브라우저 / 프론트엔드 (Pure HTML/CSS/JavaScript) ]
                      │
                      ▼ (호스트 포트)
-   [ Nginx Proxy Manager (역방향 프록시 컨테이너) ]
+        [ Nginx (역방향 프록시 컨테이너) ]
            │                                │
    /api/auth                       /api/goals, /api/actions
    /api/users                      /api/calendar, /api/reports

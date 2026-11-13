@@ -200,7 +200,7 @@ Aim2Day에서 `중요한 행동`은 사용자가 선택한 연간 목표와 연�
 | NFR-002 | 백엔드는 Java와 Spring Boot로 작성한다. |
 | NFR-003 | DB는 MySQL을 사용한다. |
 | NFR-004 | 공유 세션은 Redis와 Spring Session을 사용한다. |
-| NFR-005 | 역방향 프록시는 Nginx Proxy Manager를 사용한다. |
+| NFR-005 | 역방향 프록시는 Nginx를 사용하고, `upstream`·`location` 설정 파일을 저장소에서 관리한다. |
 | NFR-006 | Docker Compose를 사용하지 않는다. |
 | NFR-007 | 모든 이미지는 `linux/amd64`로 실행 가능해야 한다. |
 | NFR-008 | MySQL 데이터는 재기동·재생성 후에도 유지되는 동일한 Docker 영속 볼륨에 저장해야 한다. |
