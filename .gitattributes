@@ -1,0 +1,5 @@
+# 리눅스 VM에서 실행할 셸 스크립트는 CRLF가 섞이면 "bad interpreter" 오류가 나므로 항상 LF로 저장한다.
+*.sh    text eol=lf
+gradlew text eol=lf
+# Nginx 설정도 리눅스 컨테이너에서 읽으므로 LF로 고정한다.
+*.conf  text eol=lf
