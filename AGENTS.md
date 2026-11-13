@@ -17,7 +17,9 @@
 
 ```text
 AGENTS.md                         공통 규칙과 Codex(리뷰) 역할
-CLAUDE.md                         Claude(구현·오케스트레이션) 역할
+CLAUDE.md                         공통 규칙과 Claude(구현·오케스트레이션) 역할
+.claude/agents/                   Claude 서브에이전트 정의(user-service-dev, goal-service-dev, frontend-dev, infra-dev)
+.claude/settings.json             Claude 공유 권한 설정
 design/aim2day-prototype.html     화면·상호작용 시안
 docs/conventions.md               파일명·커밋 규칙
 docs/project-grading-criteria.md  과제 채점·제출 기준
@@ -26,9 +28,14 @@ docs/aim2day/02_user-flow-and-wireframes.md  화면 흐름과 와이어프레임
 docs/aim2day/03_functional-specification.md 기능별 입력·처리·검증 규칙
 docs/aim2day/04_entity-relationship-diagram.md ERD·테이블 명세와 데이터 결정 사항
 docs/aim2day/05_api-specification.md API 경로·요청·응답·오류 코드와 화면별 호출 API
+services/user-service/            Spring Boot(Gradle, Java 21) 인증·계정 서비스
+services/goal-service/            Spring Boot(Gradle, Java 21) 목표 서비스, 컨테이너 3개로 RR 분산
+frontend/                         순수 HTML·CSS·JS, nginx:alpine으로 서빙
+infra/nginx/                      역방향 프록시 Nginx 설정
+infra/scripts/                    docker run 실행 스크립트(bash, Docker Compose 금지)
 ```
 
-현재 저장소에는 백엔드·프론트엔드 소스가 없다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.
+컨테이너는 reverse-proxy(Nginx), frontend(Nginx), user-service, goal-service-1~3, redis(세션 공유), mysql(영속 볼륨) 8개다. 서비스 코드는 아직 Spring Initializr 뼈대만 있다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.
 
 ### 작업별 참고 문서
 
@@ -43,7 +50,15 @@ ERD를 설계할 때는 사용자·목표 계층·행동·달력 항목·달성 
 
 ## Codex 역할: 코드 리뷰·평가
 
-Codex는 Claude가 만든 변경을 검토하고 평가한다. 사용자가 따로 요청하지 않으면 소스·문서를 고치거나 커밋하지 않고, 리뷰 결과만 낸다.
+Codex는 Claude가 만든 변경을 검토하고 평가한다. 소스·문서를 고치거나 커밋하지 않고, 리뷰 결과만 낸다. 실제 수정은 Claude가 한다.
+
+이 지침만으로는 쓰기 권한이 막히지 않는다. 사용자는 Codex를 읽기 전용 샌드박스로 실행한다(`codex --sandbox read-only`).
+
+### 검토 방법
+
+- 요청문에 적힌 Claude의 구현 설명은 참고만 한다. 판단은 실제 diff와 코드를 직접 읽고 한다.
+- 리뷰 범위의 diff를 `git diff`, `git log`로 직접 확인한다. 바뀐 코드가 호출하는 주변 코드와 관련 명세 절도 읽는다.
+- 요청문의 테스트 결과는 Claude가 실행한 기록이다. 테스트 코드가 실제로 그 동작을 검증하는지는 직접 확인한다.
 
 ### 리뷰 기준
 
@@ -66,3 +81,5 @@ Codex는 Claude가 만든 변경을 검토하고 평가한다. 사용자가 따�
 - 제안: 고치는 방향
 
 추측이면 추측이라고 밝힌다. 발견 사항이 없으면 없다고 쓴다. 마지막에 채점 기준 관점의 총평(충족·미충족 항목)을 짧게 붙인다.
+
+재리뷰일 때는 이전 지적마다 해결·미해결을 먼저 표시한 뒤 새 발견 사항을 적는다.

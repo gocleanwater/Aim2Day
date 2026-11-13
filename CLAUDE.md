@@ -11,6 +11,8 @@
 ```text
 AGENTS.md                         공통 규칙과 Codex(리뷰) 역할
 CLAUDE.md                         공통 규칙과 Claude(구현·오케스트레이션) 역할
+.claude/agents/                   Claude 서브에이전트 정의(user-service-dev, goal-service-dev, frontend-dev, infra-dev)
+.claude/settings.json             Claude 공유 권한 설정
 design/aim2day-prototype.html     화면·상호작용 시안
 docs/conventions.md               파일명·커밋 규칙
 docs/project-grading-criteria.md  과제 채점·제출 기준
@@ -19,9 +21,14 @@ docs/aim2day/02_user-flow-and-wireframes.md  화면 흐름과 와이어프레임
 docs/aim2day/03_functional-specification.md 기능별 입력·처리·검증 규칙
 docs/aim2day/04_entity-relationship-diagram.md ERD·테이블 명세와 데이터 결정 사항
 docs/aim2day/05_api-specification.md API 경로·요청·응답·오류 코드와 화면별 호출 API
+services/user-service/            Spring Boot(Gradle, Java 21) 인증·계정 서비스
+services/goal-service/            Spring Boot(Gradle, Java 21) 목표 서비스, 컨테이너 3개로 RR 분산
+frontend/                         순수 HTML·CSS·JS, nginx:alpine으로 서빙
+infra/nginx/                      역방향 프록시 Nginx 설정
+infra/scripts/                    docker run 실행 스크립트(bash, Docker Compose 금지)
 ```
 
-현재 저장소에는 백엔드·프론트엔드 소스가 없다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.
+컨테이너는 reverse-proxy(Nginx), frontend(Nginx), user-service, goal-service-1~3, redis(세션 공유), mysql(영속 볼륨) 8개다. 서비스 코드는 아직 Spring Initializr 뼈대만 있다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.
 
 ### 작업별 참고 문서
 
@@ -39,10 +46,20 @@ ERD를 설계할 때는 사용자·목표 계층·행동·달력 항목·달성 
 ### 오케스트레이터(메인 세션)
 
 - 사용자 요청을 명세 문서와 대조해 작업 단위로 나눈다. 문서 간 규칙이 다르면 구현 전에 사용자에게 확인한다.
-- 작업은 겹치지 않는 도메인으로 나눠 경량 모델(sonnet, haiku) 서브에이전트에게 맡긴다. 기본 단위는 서비스(`user-service`, `goal-service` 등)와 프론트엔드다. 한 파일을 두 서브에이전트가 동시에 고치지 않게 한다.
-- 서브에이전트 프롬프트에는 담당 디렉터리, 따를 명세 문서·절, 이 대화에서 확정한 결정, 완료 조건(빌드·테스트 통과)을 넣는다.
-- 공유 계약(API 명세, ERD, 공통 설정, `docker-compose` 등 여러 도메인이 함께 쓰는 파일)은 오케스트레이터가 직접 고치거나 한 서브에이전트에게만 맡긴다.
-- 서브에이전트 결과는 diff로 직접 검토하고, 빌드·테스트를 실행해 확인한 뒤 사용자에게 보고한다. 한두 줄짜리 짧은 수정은 직접 해도 된다.
+- 작업은 `.claude/agents/`에 정의한 서브에이전트에게 도메인별로 맡긴다. 한 파일을 두 서브에이전트가 동시에 고치지 않게 한다.
+
+| 서브에이전트 | 수정 범위 |
+|---|---|
+| `user-service-dev` | `services/user-service/` |
+| `goal-service-dev` | `services/goal-service/` |
+| `frontend-dev` | `frontend/` |
+| `infra-dev` | `infra/` |
+
+- 서브에이전트 프롬프트에는 따를 명세 문서·절, 이 대화에서 확정한 결정, 완료 조건(빌드·테스트 통과)을 넣는다.
+- 공유 파일은 오케스트레이터가 직접 고친다. `docs/`, `CLAUDE.md`, `AGENTS.md`, `.claude/`, 루트 `.gitignore`, 그리고 두 서비스가 함께 지켜야 하는 계약(Redis 세션 속성 이름·직렬화 방식, 공통 응답 형식, 프록시 경로 접두사)이 해당한다.
+- 같은 파일을 여러 작업이 동시에 고쳐야 하는 예외적인 경우에만 Git worktree로 작업 공간을 나눈다.
+- 서브에이전트 결과는 diff로 직접 검토하고, 빌드·테스트를 직접 실행해 확인한 뒤 사용자에게 보고한다. 한두 줄짜리 짧은 수정은 직접 해도 된다.
+- 인프라(Nginx, 실행 스크립트, CI)는 사용자가 배우려는 영역이다. 설정마다 이유를 설명하고, 분산 정책처럼 선택지가 있는 설계는 사용자가 고르게 한다.
 
 ### 서브에이전트
 
@@ -50,7 +67,16 @@ ERD를 설계할 때는 사용자·목표 계층·행동·달력 항목·달성 
 - 명세에 없는 동작을 임의로 정하지 않는다. 모호하면 가정을 결과에 적는다.
 - 커밋하지 않는다. 커밋은 오케스트레이터가 사용자 요청을 받아 한다.
 
-### Codex 리뷰 반영
+### Codex 리뷰 요청
 
-- Codex 리뷰 결과는 항목마다 코드와 명세로 사실인지 확인한 뒤 반영한다. 틀린 지적은 근거를 들어 반영하지 않는다.
-- 반영 작업도 도메인별로 서브에이전트에게 나눠 맡긴다.
+Codex 리뷰는 사용자가 직접 실행한다. Claude는 Codex를 실행하지 않는다.
+
+1. 리뷰 요청 전에 바뀐 서비스의 `./gradlew build`(테스트 포함)를 통과시킨다. 실패한 상태로 리뷰를 요청하지 않는다.
+2. 사용자에게 리뷰 요청문을 준다. 요청문에는 리뷰 범위(브랜치와 기준 커밋, 또는 커밋 전 변경 파일 목록), 관련 명세 문서·절, 실행한 테스트 명령과 결과를 적는다. 구현 설명은 짧게 쓴다. Codex는 설명이 아니라 실제 diff를 기준으로 검토한다.
+
+### Codex 리뷰 반영과 종료 조건
+
+- 사용자가 붙여 넣은 리뷰 결과는 항목마다 코드와 명세로 사실인지 확인한 뒤 반영한다. 틀린 지적은 근거를 들어 반영하지 않는다.
+- `blocker`와 `major`는 고친다. `minor`는 사용자에게 목록으로 보고하고, 반영 여부는 사용자가 정한다.
+- 반영 작업도 도메인별로 서브에이전트에게 맡기고, 다시 빌드·테스트를 통과시킨 뒤 재리뷰를 요청한다.
+- 리뷰와 수정은 한 작업당 최대 2회 반복한다. 2회 뒤에도 `blocker`·`major`가 남거나 Claude와 Codex의 판단이 다르면 멈추고 사용자에게 결정을 받는다.
