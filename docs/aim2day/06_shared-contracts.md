@@ -49,6 +49,7 @@ MySQL 컨테이너는 `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE=aim2day`, `MYSQL_US
 | `user-service` | `flyway_user_service_history` | `users` |
 | `goal-service` | `flyway_goal_service_history` | `users`를 제외한 ERD의 모든 테이블 (`user_settings` 포함, ERD 결정 14) |
 
+- 두 서비스 모두 `spring.flyway.baseline-on-migrate=true`, `spring.flyway.baseline-version=0`을 둔다. 다른 서비스의 테이블이 먼저 있는 DB에서 자기 이력 테이블이 없으면 Flyway가 시작을 거부하기 때문이다. baseline 버전이 기본값 1이면 첫 마이그레이션 V1을 건너뛰므로 0으로 둔다.
 - `goal-service` 테이블은 `users(id)`를 외래 키로 참조한다. 따라서 **`user-service`가 먼저 기동해 `users`를 만든 뒤** `goal-service`를 기동한다. `goal-service`는 `users`에 쓰지 않는다.
 
 ## 4. Redis 세션
