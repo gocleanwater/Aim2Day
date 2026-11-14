@@ -21,6 +21,8 @@ docs/aim2day/02_user-flow-and-wireframes.md  화면 흐름과 와이어프레임
 docs/aim2day/03_functional-specification.md 기능별 입력·처리·검증 규칙
 docs/aim2day/04_entity-relationship-diagram.md ERD·테이블 명세와 데이터 결정 사항
 docs/aim2day/05_api-specification.md API 경로·요청·응답·오류 코드와 화면별 호출 API
+docs/aim2day/06_shared-contracts.md   두 서비스·인프라가 함께 지킬 계약(이름, 환경 변수, 세션, Flyway, 프록시)
+docs/progress.md                  작업 단위별 진행 현황과 진행 결정 기록
 services/user-service/            Spring Boot(Gradle, Java 21) 인증·계정 서비스
 services/goal-service/            Spring Boot(Gradle, Java 21) 목표 서비스, 컨테이너 3개로 RR 분산
 frontend/                         순수 HTML·CSS·JS, nginx:alpine으로 서빙
@@ -28,7 +30,7 @@ infra/nginx/                      역방향 프록시 Nginx 설정
 infra/scripts/                    docker run 실행 스크립트(bash, Docker Compose 금지)
 ```
 
-컨테이너는 reverse-proxy(Nginx), frontend(Nginx), user-service, goal-service-1~3, redis(세션 공유), mysql(영속 볼륨) 8개다. 서비스 코드는 아직 Spring Initializr 뼈대만 있다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.
+컨테이너는 reverse-proxy(Nginx), frontend(Nginx), user-service, goal-service-1~3, redis(세션 공유), mysql(영속 볼륨) 8개다. 서비스 코드는 Dockerfile과 연결 설정까지만 있다. 진행 상황은 `docs/progress.md`를 본다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.
 
 ### 작업별 참고 문서
 
@@ -36,8 +38,8 @@ infra/scripts/                    docker run 실행 스크립트(bash, Docker Co
 |---|---|---|
 | 요구사항·기능 변경 | `docs/aim2day/01_requirements.md`, `docs/aim2day/03_functional-specification.md` | 화면에 영향이 있으면 `docs/aim2day/02_user-flow-and-wireframes.md`와 시안 |
 | 화면·사용자 흐름 변경 | `docs/aim2day/02_user-flow-and-wireframes.md`, `design/aim2day-prototype.html` | 요구사항과 기능 명세서 |
-| API·ERD 설계 | `docs/aim2day/01_requirements.md`, `docs/aim2day/03_functional-specification.md`, `docs/aim2day/04_entity-relationship-diagram.md`, `docs/aim2day/05_api-specification.md` | 화면에서 필요한 입력·조회는 화면 흐름 문서, 서비스·DB 제약은 채점 기준 |
-| 컨테이너·시연 설계 | `docs/project-grading-criteria.md` | 요구사항의 분산 처리·비기능 요구사항 |
+| API·ERD 설계 | `docs/aim2day/01_requirements.md`, `docs/aim2day/03_functional-specification.md`, `docs/aim2day/04_entity-relationship-diagram.md`, `docs/aim2day/05_api-specification.md`, `docs/aim2day/06_shared-contracts.md` | 화면에서 필요한 입력·조회는 화면 흐름 문서, 서비스·DB 제약은 채점 기준 |
+| 컨테이너·시연 설계 | `docs/project-grading-criteria.md`, `docs/aim2day/06_shared-contracts.md` | 요구사항의 분산 처리·비기능 요구사항 |
 
 ERD를 설계할 때는 사용자·목표 계층·행동·달력 항목·달성 기준·진행 기록·리포트의 저장 필요성을 요구사항과 기능 명세에서 확인한다. 화면 시안의 예시 데이터와 브라우저 내 임시 상태를 실제 DB 구조로 가정하지 않는다. 문서 간 규칙이 다르면 임의로 합치지 말고 차이를 밝힌 뒤 결정한다.
 
@@ -59,6 +61,7 @@ ERD를 설계할 때는 사용자·목표 계층·행동·달력 항목·달성 
 - 공유 파일은 오케스트레이터가 직접 고친다. `docs/`, `CLAUDE.md`, `AGENTS.md`, `.claude/`, 루트 `.gitignore`, 그리고 두 서비스가 함께 지켜야 하는 계약(Redis 세션 속성 이름·직렬화 방식, 공통 응답 형식, 프록시 경로 접두사)이 해당한다.
 - 같은 파일을 여러 작업이 동시에 고쳐야 하는 예외적인 경우에만 Git worktree로 작업 공간을 나눈다.
 - 서브에이전트 결과는 diff로 직접 검토하고, 빌드·테스트를 직접 실행해 확인한 뒤 사용자에게 보고한다. 한두 줄짜리 짧은 수정은 직접 해도 된다.
+- 작업 단위를 끝내면 `docs/progress.md`의 상태와 결정 기록을 갱신한다. 새 세션은 이 파일부터 읽는다.
 - 인프라(Nginx, 실행 스크립트, CI)는 사용자가 배우려는 영역이다. 설정마다 이유를 설명하고, 분산 정책처럼 선택지가 있는 설계는 사용자가 고르게 한다.
 
 ### 서브에이전트

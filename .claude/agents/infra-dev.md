@@ -24,7 +24,7 @@ model: sonnet
 | redis | Redis | 세션 공유 |
 | mysql | MySQL 8 | 데이터, 이름 붙은 볼륨 `/var/lib/mysql` |
 
-정확한 경로 접두사는 `docs/aim2day/05_api-specification.md`를 따른다.
+정확한 경로 접두사는 `docs/aim2day/05_api-specification.md`를 따른다. 컨테이너·네트워크·볼륨 이름, 포트, 환경 변수, 기동 순서는 `docs/aim2day/06_shared-contracts.md`를 따른다.
 
 ## 기술 제약 (채점 필수 조건)
 

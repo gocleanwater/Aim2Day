@@ -684,7 +684,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
            │         │               │               │               │
            │         └───────────────┴───────────────┘               │
            ▼                         ▼                               ▼
-     [ Redis (세션·임시 토큰) ] [ MySQL 8.0 DB 컨테이너 (단일) ]
+     [ Redis (세션·임시 토큰) ] [ MySQL 8.4 DB 컨테이너 (단일) ]
                                              │
                                              ▼
                                [ Docker Named Volume (/var/lib/mysql) ]

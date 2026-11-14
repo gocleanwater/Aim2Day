@@ -16,6 +16,7 @@ model: sonnet
 ## 따를 문서
 
 - `docs/aim2day/05_api-specification.md`: 경로·요청·응답·오류 코드. 응답은 `{code, message, data}` / `{code, message, details}` 형식이다.
+- `docs/aim2day/06_shared-contracts.md`: 다른 서비스·인프라와 맞춰야 하는 이름, 환경 변수, Flyway 이력 테이블, 세션, 응답 형식. 이 문서와 다르게 구현하지 않는다.
 - `docs/aim2day/04_entity-relationship-diagram.md`: goal-service가 소유한 테이블만 Flyway 마이그레이션(`src/main/resources/db/migration`)으로 만든다. user-service 테이블에 직접 쓰지 않는다.
 - `docs/aim2day/03_functional-specification.md`: 입력 검증·처리 규칙.
 - `docs/aim2day/01_requirements.md`: 기능 요구사항, DIST-*, NFR-*.
@@ -27,7 +28,7 @@ model: sonnet
 - 이 서비스는 같은 이미지로 컨테이너 3개가 뜨고 Nginx가 RR로 요청을 나눈다. 따라서 인스턴스 메모리에 사용자 상태를 두지 않는다. 상태는 MySQL 또는 Redis 세션에만 둔다.
 - 동시 요청이 다른 인스턴스로 갈 수 있으므로 갱신 충돌은 DB 수준(낙관적 락, 유니크 제약 등, API 명세의 동시성 규칙)으로 막는다.
 - 모든 응답에 `X-Instance-Id` 헤더(컨테이너 호스트명)를 붙인다(DIST-003).
-- 로그인 여부는 user-service가 만든 Redis 세션으로 판단한다. 세션 속성 이름과 직렬화 방식은 오케스트레이터가 정한 공유 규칙을 따른다.
+- 로그인 여부는 user-service가 만든 Redis 세션으로 판단한다. 세션 속성 이름과 직렬화 방식은 `docs/aim2day/06_shared-contracts.md` §4를 따른다.
 - 모든 조회·변경에서 리소스 소유자가 현재 사용자인지 확인한다.
 - 핵심 코드(소유권 검증, 동시성 처리, 집계·리포트 계산, 보안 설정)에는 동작 이유를 설명하는 상세한 한국어 주석을 단다. 자명한 getter·DTO에는 달지 않는다.
 - Dockerfile은 이 디렉터리 안에 두며, `linux/amd64`로 빌드 가능해야 한다. Docker Compose 파일은 만들지 않는다.

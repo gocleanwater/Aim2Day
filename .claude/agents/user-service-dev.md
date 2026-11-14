@@ -16,6 +16,7 @@ model: sonnet
 ## 따를 문서
 
 - `docs/aim2day/05_api-specification.md`: 경로·요청·응답·오류 코드. 응답은 `{code, message, data}` / `{code, message, details}` 형식이다.
+- `docs/aim2day/06_shared-contracts.md`: 다른 서비스·인프라와 맞춰야 하는 이름, 환경 변수, Flyway 이력 테이블, 세션, 응답 형식. 이 문서와 다르게 구현하지 않는다.
 - `docs/aim2day/04_entity-relationship-diagram.md`: user-service가 소유한 테이블만 Flyway 마이그레이션(`src/main/resources/db/migration`)으로 만든다.
 - `docs/aim2day/03_functional-specification.md`: 입력 검증 규칙.
 - `docs/aim2day/01_requirements.md`: AUTH-*, NFR-* (세션 30분 만료, HttpOnly·SameSite 쿠키, CSRF, 비밀값 로그 금지).
@@ -24,7 +25,7 @@ model: sonnet
 
 ## 구현 규칙
 
-- 세션은 Spring Session + Redis에 저장한다. goal-service가 같은 세션을 읽으므로 세션 속성 이름과 직렬화 방식은 오케스트레이터가 정한 공유 규칙을 따른다.
+- 세션은 Spring Session + Redis에 저장한다. goal-service가 같은 세션을 읽으므로 세션 속성 이름과 직렬화 방식은 `docs/aim2day/06_shared-contracts.md` §4를 따른다.
 - CSRF는 `CookieCsrfTokenRepository.withHttpOnlyFalse()`를 쓴다(API 명세 보안 절).
 - 비밀번호·세션 ID·토큰을 로그에 남기지 않는다.
 - 핵심 코드(인증 흐름, 세션·보안 설정, 트랜잭션·동시성 처리, 검증 로직)에는 동작 이유를 설명하는 상세한 한국어 주석을 단다. 자명한 getter·DTO에는 달지 않는다.
