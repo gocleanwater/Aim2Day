@@ -28,6 +28,7 @@ dependencies {
 	implementation 'org.flywaydb:flyway-mysql'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
+	testRuntimeOnly 'com.h2database:h2'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
@@ -42,4 +43,10 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// 실행 불가능한 plain jar(*-plain.jar)는 만들지 않는다.
+// build/libs에 실행 가능한 bootJar 하나만 남아 Dockerfile이 jar 이름에 의존하지 않게 된다.
+tasks.named('jar') {
+	enabled = false
 }

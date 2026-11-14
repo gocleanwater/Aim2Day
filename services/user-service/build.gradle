@@ -35,6 +35,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-session-data-redis-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testRuntimeOnly 'com.h2database:h2'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
@@ -42,4 +43,10 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// 실행 불가능한 plain jar(*-plain.jar)는 만들지 않는다.
+// build/libs에 실행 가능한 bootJar 하나만 남아 Dockerfile이 jar 이름에 의존하지 않게 된다.
+tasks.named('jar') {
+	enabled = false
 }
