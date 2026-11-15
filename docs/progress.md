@@ -11,10 +11,10 @@
 | 요구사항·화면·기능·ERD·API 명세 | 오케스트레이터 | ✅ | `docs/aim2day/01`~`05` |
 | 서비스 공유 계약 | 오케스트레이터 | ✅ | `docs/aim2day/06_shared-contracts.md` |
 | 서비스 뼈대, 서브에이전트, 권한 설정 | 오케스트레이터 | ✅ | |
-| Spring Dockerfile·연결 설정 (두 서비스) | user/goal-service-dev | 🔶 | `./gradlew build` 통과. `docker build`는 Docker 미설치로 미검증 |
-| Docker Desktop 설치 | 사용자 | ⬜ | 설치 전에는 컨테이너 실행 불가 |
-| mysql·redis `docker run` 명령 | 사용자 | 🔶 | 초안 검토 완료, 실행 전 |
-| Nginx 프록시 설정 | 사용자(학습) | 🔶 | 뼈대 제공, 사용자 작성 중 |
+| Spring Dockerfile·연결 설정 (두 서비스) | user/goal-service-dev | ✅ | 서버(Ubuntu, Docker 29)에서 빌드·기동 확인 |
+| 실행 환경 | 사용자 | ✅ | 리눅스 서버 `/opt/aim2day/app`(git pull로 배포), 비밀값은 `/opt/aim2day/env/*.env`(저장소 밖, 600) |
+| 컨테이너 8개 기동 | 사용자 + 오케스트레이터 | ✅ | 2026-11-15 전부 Up. 프록시 경유 `/` 200, `/api/**` 401(Spring Security 기본, API 미구현), 별칭 `goal-services` → IP 3개 |
+| Nginx 프록시·프론트 이미지 | 사용자(학습) | ✅ | `infra/nginx/`, `frontend/` Dockerfile. 호스트 포트 80 |
 | 실행 스크립트 `infra/scripts/` | 사용자 + infra-dev | ⬜ | Docker Compose 금지 |
 | 스모크 테스트 `infra/scripts/smoke-test.sh` | infra-dev | ⬜ | 세션 공유·RR·영속성 확인 |
 
@@ -24,7 +24,7 @@
 |---|---|---|---|
 | 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | ⬜ | 공유 계약 §5 |
 | 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | ⬜ | 공유 계약 §4·§5 |
-| `X-Instance-Id` 헤더 | goal-service-dev | ⬜ | API 명세 §2.6 |
+| `X-Instance-Id` 헤더 | goal-service-dev | 🔶 | API 명세 §2.6. `InstanceIdFilter`(Security보다 먼저 실행), 로컬 테스트 통과. 서버 RR 확인 대기 |
 | Swagger(springdoc 3.x) | user/goal-service-dev | ⏸ | 노출 방식 결정 대기: (a) 프록시 경유 / (b) dev 프로필만 |
 
 ## 3. user-service
