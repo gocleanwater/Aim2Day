@@ -15,17 +15,17 @@
 | 실행 환경 | 사용자 | ✅ | 리눅스 서버 `/opt/aim2day/app`(git pull로 배포), 비밀값은 `/opt/aim2day/env/*.env`(저장소 밖, 600) |
 | 컨테이너 8개 기동 | 사용자 + 오케스트레이터 | ✅ | 2026-11-15 전부 Up. 프록시 경유 `/` 200, `/api/**` 401(Spring Security 기본, API 미구현), 별칭 `goal-services` → IP 3개 |
 | Nginx 프록시·프론트 이미지 | 사용자(학습) | ✅ | `infra/nginx/`, `frontend/` Dockerfile. 호스트 포트 80 |
-| 실행 스크립트 `infra/scripts/` | 사용자 + infra-dev | ⬜ | Docker Compose 금지 |
+| 실행 스크립트 `infra/scripts/` | 사용자 + infra-dev | 🔶 | Docker Compose 금지 |
 | 스모크 테스트 `infra/scripts/smoke-test.sh` | infra-dev | ⬜ | 세션 공유·RR·영속성 확인 |
 
 ## 2. 서비스 공통 기반
 
 | 작업 | 담당 | 상태 | 비고 |
 |---|---|---|---|
-| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | ⬜ | 공유 계약 §5 |
-| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | ⬜ | 공유 계약 §4·§5 |
-| `X-Instance-Id` 헤더 | goal-service-dev | 🔶 | API 명세 §2.6. `InstanceIdFilter`(Security보다 먼저 실행), 로컬 테스트 통과. 서버 RR 확인 대기 |
-| Swagger(springdoc 3.x) | user/goal-service-dev | ⏸ | 노출 방식 결정 대기: (a) 프록시 경유 / (b) dev 프로필만 |
+| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5 |
+| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | 🔶 | 공유 계약 §4·§5 |
+| `X-Instance-Id` 헤더 | goal-service-dev | ✅ | API 명세 §2.6. `InstanceIdFilter`(Security보다 먼저 실행, `HOSTNAME` → `InetAddress`, 실패 시 기동 중단). Codex 리뷰 2회차 통과. 2026-11-16 서버에서 프록시 경유 1→2→3 순환 확인(Nginx 워커별 RR 카운터라 가끔 순서가 어긋남) |
+| Swagger(springdoc) | user/goal-service-dev | 🔶 | 프록시 경유 공개, 경로는 공유 계약 §7 |
 
 ## 3. user-service
 
@@ -74,3 +74,5 @@
 - 2026-11-14: 프록시 설정(`default.conf`)과 프론트 정적 파일은 nginx:alpine 기반 Dockerfile로 이미지에 굽는다(Docker Hub 이미지만으로 실행되게). 이 파일들을 호스트 경로 `-v`로 마운트하는 방식은 제출 실행 명령에 쓰지 않는다. MySQL 데이터 볼륨(`-v aim2day-mysql-data:/var/lib/mysql`)은 그대로 쓴다.
 - 2026-11-14: MySQL은 `mysql:8.4`(8.0은 2026-04 지원 종료), Redis는 `redis:8-alpine`, Redis 볼륨 없음.
 - 2026-11-14: Spring 이미지는 멀티 스테이지(JDK 빌드 → JRE 실행), 실행 단계는 bash가 있는 Ubuntu 기반 `eclipse-temurin:21-jre`. plain jar 생성은 끈다.
+- 2026-11-16: Swagger는 프록시 경유로 공개한다(사용자 선택). 서비스별 접두사 `/docs/user/`, `/docs/goal/`(공유 계약 §7).
+- 2026-11-16: Nginx 워커가 여러 개라 RR 순번이 워커마다 따로 돈다. 요청 순서가 가끔 1→2→3에서 어긋나는 것은 정상이다.

@@ -83,3 +83,14 @@ MySQL 컨테이너는 `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE=aim2day`, `MYSQL_US
 - 프록시는 **경로를 바꾸지 않고** 그대로 넘긴다. 따라서 서비스의 컨트롤러는 `/api/...` 전체 경로로 매핑한다.
 - 프록시는 `Host`, `X-Forwarded-For`, `X-Forwarded-Proto`를 넘긴다. `Host`를 넘기지 않으면 upstream 이름이 Host 헤더로 전달된다.
 - 프론트엔드와 API가 같은 출처이므로 CORS를 열지 않는다(API 명세 §2.2).
+
+## 7. API 문서(Swagger)
+
+springdoc-openapi로 각 서비스가 자기 API 문서를 내고, 프록시를 거쳐 공개한다. 두 서비스의 문서 경로가 겹치지 않도록 서비스별 접두사를 둔다. 프록시는 경로를 바꾸지 않으므로 서비스가 이 경로를 그대로 서빙한다.
+
+| 서비스 | 접두사 | Swagger UI | OpenAPI JSON | 프록시 전달 |
+|---|---|---|---|---|
+| `user-service` | `/docs/user/` | `/docs/user/swagger-ui.html` | `/docs/user/v3/api-docs` | `aim2day-user-service:8080` |
+| `goal-service` | `/docs/goal/` | `/docs/goal/swagger-ui.html` | `/docs/goal/v3/api-docs` | `goal-services:8080`(RR) |
+
+- 문서 경로는 인증 없이 허용한다. Swagger UI에서 상태 변경 요청을 보낼 수 있도록 CSRF 쿠키를 헤더로 넣는 설정을 켠다.
