@@ -1,4 +1,4 @@
-package com.aim2day.goal;
+package com.aim2day.goal.common.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,12 +36,16 @@ class InstanceIdHeaderTests {
 	@Autowired
 	MockMvc mockMvc;
 
+	@Autowired
+	InstanceIdFilter instanceIdFilter;
+
 	@Test
 	void unauthenticatedResponseHasInstanceIdHeader() throws Exception {
 		// 인증 없는 요청은 Security가 응답을 끝내지만 헤더는 붙어 있어야 한다.
 		MvcResult result = mockMvc.perform(get("/api/goals")).andReturn();
 
-		assertThat(result.getResponse().getStatus()).isIn(401, 403);
-		assertThat(result.getResponse().getHeader("X-Instance-Id")).isNotBlank();
+		assertThat(result.getResponse().getStatus()).isEqualTo(401);
+		// 비어 있지 않은 것만이 아니라 필터가 결정한 값과 정확히 같은지 비교한다.
+		assertThat(result.getResponse().getHeader("X-Instance-Id")).isEqualTo(instanceIdFilter.instanceId());
 	}
 }
