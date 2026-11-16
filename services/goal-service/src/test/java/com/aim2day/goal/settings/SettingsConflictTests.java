@@ -14,6 +14,7 @@ import java.util.Base64;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -141,25 +142,39 @@ class SettingsConflictTests {
 	}
 
 	/**
-	 * 바깥 트랜잭션이 "없음"을 읽은 뒤 다른 트랜잭션이 행을 커밋해도 getOrCreate가 그 행을 받는다.
-	 * H2(READ COMMITTED 기본)는 MySQL REPEATABLE READ 스냅샷을 재현하지 않으므로 예외 없이 동작함만 확인한다.
+	 * 첫 생성 경합의 복구 경로(유니크 위반 -> 재조회)를 실제로 타게 하는 테스트.
+	 * getOrCreate의 첫 findByUserId가 "없음"을 돌려준 직후 다른 스레드(별도 커넥션)가 같은 사용자 행을
+	 * 커밋하게 한다. 그러면 이어지는 INSERT가 user_id 유니크 제약에 걸리고, 서비스는 새 트랜잭션에서
+	 * 다시 조회해 그 행을 돌려줘야 한다. 바깥 트랜잭션 안에서 호출해도 같아야 한다.
+	 * (H2는 READ COMMITTED라 MySQL REPEATABLE READ 스냅샷은 재현하지 못하지만, 복구 분기 자체는 검증된다.)
 	 */
 	@Test
 	void concurrentFirstReadInsideOuterTransactionRecovers() throws Exception {
 		ExecutorService pool = Executors.newSingleThreadExecutor();
+		AtomicInteger findCalls = new AtomicInteger();
+		AtomicLong otherThreadRowId = new AtomicLong();
 		try {
-			UserSetting result = new TransactionTemplate(txManager).execute(status -> {
-				assertThat(repository.findByUserId(9L)).isEmpty();
-				try {
-					pool.submit(() -> jdbc.update("INSERT INTO user_settings (user_id) VALUES (?)", 9L)).get();
-				} catch (Exception e) {
-					throw new IllegalStateException(e);
+			afterFindByUserId = name -> {
+				// 첫 조회(결과 없음) 직후에만 다른 스레드가 같은 행을 만든다.
+				if (findCalls.incrementAndGet() == 1) {
+					try {
+						otherThreadRowId.set(pool.submit(() -> {
+							jdbc.update("INSERT INTO user_settings (user_id) VALUES (?)", 9L);
+							return jdbc.queryForObject("SELECT id FROM user_settings WHERE user_id = ?", Long.class, 9L);
+						}).get());
+					} catch (Exception e) {
+						throw new IllegalStateException(e);
+					}
 				}
-				return service.getOrCreate(9L);
-			});
-			assertThat(result.getUserId()).isEqualTo(9L);
+			};
+			UserSetting result = new TransactionTemplate(txManager).execute(status -> service.getOrCreate(9L));
+			afterFindByUserId = null;
+			assertThat(result.getId()).isEqualTo(otherThreadRowId.get());
 			assertThat(repository.count()).isEqualTo(1);
+			// 첫 조회(없음) + 유니크 위반 뒤 재조회 = 정확히 2회. 재조회 경로를 타지 않았다면 1회다.
+			assertThat(findCalls.get()).isEqualTo(2);
 		} finally {
+			afterFindByUserId = null;
 			pool.shutdownNow();
 		}
 	}

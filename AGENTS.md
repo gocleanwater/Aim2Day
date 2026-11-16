@@ -35,6 +35,8 @@ services/goal-service/            Spring Boot(Gradle, Java 21) 목표 서비스,
 frontend/                         순수 HTML·CSS·JS, nginx:alpine으로 서빙
 infra/nginx/                      역방향 프록시 Nginx 설정
 docs/aim2day/07_container-commands.md 컨테이너 빌드·실행·검증 명령어 전체(실행 순서대로, 스크립트 파일·Docker Compose 없음)
+docs/superpowers/plans/            구현 계획(goal-service 단위별 작업)
+tools/e2e/                        서버 시험용 DB(aim2day_review) 대상 E2E 스크립트(제출 명령어 아님)
 ```
 
 컨테이너는 reverse-proxy(Nginx), frontend(Nginx), user-service, goal-service-1~3, redis(세션 공유), mysql(영속 볼륨) 8개다. 서비스 코드는 Dockerfile과 연결 설정까지만 있다. 진행 상황은 `docs/progress.md`를 본다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.

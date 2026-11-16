@@ -41,10 +41,12 @@
 
 | 작업 | 상태 | 명세 |
 |---|---|---|
-| goal-service 테이블 마이그레이션 | 🔶 | ERD. 단위마다 그 단위가 쓰는 테이블만 추가한다(계획 `docs/superpowers/plans/2026-11-16-goal-service.md`). V1 `user_settings` 완료 |
+| goal-service 테이블 마이그레이션 | 🔶 | ERD. 단위마다 그 단위가 쓰는 테이블만 추가한다(계획 `docs/superpowers/plans/2026-11-16-goal-service.md`). V1 `user_settings`, V2 연간 목표·기준·진행 기록 완료 |
 | 공통 도메인 기반 + 설정 `/api/settings` (단위 1) | ✅ | API 명세 §4.1. `ErrorCode` interface + `CommonErrorCode`(도메인 코드는 단위별 enum), `VersionGuard`(사전 비교·커밋 시점 충돌 모두 currentVersion), `CalendarMath`·`UserTime`. Codex 1회차 major 1·minor 1 반영, 2회차 blocker·major 없음. 57 테스트 통과. 서버 실제 MySQL·인스턴스 2대 E2E 21/21(V1 동시 기동 1회 적용, 동시 첫 조회 경합 복구, 동시 PUT 40라운드 200+409·currentVersion) |
 | 온보딩 | ⬜ | API 명세 §1.2 |
-| 연·월·주 목표, 휴지통·복원 | ⬜ | API 명세 §1.2 |
+| 연간 목표 + 달성 기준 + 진행 기록 조회 (단위 2) | ✅ | API 명세 §4.3(삭제 제외)·§4.4·§4.8. 생성·순서 저장·기준 쓰기는 users 행 → 목표 행 순서로 잠금(진행 기록 FK 공유 잠금과의 교착 방지), 순서 저장은 version 미증가, 조회는 REPEATABLE READ 읽기 트랜잭션 하나로 묶음. Codex(gpt-6-astra, Claude 직접 실행) 1회차 major 1·minor 1, 2회차 E2E 도구 major 1·minor 2(시험용 Redis 분리 등)를 3회차 없이 반영·직접 검증. 125 테스트, 서버 E2E 29/29(`tools/e2e/unit2_yearly_criteria.py`) |
+| 월간·주간 목표, 진행률 엔진, 수치 기록 (단위 3) | ⬜ | API 명세 §4.5·§4.6 |
+| 휴지통·복원 (단위 6) | ⬜ | API 명세 §4.7 |
 | 달성 기준, 수치 기록, 진행 기록 | ⬜ | API 명세 §1.2 |
 | 행동, 사분면 분류 | ⬜ | API 명세 §1.2 |
 | 달력, 대시보드 | ⬜ | API 명세 §1.2 |
@@ -88,3 +90,6 @@
 - 2026-11-16: goal-service는 단위 9개로 나눠 순서대로 구현한다(계획 `docs/superpowers/plans/2026-11-16-goal-service.md`). 테이블은 단위마다 필요한 것만 마이그레이션으로 추가한다. 상세 작업은 앞 단위 코드가 생긴 뒤 단위별로 덧붙인다.
 - 2026-11-16: 검증(빌드·테스트, 리뷰 반영)을 마친 작업 단위는 Claude가 사용자 승인 없이 커밋한다. 푸시는 사용자 요청 시(사용자 결정).
 - 2026-11-16: goal-service도 `UserDetailsServiceAutoConfiguration`을 제외한다(기동 시 임시 비밀번호 로그 방지, NFR-010).
+- 2026-11-17: 서버 검증(review 컨테이너, 실제 MySQL 통합 테스트)은 같은 MySQL의 `aim2day_review` DB에서 한다(사용자 결정). 리뷰 전 마이그레이션이 운영 DB에 기록된 뒤 파일이 바뀌면 체크섬 불일치로 운영 goal-service가 기동하지 못하기 때문이다. 운영 DB에는 커밋한 최종 마이그레이션만 배포로 적용한다.
+- 2026-11-17: 서버 검증은 시험용 Redis(`aim2day-redis-review`)도 따로 쓴다. 운영 Redis를 공유하면 시험용 세션의 userId가 같은 번호의 운영 사용자로 인증될 수 있다(Codex 지적). 실행 도구는 `tools/e2e/`.
+- 2026-11-17: 사용자가 자는 동안 Codex 리뷰를 Claude가 직접 실행한다(gpt-6-astra, medium). 판단이 필요한 지점에서 멈춘다.
