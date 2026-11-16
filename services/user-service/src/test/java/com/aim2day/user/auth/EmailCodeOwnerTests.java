@@ -10,6 +10,7 @@ import com.aim2day.user.common.response.BusinessException;
 import com.aim2day.user.common.response.ErrorCode;
 import com.aim2day.user.mail.AuthMailSender;
 import com.aim2day.user.mail.MailDeliveryException;
+import com.aim2day.user.support.AuthTestConfig;
 import com.aim2day.user.support.AuthTestConfig.InMemoryTokenStore;
 import com.aim2day.user.user.UserRepository;
 import java.util.List;
@@ -36,7 +37,7 @@ class EmailCodeOwnerTests {
 		CountDownLatch releaseFirst = new CountDownLatch(1);
 		AtomicInteger calls = new AtomicInteger();
 		// 첫 요청의 메일 전송은 오래 걸리다 실패하고, 두 번째 요청의 전송은 즉시 성공한다.
-		AuthMailSender sender = (to, code) -> {
+		AuthMailSender sender = AuthTestConfig.signupSender((to, code) -> {
 			if (calls.incrementAndGet() == 1) {
 				firstSending.countDown();
 				try {
@@ -47,7 +48,7 @@ class EmailCodeOwnerTests {
 				}
 				throw new MailDeliveryException("slow failure", new RuntimeException());
 			}
-		};
+		});
 		EmailCodeService service = new EmailCodeService(mock(UserRepository.class), store, sender, () -> FIXED);
 
 		ExecutorService pool = Executors.newSingleThreadExecutor();
@@ -72,9 +73,9 @@ class EmailCodeOwnerTests {
 	@Test
 	void failureOfOwnRequestClearsOwnCodeAndThrottle() {
 		InMemoryTokenStore store = new InMemoryTokenStore();
-		AuthMailSender failing = (to, code) -> {
+		AuthMailSender failing = AuthTestConfig.signupSender((to, code) -> {
 			throw new MailDeliveryException("fail", new RuntimeException());
-		};
+		});
 		EmailCodeService service = new EmailCodeService(mock(UserRepository.class), store, failing, () -> FIXED);
 
 		assertThatThrownBy(() -> service.requestCode(EMAIL)).isInstanceOf(BusinessException.class);
@@ -108,7 +109,7 @@ class EmailCodeOwnerTests {
 			}
 		};
 		List<String> sentCodes = new CopyOnWriteArrayList<>();
-		AuthMailSender sender = (to, code) -> sentCodes.add(code);
+		AuthMailSender sender = AuthTestConfig.signupSender((to, code) -> sentCodes.add(code));
 		AtomicInteger seq = new AtomicInteger();
 		// A는 111111, B는 222222를 받는다.
 		EmailCodeService service = new EmailCodeService(mock(UserRepository.class), store, sender,

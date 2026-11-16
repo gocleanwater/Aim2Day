@@ -9,4 +9,11 @@ public interface AuthMailSender {
 	 * @throws MailDeliveryException 전송에 실패했을 때
 	 */
 	void sendSignupCode(String to, String code);
+
+	/**
+	 * 비밀번호 재설정 링크를 보낸다. link는 호출 측이 만든 완성된 URL이다(토큰 포함).
+	 *
+	 * @throws MailDeliveryException 전송에 실패했을 때
+	 */
+	void sendPasswordResetLink(String to, String link);
 }

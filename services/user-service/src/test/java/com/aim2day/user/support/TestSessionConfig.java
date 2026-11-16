@@ -1,6 +1,11 @@
 package com.aim2day.user.support;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.MapSession;
+import org.springframework.session.Session;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -43,9 +48,40 @@ public class TestSessionConfig {
 		};
 	}
 
+	/**
+	 * 메모리 저장소지만 운영의 인덱스형 Redis 저장소처럼 principal 이름으로 세션을 찾을 수 있다.
+	 * 비밀번호 재설정이 FindByIndexNameSessionRepository.findByPrincipalName으로 세션을 지우므로,
+	 * 인덱스 조회가 안 되는 순수 MapSessionRepository로는 그 동작을 검증할 수 없다.
+	 * MapSessionRepository를 상속하므로 기존 테스트의 MapSessionRepository 주입도 그대로 동작한다.
+	 */
+	public static class IndexedMapSessionRepository extends MapSessionRepository
+			implements FindByIndexNameSessionRepository<MapSession> {
+
+		private final Map<String, Session> store;
+
+		IndexedMapSessionRepository(Map<String, Session> store) {
+			super(store);
+			this.store = store;
+		}
+
+		@Override
+		public Map<String, MapSession> findByIndexNameAndIndexValue(String indexName, String indexValue) {
+			Map<String, MapSession> found = new HashMap<>();
+			if (!PRINCIPAL_NAME_INDEX_NAME.equals(indexName)) {
+				return found;
+			}
+			for (Session session : store.values()) {
+				if (indexValue.equals(session.getAttribute(PRINCIPAL_NAME_INDEX_NAME))) {
+					found.put(session.getId(), (MapSession) session);
+				}
+			}
+			return found;
+		}
+	}
+
 	@Bean
 	@Primary
-	MapSessionRepository testSessionRepository() {
-		return new MapSessionRepository(new ConcurrentHashMap<>());
+	IndexedMapSessionRepository testSessionRepository() {
+		return new IndexedMapSessionRepository(new ConcurrentHashMap<>());
 	}
 }

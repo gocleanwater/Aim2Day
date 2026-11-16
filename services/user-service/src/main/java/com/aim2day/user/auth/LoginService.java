@@ -39,4 +39,21 @@ public class LoginService {
 		}
 		return user;
 	}
+
+	/**
+	 * 세션을 저장한 뒤 호출하는 재확인. DB의 비밀번호 해시를 새로 읽어 authenticate 때 본 해시와 같은지 본다.
+	 * 다르면(그 사이 비밀번호 재설정이 커밋됨, 계정이 삭제된 경우 포함) 같은 AUTH_INVALID_CREDENTIALS를 던진다.
+	 *
+	 * <p>필요한 이유: 재설정은 "비밀번호 변경 커밋 -> 그 사용자 세션 삭제" 순서다. 로그인이 이전 비밀번호를 확인하고 세션을
+	 * 저장하는 사이에 재설정이 끝나면 그 세션은 삭제 목록에 없어 살아남는다. 세션을 먼저 저장하고 나서 해시를 읽으면
+	 * 어떻게 겹쳐도 둘 중 하나가 걸린다: (a) 재설정 커밋이 이 조회보다 앞서면 여기서 해시 차이를 보고, (b) 뒤에 오면
+	 * 재설정의 세션 삭제는 커밋 이후라 이미 저장된 이 세션을 찾아 지운다. 호출자는 예외를 받으면 방금 만든 세션을 폐기한다.
+	 * 해시 문자열 비교는 같은 사용자의 저장된 BCrypt 해시끼리의 비교라 타이밍 공격 대상이 아니다.
+	 */
+	public void ensurePasswordUnchanged(User authenticated) {
+		String current = userRepository.findPasswordHashById(authenticated.getId()).orElse(null);
+		if (current == null || !current.equals(authenticated.getPasswordHash())) {
+			throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+		}
+	}
 }

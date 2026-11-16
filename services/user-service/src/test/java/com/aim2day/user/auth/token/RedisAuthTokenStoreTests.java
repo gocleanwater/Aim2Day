@@ -127,6 +127,71 @@ class RedisAuthTokenStoreTests {
 		assertThat(call.args()).containsExactly("owner-1");
 	}
 
+	@Test
+	void resetKeysFollowSpecification() {
+		assertThat(RedisAuthTokenStore.resetTokenKey("tok")).isEqualTo("auth:reset:" + TokenCodec.sha256Hex("tok"))
+				.doesNotContain("tok:");
+		assertThat(RedisAuthTokenStore.resetUserKey(42L)).isEqualTo("auth:reset-user:42");
+	}
+
+	@Test
+	void issueResetTokenIsOneScriptWithTokenKeyUserKeyAndHashedArguments() {
+		FakeRedis redis = new FakeRedis().answer(1L);
+		assertThat(new RedisAuthTokenStore(redis).issueResetToken(42L, "tok", EMAIL, "owner-1")).isTrue();
+
+		assertThat(redis.calls).hasSize(1); // 삭제·저장·보조 키 갱신이 별도 호출로 나뉘지 않는다.
+		Call call = redis.calls.get(0);
+		assertThat(call.script()).isEqualTo(RedisAuthTokenStore.ISSUE_RESET_TOKEN_LUA);
+		// 세 번째 키는 재설정 재요청 제한 키다. 스크립트가 그 값이 owner-1일 때만 발급한다.
+		assertThat(call.keys()).containsExactly("auth:reset:" + TokenCodec.sha256Hex("tok"), "auth:reset-user:42",
+				RedisAuthTokenStore.throttleKey("reset", EMAIL));
+		// 인자: userId, 새 토큰 해시(원문 아님), TTL 1800초, 이전 토큰 키를 만들 접두사, 소유자 ID
+		assertThat(call.args()).containsExactly("42", TokenCodec.sha256Hex("tok"), "1800", "auth:reset:", "owner-1");
+		assertThat(call.args()).doesNotContain("tok");
+		assertThat(call.keys()).doesNotContain("tok");
+	}
+
+	@Test
+	void issueResetTokenReturnsFalseWhenScriptReportsLostOwnership() {
+		assertThat(new RedisAuthTokenStore(new FakeRedis().answer(0L)).issueResetToken(42L, "tok", EMAIL, "owner-1"))
+				.isFalse();
+	}
+
+	@Test
+	void consumeResetTokenParsesLargeUserIdWithoutPrecisionLoss() {
+		// 스크립트는 문자열을 그대로 돌려주고 Java가 Long.parseLong으로 바꾼다(Lua tonumber는 2^53 넘으면 정밀도 손실).
+		assertThat(new RedisAuthTokenStore(new FakeRedis().answer("9007199254740993")).consumeResetToken("tok"))
+				.contains(9007199254740993L);
+		assertThat(RedisAuthTokenStore.CONSUME_RESET_TOKEN_LUA).doesNotContain("tonumber");
+	}
+
+	@Test
+	void consumeResetTokenIsOneScriptAndMapsResult() {
+		FakeRedis redis = new FakeRedis().answer("42");
+		assertThat(new RedisAuthTokenStore(redis).consumeResetToken("tok")).contains(42L);
+
+		Call call = redis.calls.get(0);
+		assertThat(redis.calls).hasSize(1);
+		assertThat(call.script()).isEqualTo(RedisAuthTokenStore.CONSUME_RESET_TOKEN_LUA);
+		assertThat(call.keys()).containsExactly("auth:reset:" + TokenCodec.sha256Hex("tok"));
+		assertThat(call.args()).containsExactly(TokenCodec.sha256Hex("tok"), "auth:reset-user:");
+
+		// 없음·만료(nil)는 비어 있다.
+		assertThat(new RedisAuthTokenStore(new FakeRedis().answer((Object) null)).consumeResetToken("tok")).isEmpty();
+	}
+
+	@Test
+	void releaseResetTokenIfLatestIsOneScriptOverTokenAndUserKeys() {
+		FakeRedis redis = new FakeRedis().answer(2L);
+		new RedisAuthTokenStore(redis).releaseResetTokenIfLatest(42L, "tok");
+
+		assertThat(redis.calls).hasSize(1);
+		Call call = redis.calls.get(0);
+		assertThat(call.script()).isEqualTo(RedisAuthTokenStore.RELEASE_RESET_IF_LATEST_LUA);
+		assertThat(call.keys()).containsExactly("auth:reset:" + TokenCodec.sha256Hex("tok"), "auth:reset-user:42");
+		assertThat(call.args()).containsExactly(TokenCodec.sha256Hex("tok"));
+	}
+
 	/**
 	 * Lua를 실행할 수 없는 환경에서 할 수 있는 최소한의 정적 점검: 참조하는 KEYS/ARGV 번호가 실제로 넘기는 수를 넘지 않고
 	 * if/end 짝이 맞는다. 실제 동작은 Redis에서 별도로 검증한다.
@@ -138,7 +203,10 @@ class RedisAuthTokenStoreTests {
 		for (Spec spec : List.of(
 				new Spec("save", RedisAuthTokenStore.SAVE_CODE_LUA, 2, 4),
 				new Spec("verify", RedisAuthTokenStore.VERIFY_CODE_LUA, 2, 3),
-				new Spec("release", RedisAuthTokenStore.RELEASE_IF_OWNER_LUA, 2, 1))) {
+				new Spec("release", RedisAuthTokenStore.RELEASE_IF_OWNER_LUA, 2, 1),
+				new Spec("issueReset", RedisAuthTokenStore.ISSUE_RESET_TOKEN_LUA, 3, 5),
+				new Spec("consumeReset", RedisAuthTokenStore.CONSUME_RESET_TOKEN_LUA, 1, 2),
+				new Spec("releaseReset", RedisAuthTokenStore.RELEASE_RESET_IF_LATEST_LUA, 2, 1))) {
 			Matcher keys = Pattern.compile("KEYS\\[(\\d+)\\]").matcher(spec.lua());
 			while (keys.find()) {
 				assertThat(Integer.parseInt(keys.group(1))).as(spec.name()).isBetween(1, spec.keyc());

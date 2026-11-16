@@ -4,6 +4,8 @@ import com.aim2day.user.auth.dto.EmailCodeRequest;
 import com.aim2day.user.auth.dto.EmailCodeResponse;
 import com.aim2day.user.auth.dto.EmailCodeVerifyRequest;
 import com.aim2day.user.auth.dto.EmailCodeVerifyResponse;
+import com.aim2day.user.auth.dto.PasswordResetLinkRequest;
+import com.aim2day.user.auth.dto.PasswordResetRequest;
 import com.aim2day.user.auth.dto.SignupRequest;
 import com.aim2day.user.auth.dto.SignupResponse;
 import com.aim2day.user.auth.dto.LoginRequest;
@@ -32,9 +34,11 @@ public class AuthController {
 	private final SignupService signupService;
 	private final LoginService loginService;
 	private final CookieSerializer cookieSerializer;
+	private final PasswordResetService passwordResetService;
 
 	public AuthController(EmailCodeService emailCodeService, SignupService signupService, LoginService loginService,
-			CookieSerializer cookieSerializer) {
+			CookieSerializer cookieSerializer, PasswordResetService passwordResetService) {
+		this.passwordResetService = passwordResetService;
 		this.cookieSerializer = cookieSerializer;
 		this.emailCodeService = emailCodeService;
 		this.signupService = signupService;
@@ -55,6 +59,32 @@ public class AuthController {
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
 		return ApiResponse.success(signupService.signup(request));
+	}
+
+	/** 재설정 링크 요청. 가입 여부와 관계없이 200 data:null이다(가입된 계정에만 메일을 보낸다). */
+	@PostMapping("/password-reset-requests")
+	public ApiResponse<Void> requestPasswordReset(@Valid @RequestBody PasswordResetLinkRequest request) {
+		passwordResetService.requestReset(request.email());
+		return ApiResponse.success();
+	}
+
+	/** 새 비밀번호 제출. @Valid가 토큰 소비보다 먼저 비밀번호 규칙·확인 일치를 검사한다. */
+	@PostMapping("/password-reset")
+	public ApiResponse<Void> resetPassword(@Valid @RequestBody PasswordResetRequest request,
+			HttpServletRequest httpRequest) {
+		long userId = passwordResetService.resetPassword(request);
+
+		// 서비스가 저장소에서 그 사용자의 세션을 모두 지웠지만, 이 요청이 그 사용자의 세션 쿠키를 싣고 왔다면
+		// SessionUserIdAuthenticationFilter가 이미 세션 객체를 읽어 요청에 붙여 둔 상태다. Spring Session은 응답을
+		// 내보낼 때 요청에 붙은 세션을 다시 저장하므로, 그대로 두면 방금 지운 세션이 되살아난다. invalidate()로
+		// "이 요청의 세션은 끝났다"고 표시해 재저장을 막고 쿠키도 만료시킨다(로그아웃과 같은 방식).
+		// 다른 사용자의 세션 쿠키라면 건드리지 않는다. 세션이 없으면 getSession(false)가 null이라 새로 만들지 않는다.
+		HttpSession session = httpRequest.getSession(false);
+		if (session != null && String.valueOf(userId)
+				.equals(session.getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME))) {
+			session.invalidate();
+		}
+		return ApiResponse.success();
 	}
 
 	/**
@@ -81,8 +111,31 @@ public class AuthController {
 			existing.invalidate();
 		}
 		HttpSession session = request.getSession(true);
-		session.setAttribute(SessionUserIdAuthenticationFilter.USER_ID_ATTRIBUTE, user.getId());
-		session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, String.valueOf(user.getId()));
+		// 순서가 중요하다. flushMode=IMMEDIATE(SessionConfig)라 각 setAttribute가 곧바로 Redis에 저장된다.
+		// 인덱스 속성을 먼저 넣는 이유: 이 세션이 "그 사용자의 세션"으로 조회돼야 겹친 재설정이 삭제 대상에 넣을 수 있다.
+		// 아직 userId 속성이 없는 중간 상태의 세션은 인증을 통과시키지 못하므로 노출돼도 안전하다.
+		// 두 setAttribute도 try 안에 둔다. IMMEDIATE라 각 호출이 Redis에 쓰므로, userId 저장이 반영된 직후(또는 저장
+		// 도중) 예외가 나면 이미 인증 가능한 세션이 저장소에 남을 수 있다. 어느 지점에서 실패해도 아래 catch가 폐기한다.
+		try {
+			session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME,
+					String.valueOf(user.getId()));
+			session.setAttribute(SessionUserIdAuthenticationFilter.USER_ID_ATTRIBUTE, user.getId());
+			// 세션이 Redis에 저장된 뒤 DB 해시를 다시 읽는다(LoginService 설명 참고). 비밀번호 확인과 세션 저장 사이에
+			// 재설정이 끝났다면 여기서 걸러 이전 비밀번호로 만든 세션이 남지 않게 한다.
+			loginService.ensurePasswordUnchanged(user);
+		}
+		catch (RuntimeException | Error e) {
+			// 불일치뿐 아니라 저장소·DB 오류 등 어떤 실패에서도 방금 저장한 세션을 폐기(Redis 삭제)한다. 확인되지 않은 세션을
+			// 남기지 않는다. invalidate 뒤에는 Spring Session이 새 쿠키를 내리지 않고 만료 쿠키만 내려 로그인 쿠키가 발급되지 않는다.
+			// 정리 자체가 실패해도(예: 저장소 장애) 원래 예외가 응답·로그에 남아야 하므로 suppressed로 붙이고 원래 예외를 던진다.
+			try {
+				session.invalidate();
+			}
+			catch (RuntimeException cleanupFailure) {
+				e.addSuppressed(cleanupFailure);
+			}
+			throw e;
+		}
 		return ApiResponse.success(new LoginResponse(user.getId(), user.getEmail(), user.getUsername()));
 	}
 

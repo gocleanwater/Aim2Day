@@ -19,6 +19,16 @@ class LogAuthMailSenderTests {
 	}
 
 	@Test
+	void logsMaskedAddressAndResetLinkButNeverTheRawEmail(CapturedOutput output) {
+		new LogAuthMailSender().sendPasswordResetLink("user@gmail.com",
+				"http://localhost/reset-password.html#token=abc");
+
+		assertThat(output.getAll()).contains(
+				"[MAIL] to=u***@gmail.com purpose=password-reset link=http://localhost/reset-password.html#token=abc");
+		assertThat(output.getAll()).doesNotContain("user@gmail.com");
+	}
+
+	@Test
 	void masksEdgeCases() {
 		assertThat(MailAddressMasker.mask("a@b.com")).isEqualTo("a***@b.com");
 		assertThat(MailAddressMasker.mask("not-an-email")).isEqualTo("***");

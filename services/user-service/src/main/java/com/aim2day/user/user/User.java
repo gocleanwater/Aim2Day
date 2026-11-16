@@ -60,6 +60,11 @@ public class User {
 		return passwordHash;
 	}
 
+	/** 비밀번호 재설정. 이미 BCrypt로 해시한 값만 받는다. */
+	public void changePasswordHash(String newPasswordHash) {
+		this.passwordHash = newPasswordHash;
+	}
+
 	/** DB가 채운 UTC 시각(jdbc time_zone=UTC로 읽는다). */
 	public LocalDateTime getCreatedAt() {
 		return createdAt;

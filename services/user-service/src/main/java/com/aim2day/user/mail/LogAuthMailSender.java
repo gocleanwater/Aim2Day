@@ -16,4 +16,10 @@ public class LogAuthMailSender implements AuthMailSender {
 	public void sendSignupCode(String to, String code) {
 		log.info("[MAIL] to={} purpose=signup-code code={}", MailAddressMasker.mask(to), code);
 	}
+
+	/** 링크에는 재설정 토큰 원문이 들어 있다. 메일을 실제로 보내지 않는 이 모드에서만 로그에 남긴다(SMTP 모드는 남기지 않는다). */
+	@Override
+	public void sendPasswordResetLink(String to, String link) {
+		log.info("[MAIL] to={} purpose=password-reset link={}", MailAddressMasker.mask(to), link);
+	}
 }

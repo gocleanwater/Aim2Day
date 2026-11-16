@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
  * <li>auth:signup-code:{SHA-256(email)} -> 해시(필드 h)·남은 시도 횟수(n)·발급 소유자 ID(o), TTL 10분</li>
  * <li>auth:signup-ticket:{SHA-256(token)} -> email, TTL 30분, GETDEL로 소비</li>
  * <li>auth:mail-throttle:{purpose}:{SHA-256(email)} -> 발급 소유자 ID, TTL 60초, SET NX EX</li>
+ * <li>auth:reset:{SHA-256(token)} -> userId, TTL 30분</li>
+ * <li>auth:reset-user:{userId} -> 그 사용자의 최신 재설정 토큰 해시(보조 키), TTL 30분</li>
  * </ul>
  * 여러 키를 건드리는 동작(확인·저장·실패 정리)은 Lua 스크립트 하나로 처리한다. Redis는 스크립트를 한 덩어리로
  * 실행하므로 중간에 다른 명령이 끼지 않고, 그래서 "명령 사이에서 실패하면 둘 다 잃는" 상태가 생기지 않는다.
@@ -81,6 +83,79 @@ public class RedisAuthTokenStore implements AuthTokenStore {
 			end
 			return d""";
 
+	/**
+	 * 재설정 토큰 발급(교체). KEYS[1]=새 토큰 키(auth:reset:{newHash}), KEYS[2]=사용자별 최신 토큰 보조 키
+	 * (auth:reset-user:{userId}), KEYS[3]=재요청 제한 키(auth:mail-throttle:reset:{emailHash}),
+	 * ARGV[1]=userId, ARGV[2]=newHash, ARGV[3]=TTL 초, ARGV[4]=토큰 키 접두사("auth:reset:"), ARGV[5]=소유자 ID.
+	 * 반환: 1=발급함, 0=발급 안 함(제한 키의 값이 내 소유자 ID가 아님).
+	 * <p>
+	 * 제한 키의 소유자를 확인하는 이유: 제한을 얻은 뒤 발급 전에 60초 넘게 멈춘 요청 A가 있으면, 그 사이 제한이 만료되어
+	 * 요청 B가 새 제한을 얻고 토큰을 발급해 메일을 보낼 수 있다. 확인 없이 A가 재개되어 발급하면 B의 토큰을 지우고(교체)
+	 * B가 받은 링크가 무효가 된다. "제한 확인 + 교체"를 한 스크립트로 묶어 그 사이에 끼어들 틈이 없게 하고,
+	 * 소유권을 잃은 요청은 아무것도 쓰지 않는다.
+	 * <p>
+	 * 한 스크립트로 묶는 또 다른 이유: "이전 토큰 삭제 -> 새 토큰 저장 -> 보조 키 갱신"을 명령 세 개로 나누면 동시 발급 두 건이
+	 * 서로의 보조 키 읽기와 쓰기 사이에 끼어들어, 각자 상대의 새 토큰이 아니라 옛 토큰만 지우고 둘 다 살아남을 수 있다
+	 * (이전 링크가 살아남는다). 스크립트는 Redis에서 한 덩어리로 실행되므로 마지막에 실행된 발급만 남는다.
+	 * 이전 토큰 키 이름은 보조 키 값(이전 해시)에 접두사를 붙여 스크립트 안에서 만든다. 실행 전에는 어떤 키를 지울지
+	 * 모르기 때문에 KEYS로 미리 선언할 수 없다. 그래서 이 스크립트는 단일 Redis 인스턴스를 전제한다
+	 * (클러스터라면 선언하지 않은 키 접근이 다른 슬롯일 수 있다).
+	 * 보조 키 TTL은 토큰과 같게 건다. 토큰이 만료되면 보조 키도 함께 사라져 가리키는 대상 없는 키가 남지 않는다.
+	 */
+	static final String ISSUE_RESET_TOKEN_LUA = """
+			if redis.call('GET', KEYS[3]) ~= ARGV[5] then
+			  return 0
+			end
+			local old = redis.call('GET', KEYS[2])
+			if old then
+			  redis.call('DEL', ARGV[4] .. old)
+			end
+			redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3])
+			redis.call('SET', KEYS[2], ARGV[2], 'EX', ARGV[3])
+			return 1""";
+
+	/**
+	 * 재설정 토큰 소비. KEYS[1]=토큰 키(auth:reset:{hash}), ARGV[1]=hash, ARGV[2]=보조 키 접두사("auth:reset-user:").
+	 * 반환: 사용자 ID(문자열 그대로), 토큰이 없거나 만료됐으면 nil(Java에서 null).
+	 * 숫자로 바꾸지 않는 이유: Lua의 tonumber는 double이라 2^53을 넘는 ID의 정밀도를 잃을 수 있다. 변환은 Java의 Long.parseLong이 한다.
+	 * <p>
+	 * GETDEL로 읽기와 삭제를 한 동작에 묶어 같은 링크로 동시에 두 번 재설정하는 경쟁을 막는다. 보조 키는 사용자 ID를
+	 * 읽은 뒤에야 이름을 알 수 있으므로 스크립트 안에서 접두사 + userId로 만든다(단일 Redis 전제, 위 발급 스크립트와 같다).
+	 * 보조 키가 "방금 소비한 이 해시"를 가리킬 때만 지운다. 이미 더 새 토큰이 발급되어 보조 키가 새 해시를 가리킨다면
+	 * (이 토큰은 발급 때 지워졌어야 하지만 만료 직전 경합 등으로 남은 경우) 새 토큰의 보조 키를 지우면 안 되기 때문이다.
+	 */
+	static final String CONSUME_RESET_TOKEN_LUA = """
+			local uid = redis.call('GETDEL', KEYS[1])
+			if not uid then
+			  return false
+			end
+			local aux = ARGV[2] .. uid
+			if redis.call('GET', aux) == ARGV[1] then
+			  redis.call('DEL', aux)
+			end
+			return uid""";
+
+	/**
+	 * 메일 전송 실패 정리. KEYS[1]=토큰 키, KEYS[2]=보조 키, ARGV[1]=hash. 반환: 지운 키 개수(0 또는 2).
+	 * 보조 키가 내 해시를 가리킬 때(= 내 토큰이 아직 최신일 때)만 둘 다 지운다. 이전 요청이 늦게 실패했을 때
+	 * 그 사이 발급된 더 새 토큰의 보조 키를 지우지 않으려는 것이다. 내 토큰 키는 새 발급이 이미 지웠을 것이므로 둘 일이 없다.
+	 */
+	static final String RELEASE_RESET_IF_LATEST_LUA = """
+			if redis.call('GET', KEYS[2]) == ARGV[1] then
+			  return redis.call('DEL', KEYS[1], KEYS[2])
+			end
+			return 0""";
+
+	static final String RESET_TOKEN_PREFIX = "auth:reset:";
+	static final String RESET_USER_PREFIX = "auth:reset-user:";
+
+	private static final DefaultRedisScript<Long> ISSUE_RESET_TOKEN =
+			new DefaultRedisScript<>(ISSUE_RESET_TOKEN_LUA, Long.class);
+	private static final DefaultRedisScript<String> CONSUME_RESET_TOKEN =
+			new DefaultRedisScript<>(CONSUME_RESET_TOKEN_LUA, String.class);
+	private static final DefaultRedisScript<Long> RELEASE_RESET_IF_LATEST =
+			new DefaultRedisScript<>(RELEASE_RESET_IF_LATEST_LUA, Long.class);
+
 	private static final DefaultRedisScript<Long> SAVE_CODE = new DefaultRedisScript<>(SAVE_CODE_LUA, Long.class);
 	private static final DefaultRedisScript<Long> VERIFY_CODE = new DefaultRedisScript<>(VERIFY_CODE_LUA, Long.class);
 	private static final DefaultRedisScript<Long> RELEASE_IF_OWNER =
@@ -141,6 +216,36 @@ public class RedisAuthTokenStore implements AuthTokenStore {
 	@Override
 	public void releaseIfOwner(String purpose, String email, String ownerId) {
 		redis.execute(RELEASE_IF_OWNER, List.of(throttleKey(purpose, email), codeKey(email)), ownerId);
+	}
+
+	@Override
+	public boolean issueResetToken(long userId, String token, String email, String ownerId) {
+		String hash = TokenCodec.sha256Hex(token);
+		Long issued = redis.execute(ISSUE_RESET_TOKEN,
+				List.of(resetTokenKey(token), resetUserKey(userId), throttleKey(PURPOSE_RESET, email)),
+				Long.toString(userId), hash, Integer.toString(RESET_TOKEN_TTL_SECONDS), RESET_TOKEN_PREFIX, ownerId);
+		return issued != null && issued == 1L;
+	}
+
+	@Override
+	public Optional<Long> consumeResetToken(String token) {
+		String userId = redis.execute(CONSUME_RESET_TOKEN, List.of(resetTokenKey(token)),
+				TokenCodec.sha256Hex(token), RESET_USER_PREFIX);
+		return Optional.ofNullable(userId).map(Long::parseLong);
+	}
+
+	@Override
+	public void releaseResetTokenIfLatest(long userId, String token) {
+		redis.execute(RELEASE_RESET_IF_LATEST, List.of(resetTokenKey(token), resetUserKey(userId)),
+				TokenCodec.sha256Hex(token));
+	}
+
+	static String resetTokenKey(String token) {
+		return RESET_TOKEN_PREFIX + TokenCodec.sha256Hex(token);
+	}
+
+	static String resetUserKey(long userId) {
+		return RESET_USER_PREFIX + userId;
 	}
 
 	static String codeKey(String email) {

@@ -10,6 +10,10 @@ public interface AuthTokenStore {
 
 	/** 메일 재요청 제한 목적 이름(키의 {purpose}). 재설정 메일은 별도 목적(reset)으로 따로 센다. */
 	String PURPOSE_SIGNUP = "signup";
+	String PURPOSE_RESET = "reset";
+
+	/** 재설정 토큰 유효 시간(30분). */
+	int RESET_TOKEN_TTL_SECONDS = 1800;
 
 	/** 인증번호 유효 시간(10분)·최대 시도 횟수(5회)·가입권 유효 시간(30분)·재요청 간격(60초). */
 	int CODE_TTL_SECONDS = 600;
@@ -66,4 +70,25 @@ public interface AuthTokenStore {
 	 * 이전 요청이 늦게 실패해도 그 사이에 들어온 새 요청의 제한·번호는 건드리지 않는다. 둘은 한 번에 원자적으로 처리한다.
 	 */
 	void releaseIfOwner(String purpose, String email, String ownerId);
+
+	/**
+	 * 비밀번호 재설정 토큰을 발급한다. 재설정 재요청 제한 키의 값이 ownerId일 때만 발급하고(검사와 발급은 원자적)
+	 * 발급했으면 true를 돌려준다. 제한이 만료되어 다른 요청이 이미 제한을 얻었다면 아무것도 쓰지 않고 false다
+	 * (오래 멈춘 요청이 더 최근 요청의 링크를 무효화하지 못하게 한다).
+	 * 발급하면 같은 사용자의 이전 토큰 삭제와 새 토큰 저장이 한 번에 원자적으로 일어나
+	 * 어떤 순간에도 그 사용자의 유효한 토큰은 많아야 하나다(마지막 링크만 유효). 저장에는 토큰의 해시만 쓴다.
+	 */
+	boolean issueResetToken(long userId, String token, String email, String ownerId);
+
+	/**
+	 * 재설정 토큰을 한 번만 소비하고 사용자 ID를 돌려준다(읽기와 삭제가 한 동작). 소비하면서 그 사용자의
+	 * "최신 토큰" 보조 키도(그 토큰을 가리킬 때만) 함께 지운다. 없거나 만료됐으면 비어 있다.
+	 */
+	Optional<Long> consumeResetToken(String token);
+
+	/**
+	 * 메일 전송 실패 정리. 이 토큰이 아직 그 사용자의 최신 토큰일 때만 토큰과 보조 키를 지운다.
+	 * 그 사이 더 새 토큰이 발급됐다면(이 토큰은 이미 지워졌다) 새 토큰을 건드리지 않는다.
+	 */
+	void releaseResetTokenIfLatest(long userId, String token);
 }
