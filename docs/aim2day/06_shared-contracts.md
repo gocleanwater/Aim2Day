@@ -79,7 +79,11 @@ MySQL 컨테이너는 `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE=aim2day`, `MYSQL_US
 
 - 공유 라이브러리를 두지 않는다. 두 서비스가 같은 JSON 모양의 응답 클래스와 전역 예외 처리기를 각자 가진다.
 - Spring Security가 직접 내보내는 응답도 같은 형식으로 맞춘다. 인증 실패(`AuthenticationEntryPoint`)는 401 `UNAUTHENTICATED`, CSRF 실패(`AccessDeniedHandler`)는 403 `CSRF_TOKEN_INVALID`를 `{code, message, details}` 본문으로 반환한다. 기본 설정을 그대로 두면 빈 본문이나 HTML이 나간다.
-- 일시는 ISO-8601 UTC(`Z`)로 직렬화한다(API 명세 §2.3). JVM과 Jackson의 시간대를 UTC로 고정한다.
+- CSRF가 아닌 접근 거부(`AccessDeniedException`)는 두 서비스 모두 로그를 남기고 500 `INTERNAL_ERROR`로 응답한다. 역할 기반 권한이 없으므로 이 경로는 보안 설정 오류일 때만 생긴다.
+- 405 응답은 공통 본문(`MALFORMED_REQUEST`)을 쓰되 `Allow` 헤더를 유지한다. 명세에 코드가 없는 다른 Spring MVC 4xx도 원래 상태를 유지한다(500으로 바꾸지 않는다).
+- `/error`(서블릿 오류 디스패치)도 공통 오류 본문으로 응답하고 내부 예외 문구를 싣지 않는다.
+- **버전 충돌의 `currentVersion`은 도메인 서비스가 채운다.** 공통 처리기는 어느 리소스인지 모르므로 `OptimisticLockingFailureException`을 409 `VERSION_CONFLICT`·`details: null`로만 처리하는 안전망이다. `version`이 있는 수정 API는 서비스 계층에서 충돌(사전 비교와 커밋 시점 충돌 모두)을 잡아 현재 버전을 다시 읽고 `details.currentVersion`을 채워 던진다(API 명세 §2.8). 해당 API를 구현할 때 동시 수정 테스트로 확인한다.
+- 일시는 ISO-8601 UTC(`Z`)로 직렬화한다(API 명세 §2.3). JVM, Jackson, Hibernate(`hibernate.jdbc.time_zone`)의 시간대를 UTC로 고정한다.
 
 ## 6. 프록시 경로
 

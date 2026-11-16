@@ -22,8 +22,8 @@
 
 | 작업 | 담당 | 상태 | 비고 |
 |---|---|---|---|
-| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5. 구현·빌드 완료(user 22, goal 32 테스트), Codex 리뷰 대기 |
-| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | 🔶 | 공유 계약 §4·§5. Codex 리뷰 대기 |
+| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5. Codex 리뷰 2회차 통과(user 28, goal 34 테스트). 남은 minor 2건 반영 중 |
+| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | 🔶 | 공유 계약 §4·§5. Codex 리뷰 2회차 통과 |
 | `X-Instance-Id` 헤더 | goal-service-dev | ✅ | API 명세 §2.6. `InstanceIdFilter`(Security보다 먼저 실행, `HOSTNAME` → `InetAddress`, 실패 시 기동 중단). Codex 리뷰 2회차 통과. 2026-11-16 서버에서 프록시 경유 1→2→3 순환 확인(Nginx 워커별 RR 카운터라 가끔 순서가 어긋남) |
 | Swagger(springdoc) | user/goal-service-dev | 🔶 | 프록시 경유 공개, 경로는 공유 계약 §7 |
 
@@ -79,3 +79,4 @@
 - 2026-11-16: 서브에이전트를 병렬로 돌릴 때 `./gradlew --stop`을 쓰지 않는다(데몬 공유로 서로의 빌드를 죽임). 빌드·테스트 함정은 `.claude/agents/*-service-dev.md`의 "빌드·테스트 주의"에 모은다.
 - 2026-11-16: 실행 스크립트(`infra/scripts/*.sh`)를 만들지 않는다(사용자 결정). 보고서에 직접 실행한 명령으로 적고, 명령어 원본은 `docs/aim2day/07_container-commands.md` 한 곳에 둔다.
 - 2026-11-16: DB 비밀번호는 과제 제출물이라 명령어 문서(`07_container-commands.md`)의 `-e`에 그대로 적어 커밋한다(사용자 결정). 저장소는 공개지만 MySQL은 호스트 포트를 열지 않고 VM도 사설망이다. 과제 전용 값으로 쓰고, 출시 전에 바꾼다.
+- 2026-11-16: 오류 코드는 도메인을 구현할 때 도메인별 enum으로 나눈다(사용자 결정). 코드 이름 형식은 명세 변경이 필요해 결정 대기.
