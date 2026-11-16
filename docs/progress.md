@@ -22,7 +22,7 @@
 
 | 작업 | 담당 | 상태 | 비고 |
 |---|---|---|---|
-| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5. Codex 리뷰 2회차 통과(user 28, goal 34 테스트). 남은 minor 2건 반영 중 |
+| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5. Codex 리뷰 2회차 통과, 남은 minor 2건 반영(user 32, goal 34 테스트). 서버 배포·Swagger 프록시 연결 대기 |
 | 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | 🔶 | 공유 계약 §4·§5. Codex 리뷰 2회차 통과 |
 | `X-Instance-Id` 헤더 | goal-service-dev | ✅ | API 명세 §2.6. `InstanceIdFilter`(Security보다 먼저 실행, `HOSTNAME` → `InetAddress`, 실패 시 기동 중단). Codex 리뷰 2회차 통과. 2026-11-16 서버에서 프록시 경유 1→2→3 순환 확인(Nginx 워커별 RR 카운터라 가끔 순서가 어긋남) |
 | Swagger(springdoc) | user/goal-service-dev | 🔶 | 프록시 경유 공개, 경로는 공유 계약 §7 |
