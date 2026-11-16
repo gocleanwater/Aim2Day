@@ -22,10 +22,10 @@
 
 | 작업 | 담당 | 상태 | 비고 |
 |---|---|---|---|
-| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5. Codex 리뷰 2회차 통과, 남은 minor 2건 반영(user 32, goal 34 테스트). 서버 배포·Swagger 프록시 연결 대기 |
-| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | 🔶 | 공유 계약 §4·§5. Codex 리뷰 2회차 통과 |
+| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | ✅ | 공유 계약 §5. Codex 리뷰 2회차 통과(user 32, goal 34 테스트). 2026-11-16 서버 배포 확인 |
+| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | ✅ | 공유 계약 §4·§5. 서버에서 401 JSON, CSRF 403, user가 발급한 CSRF 토큰을 goal이 검증하는 것 확인. 실제 Redis 세션 공유는 로그인 구현 후 확인 |
 | `X-Instance-Id` 헤더 | goal-service-dev | ✅ | API 명세 §2.6. `InstanceIdFilter`(Security보다 먼저 실행, `HOSTNAME` → `InetAddress`, 실패 시 기동 중단). Codex 리뷰 2회차 통과. 2026-11-16 서버에서 프록시 경유 1→2→3 순환 확인(Nginx 워커별 RR 카운터라 가끔 순서가 어긋남) |
-| Swagger(springdoc) | user/goal-service-dev | 🔶 | 프록시 경유 공개, 경로는 공유 계약 §7 |
+| Swagger(springdoc) | user/goal-service-dev | ✅ | 프록시 경유 공개(공유 계약 §7). 서버에서 `/docs/user/`, `/docs/goal/`의 UI·정적 리소스·api-docs 200 확인 |
 
 ## 3. user-service
 
@@ -80,3 +80,4 @@
 - 2026-11-16: 실행 스크립트(`infra/scripts/*.sh`)를 만들지 않는다(사용자 결정). 보고서에 직접 실행한 명령으로 적고, 명령어 원본은 `docs/aim2day/07_container-commands.md` 한 곳에 둔다.
 - 2026-11-16: DB 비밀번호는 과제 제출물이라 명령어 문서(`07_container-commands.md`)의 `-e`에 그대로 적어 커밋한다(사용자 결정). 저장소는 공개지만 MySQL은 호스트 포트를 열지 않고 VM도 사설망이다. 과제 전용 값으로 쓰고, 출시 전에 바꾼다.
 - 2026-11-16: 오류 코드는 도메인을 구현할 때 도메인별 enum으로 나눈다(사용자 결정). 코드 이름 형식은 명세 변경이 필요해 결정 대기.
+- 2026-11-16: 오류 코드 이름은 `도메인_뜻`(공통 코드는 접두사 없음), 성공 코드는 `SUCCESS` 하나(사용자 결정, API 명세 결정 21). 명세·두 서비스 ErrorCode·시안 주석의 코드 19개 이름을 바꿨다.
