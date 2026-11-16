@@ -161,8 +161,18 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(code.status()).body(ErrorResponse.of(code, details));
 	}
 
+	/** PASSWORD_POLICY reason일 때 응답 message로 쓰는 규칙 전문(API 명세 §2.8). */
+	static final String PASSWORD_POLICY_MESSAGE = "비밀번호는 8~64자이며 영문 대문자, 영문 소문자, 숫자, 기호를 각각 1자 이상 포함해야 합니다. 공백·한글·이모지는 쓸 수 없습니다.";
+
 	private static ResponseEntity<ErrorResponse> validationFailed(List<Map<String, String>> fieldErrors) {
-		return respond(ErrorCode.VALIDATION_FAILED, Map.of("fieldErrors", fieldErrors));
+		// 사용자가 비밀번호 규칙을 어겼다면 "입력값이 올바르지 않습니다" 같은 일반 문구로는 무엇을 고칠지 알 수 없으므로,
+		// fieldErrors에 PASSWORD_POLICY가 하나라도 있으면 최상위 message를 규칙 전문으로 바꾼다.
+		// 다른 필드 오류가 함께 있어도 비밀번호 쪽이 구체적 안내이므로 우선한다(각 필드의 상세는 details에 그대로 있다).
+		// 그 밖의 경우는 기존 VALIDATION_FAILED 문구를 유지한다.
+		boolean passwordPolicy = fieldErrors.stream().anyMatch(fe -> "PASSWORD_POLICY".equals(fe.get("reason")));
+		String message = passwordPolicy ? PASSWORD_POLICY_MESSAGE : ErrorCode.VALIDATION_FAILED.message();
+		return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.status())
+				.body(new ErrorResponse(ErrorCode.VALIDATION_FAILED.name(), message, Map.of("fieldErrors", fieldErrors)));
 	}
 
 	private static Map<String, String> fieldError(String field, String reason) {
