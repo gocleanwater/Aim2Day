@@ -238,12 +238,13 @@
 |---|---|---|---|
 | 가입 인증번호 | 메일 본문의 6자리 숫자 | `auth:signup-code:{SHA-256(email)}` | 10분 |
 | 가입권(`signupToken`) | 인증번호 확인 응답 | `auth:signup-ticket:{SHA-256(token)}` | 30분 |
-| 비밀번호 재설정 | `{BASE_URL}/reset-password.html?token={token}` | `auth:reset:{SHA-256(token)}` | 30분 |
+| 비밀번호 재설정 | `{BASE_URL}/reset-password.html#token={token}` | `auth:reset:{SHA-256(token)}` | 30분 |
 
 - 인증번호는 `SecureRandom`으로 `000000`~`999999` 중에서 고른 6자리다. Redis에는 번호의 해시와 남은 시도 횟수를 저장한다. 같은 이메일로 새 번호를 받으면 이전 번호는 무효가 되어 마지막 번호만 유효하다.
 - 가입권과 재설정 토큰은 32바이트 난수를 Base64URL로 인코딩한 값이다. 둘 다 `GETDEL`로 한 번만 소비한다.
 - 새 재설정 토큰을 발급하면 같은 사용자의 이전 재설정 토큰은 지운다. 마지막 링크만 유효하다.
 - 재설정 링크를 여는 페이지는 토큰을 바로 소비하지 않는다. 사용자가 새 비밀번호 제출을 눌러 API를 호출할 때 소비한다.
+- 재설정 링크는 토큰을 쿼리(`?`)가 아니라 프래그먼트(`#`)에 둔다. 브라우저는 프래그먼트를 서버로 보내지 않으므로 토큰이 프록시·프론트엔드 Nginx 접근 로그와 `Referer`에 남지 않는다. 페이지는 `location.hash`에서 토큰을 읽어 API 요청 본문으로 보낸다.
 - 메일 재요청은 이메일별로 60초에 한 번만 허용한다(Redis 키 `auth:mail-throttle:{purpose}:{SHA-256(email)}`, TTL 60초, `purpose`는 `signup`과 `reset`). 가입 인증번호와 재설정 메일은 제한을 따로 센다.
 
 #### GET `/api/auth/csrf`
@@ -323,6 +324,7 @@ CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그
 200 응답: `{ "id": 7, "email": "user@example.com", "username": "정수" }` 와 `Set-Cookie: SESSION=...`
 
 - 로그인 성공 시 세션 ID를 새로 발급한다(세션 고정 공격 방지).
+- 비밀번호를 확인한 뒤 새 세션을 Redis에 바로 저장하고, DB의 비밀번호 해시를 다시 읽어 확인 때와 같은지 본다. 다르면(그 사이 비밀번호 재설정이 끝남) 저장한 세션을 지우고 401 `AUTH_INVALID_CREDENTIALS`를 반환한다. 재설정은 "비밀번호 변경 → 그 사용자 세션 삭제" 순서이므로 두 요청이 어떻게 겹쳐도 이전 비밀번호로 만든 세션이 재설정 뒤에 남지 않는다(결정 14). 추가 조회는 로그인 때만 한 번이다.
 - 오류: 400 `VALIDATION_FAILED`, 401 `AUTH_INVALID_CREDENTIALS`, 403 `CSRF_TOKEN_INVALID`
 - 로그인에 성공하면 세션 속성 `PRINCIPAL_NAME_INDEX_NAME`에 `userId`를 문자열로 저장한다(§2.2). 로그인 전 요청이라도 CSRF 토큰은 필요하다. 공격자 사이트가 피해자 브라우저를 공격자 계정으로 로그인시키는 로그인 CSRF를 막기 위해서다.
 

@@ -86,6 +86,7 @@ MySQL 컨테이너는 `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE=aim2day`, `MYSQL_US
 - 세션 쿠키는 `CookieSerializer`로 이름 `SESSION`, `Path=/`, `HttpOnly`, `SameSite=Lax`를 두 서비스가 같게 둔다. 쿠키 값의 Base64 인코딩 등 나머지는 기본값을 바꾸지 않는다.
 - CSRF는 `CookieCsrfTokenRepository.withHttpOnlyFalse()`(쿠키 `XSRF-TOKEN`, `Path=/`, 헤더 `X-XSRF-TOKEN`)와 `csrf.spa()`를 두 서비스가 같게 쓴다. `spa()`가 없으면 기본 처리기가 마스킹된 토큰을 기대해, 쿠키 값을 그대로 헤더에 넣은 요청이 403이 된다.
 - 로그인(세션 생성·`userId` 저장)과 로그아웃(세션 무효화)은 `user-service`만 한다. `goal-service`는 세션을 읽기만 하고 새로 만들지 않는다.
+- `user-service`는 `flushMode = FlushMode.IMMEDIATE`를 쓴다. 로그인 때 세션을 응답 시점이 아니라 속성을 넣는 즉시 Redis에 저장해야, 겹친 비밀번호 재설정의 세션 일괄 삭제에 잡히기 때문이다(API 명세 §3.1 로그인). `goal-service`는 세션 속성을 쓰지 않으므로 기본값(`ON_SAVE`)이어도 된다.
 - Redis의 `auth:*` 키(가입 인증번호·가입권, 재설정 토큰, 메일 재요청 제한)는 `user-service`만 쓴다(API 명세 §3.1).
 
 ## 5. 공통 응답 형식
