@@ -59,4 +59,9 @@ public class User {
 	public String getPasswordHash() {
 		return passwordHash;
 	}
+
+	/** DB가 채운 UTC 시각(jdbc time_zone=UTC로 읽는다). */
+	public LocalDateTime getCreatedAt() {
+		return createdAt;
+	}
 }
