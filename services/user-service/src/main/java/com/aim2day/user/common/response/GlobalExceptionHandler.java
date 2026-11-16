@@ -12,9 +12,13 @@ import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -61,14 +65,33 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ErrorResponse> handleMethodValidation(HandlerMethodValidationException e) {
 		List<Map<String, String>> fieldErrors = new ArrayList<>();
 		e.getParameterValidationResults().forEach(result -> {
+			if (result instanceof ParameterErrors pe) {
+				// @Valid 객체 인자는 개별 오류의 필드명(DTO 필드)을 쓴다. 메서드 인자명으로 덮으면 어느 필드인지 잃는다.
+				pe.getFieldErrors().forEach(fe -> fieldErrors.add(
+						fieldError(fe.getField(), reasonOf(fe.getCode(), fe.getDefaultMessage(), violationOf(fe)))));
+				pe.getGlobalErrors().forEach(ge -> fieldErrors.add(
+						fieldError(ge.getObjectName(), reasonOf(ge.getCode(), ge.getDefaultMessage(), violationOf(ge)))));
+				return;
+			}
+			// @RequestParam 등에 직접 붙은 제약. 원본 ConstraintViolation을 꺼내야 Size의 min/max를 구분할 수 있다.
 			String name = result.getMethodParameter().getParameterName();
 			for (MessageSourceResolvable error : result.getResolvableErrors()) {
+				ConstraintViolation<?> violation = unwrapViolation(result, error);
 				fieldErrors.add(fieldError(name == null ? "unknown" : name,
-						reasonOf(constraintName(error), error.getDefaultMessage(),
-							error instanceof ObjectError oe ? violationOf(oe) : null)));
+						reasonOf(constraintName(error), error.getDefaultMessage(), violation)));
 			}
 		});
 		return validationFailed(fieldErrors);
+	}
+
+	/** 검증 결과에서 원본 위반 정보를 꺼낸다. 꺼낼 수 없으면 null. */
+	private static ConstraintViolation<?> unwrapViolation(ParameterValidationResult result, MessageSourceResolvable error) {
+		try {
+			return result.unwrap(error, ConstraintViolation.class);
+		}
+		catch (RuntimeException ex) {
+			return null;
+		}
 	}
 
 	@ExceptionHandler(MissingServletRequestParameterException.class)
@@ -120,7 +143,11 @@ public class GlobalExceptionHandler {
 
 	/** 마지막 방어선. 스택은 서버 로그에만 남기고 응답에는 일반 문구만 내보낸다. */
 	@ExceptionHandler(Exception.class)
-	ResponseEntity<ErrorResponse> handleUnexpected(Exception e) {
+	ResponseEntity<ErrorResponse> handleUnexpected(Exception e) throws Exception {
+		// 인증·인가 예외는 다시 던져 Spring Security(ExceptionTranslationFilter)가 401 등으로 처리하게 한다. 500으로 삼키지 않는다.
+		if (e instanceof AccessDeniedException || e instanceof AuthenticationException) {
+			throw e;
+		}
 		// 개별 처리하지 않은 Spring MVC 예외(필수 헤더 누락 등)는 4xx를 유지한다. 500으로 덮으면 클라이언트 오류가 서버 오류로 보인다.
 		if (e instanceof org.springframework.web.ErrorResponse springError
 				&& springError.getStatusCode().is4xxClientError()) {

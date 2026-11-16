@@ -156,6 +156,47 @@ class CommonFoundationTests {
 	}
 
 	@Test
+	void queryParamSizeDistinguishesMinAndMax() throws Exception {
+		mockMvc.perform(get("/api/test/query-size").param("tag", "x").cookie(sessionCookie(7L)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+				.andExpect(jsonPath("$.details.fieldErrors[0].field").value("tag"))
+				.andExpect(jsonPath("$.details.fieldErrors[0].reason").value("OUT_OF_RANGE"));
+		mockMvc.perform(get("/api/test/query-size").param("tag", "123456789").cookie(sessionCookie(7L)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.details.fieldErrors[0].field").value("tag"))
+				.andExpect(jsonPath("$.details.fieldErrors[0].reason").value("TOO_LONG"));
+	}
+
+	@Test
+	void bodyAndQueryErrorsKeepDtoFieldNames() throws Exception {
+		mockMvc.perform(post("/api/test/body-and-query").param("q", "x")
+				.cookie(sessionCookie(7L), new Cookie("XSRF-TOKEN", "t")).header("X-XSRF-TOKEN", "t")
+				.contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\",\"tag\":\"123456789\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.details.fieldErrors[?(@.field=='name')].reason").value("REQUIRED"))
+				.andExpect(jsonPath("$.details.fieldErrors[?(@.field=='tag')].reason").value("TOO_LONG"))
+				.andExpect(jsonPath("$.details.fieldErrors[?(@.field=='q')].reason").value("OUT_OF_RANGE"));
+	}
+
+	@Test
+	void accessDeniedFromControllerIsHandledBySecurity() throws Exception {
+		// 인증된 사용자의 AccessDenied는 JsonSecurityErrorHandlers가 처리한다(현재 설정은 500 INTERNAL_ERROR).
+		mockMvc.perform(get("/api/test/access-denied").cookie(sessionCookie(7L)))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+				.andExpect(content().string(not(containsString("denied-detail"))));
+	}
+
+	@Test
+	void authenticationExceptionFromControllerReturns401() throws Exception {
+		mockMvc.perform(get("/api/test/auth-failure").cookie(sessionCookie(7L)))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+				.andExpect(content().string(not(containsString("auth-detail"))));
+	}
+
+	@Test
 	void missingRequiredHeaderKeeps400() throws Exception {
 		mockMvc.perform(get("/api/test/header").cookie(sessionCookie(7L)))
 				.andExpect(status().isBadRequest())

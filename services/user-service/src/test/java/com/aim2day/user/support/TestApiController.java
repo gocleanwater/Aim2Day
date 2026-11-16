@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 테스트 소스에만 있는 컨트롤러. 운영 jar에는 포함되지 않는다. */
@@ -51,6 +52,27 @@ public class TestApiController {
 	@GetMapping("/api/test/header")
 	ApiResponse<String> header(@RequestHeader("X-Required") String value) {
 		return ApiResponse.success(value);
+	}
+
+	@GetMapping("/api/test/query-size")
+	ApiResponse<String> querySize(@RequestParam @Size(min = 2, max = 8) String tag) {
+		return ApiResponse.success(tag);
+	}
+
+	/** 본문 DTO와 쿼리 인자 제약이 함께 있는 메서드. */
+	@PostMapping("/api/test/body-and-query")
+	ApiResponse<Body> bodyAndQuery(@Valid @RequestBody Body body, @RequestParam @Size(min = 2, max = 8) String q) {
+		return ApiResponse.success(body);
+	}
+
+	@GetMapping("/api/test/access-denied")
+	void accessDenied() {
+		throw new org.springframework.security.access.AccessDeniedException("denied-detail");
+	}
+
+	@GetMapping("/api/test/auth-failure")
+	void authFailure() {
+		throw new org.springframework.security.authentication.BadCredentialsException("auth-detail");
 	}
 
 	@GetMapping("/api/test/boom")
