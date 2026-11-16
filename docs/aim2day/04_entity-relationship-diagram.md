@@ -60,7 +60,6 @@ erDiagram
         varchar email UK "이메일 (UNIQUE)"
         varchar username "사용자명 (중복 허용, 화면 표시용)"
         varchar password_hash "단방향 암호화 해시 (BCrypt)"
-        boolean is_verified "이메일 인증 여부"
         datetime created_at "가입 일시"
         datetime updated_at "수정 일시"
     }
@@ -241,15 +240,14 @@ erDiagram
 ### 3.1 사용자 및 인증 / 설정 도메인
 
 #### 1) `users` (사용자 계정)
-- **설명**: 회원 기본 정보와 인증을 관리한다. (`AUTH-001`, `AUTH-002`, `AUTH-005`, `AUTH-006`)
+- **설명**: 회원 기본 정보와 인증을 관리한다. 모든 계정은 이메일 인증번호 확인을 마친 뒤에만 생성되므로 인증 여부 컬럼을 두지 않는다(결정 10). (`AUTH-001`, `AUTH-002`, `AUTH-005`, `AUTH-006`)
 
 | 컬럼명 | 논리명 | 데이터 타입 | Null | 기본값 | 제약/설명 |
 |---|---|---|---|---|---|
 | `id` | 사용자 고유 ID | BIGINT | N | AUTO_INCREMENT | PK |
-| `email` | 이메일 주소 | VARCHAR(255) | N | - | UNIQUE. 로그인 및 인증 링크 수신용 |
+| `email` | 이메일 주소 | VARCHAR(255) | N | - | UNIQUE. 로그인 및 인증번호·재설정 메일 수신용. 앞뒤 공백을 지우고 소문자로 바꾼 값을 저장하며, 정규화 결과가 정확히 같을 때만 같은 이메일로 본다. 이를 위해 열 정렬 규칙을 `utf8mb4_bin`(대소문자·악센트를 구분하는 정확한 비교)으로 둔다 |
 | `username` | 사용자명 | VARCHAR(50) | N | - | 중복 허용. 화면 표시명으로만 사용하며 로그인 식별자로 사용하지 않음 |
 | `password_hash` | 비밀번호 해시 | VARCHAR(255) | N | - | 단방향 해시(BCrypt). 로그 출력 엄격 금지(`NFR-010`) |
-| `is_verified` | 이메일 인증 여부 | BOOLEAN | N | FALSE | 메일 인증 링크 클릭 완료 시 TRUE |
 | `created_at` | 가입 일시 | DATETIME | N | CURRENT_TIMESTAMP | 계정 생성 일시 |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 계정 정보 변경 일시 |
 
@@ -258,19 +256,24 @@ erDiagram
 
 ---
 
-#### Redis 임시 인증 토큰 (MySQL ERD 외부)
+#### Redis 임시 인증 데이터 (MySQL ERD 외부)
 
-이메일 인증과 비밀번호 재설정 토큰은 MySQL 테이블 대신 기존 세션 공유 Redis에 보관한다. 계정의 영속 상태인 `users.is_verified`와 `users.password_hash`만 MySQL에서 변경한다. (`AUTH-007`, `AUTH-008`, `FN-AUTH-02`, `FN-AUTH-04`)
+가입 인증번호, 가입권, 메일 재요청 제한, 비밀번호 재설정 토큰은 MySQL 테이블 대신 기존 세션 공유 Redis에 보관한다. 계정의 영속 상태인 `users`(가입 시 생성)와 `users.password_hash`(재설정 시 변경)만 MySQL에 기록한다. (`AUTH-007`, `AUTH-008`, `FN-AUTH-01`, `FN-AUTH-02`, `FN-AUTH-04`)
 
 | 목적 | Redis 키 | 값 | 만료 |
 |---|---|---|---|
-| 이메일 인증 | `auth:verify:{token_hash}` | `user_id` | 24시간 |
+| 가입 인증번호 | `auth:signup-code:{email_hash}` | 인증번호 해시와 남은 시도 횟수(저장 구조는 구현 자유) | 10분 |
+| 가입권 | `auth:signup-ticket:{token_hash}` | `email` | 30분 (`GETDEL`로 소비) |
+| 메일 재요청 제한 | `auth:mail-throttle:{purpose}:{email_hash}` (`purpose`: `signup`, `reset`) | 표식 값 | 60초 |
 | 비밀번호 재설정 | `auth:reset:{token_hash}` | `user_id` | 30분 |
+| 사용자별 최신 재설정 토큰(보조) | `auth:reset-user:{user_id}` | 마지막으로 발급한 `token_hash` | 토큰과 같음 |
 
-- 서버는 예측하기 어려운 임의 토큰을 만들고 원문은 메일 링크로만 전달한다. Redis 키에는 원문 대신 토큰의 해시를 사용하고, 원문 토큰을 DB·Redis·로그에 저장하지 않는다.
-- 인증 완료 또는 새 비밀번호 제출 요청 때 전달된 토큰을 해시해 조회한다. 토큰은 만료 전에 한 번만 사용할 수 있도록 Redis 6.2+의 `GETDEL` 또는 동등한 원자적 연산으로 소비한다. 비밀번호 재설정 화면을 단순히 여는 것만으로 토큰을 소비하지 않는다.
-- Redis에서 토큰을 소비한 뒤 MySQL 상태 변경이 실패하면 두 저장소를 한 트랜잭션으로 되돌릴 수 없다. 이 경우 사용자가 새 링크를 요청하도록 안내한다.
-- Redis 재시작 등으로 토큰이 사라져도 계정과 비밀번호는 MySQL에 남는다. 사용자는 새 인증·재설정 링크를 요청할 수 있다. 메일 재요청 제한 등 인증 API 규칙은 [API 명세서](05_api-specification.md) §3.1을 따른다.
+- `{email_hash}`는 정규화한 이메일의 `SHA-256`이다. 키에 이메일 원문을 쓰지 않는다. `{token_hash}`는 토큰 원문의 `SHA-256`이다.
+- 보조 키는 새 재설정 링크를 발급할 때 같은 사용자의 이전 토큰을 찾아 지우기 위해 둔다(API 명세 §3.1 "마지막 링크만 유효"). 인증번호는 이메일당 하나만 저장하므로 새 번호가 이전 번호를 덮어써 마지막 번호만 유효하다.
+- 인증번호·가입권·재설정 토큰의 원문은 Redis·DB·로그에 저장하지 않는다. 인증번호는 해시만 저장하고, 로그에는 이메일 원문도 남기지 않는다(메일 설정이 없는 로그 메일 모드만 공유 계약 §2의 예외).
+- 가입권과 재설정 토큰은 만료 전에 한 번만 사용할 수 있도록 Redis 6.2+의 `GETDEL` 또는 동등한 원자적 연산으로 소비한다. 비밀번호 재설정 화면을 단순히 여는 것만으로 토큰을 소비하지 않는다. 인증번호는 맞으면 즉시 지운다.
+- Redis에서 가입권이나 토큰을 소비한 뒤 MySQL 변경이 실패하면 두 저장소를 한 트랜잭션으로 되돌릴 수 없다. 이 경우 사용자가 인증을 처음부터 다시 하거나 새 링크를 요청하도록 안내한다.
+- Redis 재시작 등으로 인증번호·가입권·토큰이 사라져도 계정과 비밀번호는 MySQL에 남는다. 사용자는 새 인증번호·재설정 링크를 요청할 수 있다. 가입 인증과 메일 재요청 제한 등 규칙은 [API 명세서](05_api-specification.md) §3.1을 따른다.
 
 ---
 
@@ -691,7 +694,7 @@ $$\text{월간 진행률} = \text{ROUND}\left( \frac{\sum_{i}(\text{주간 진�
 ```
 
 1. **단일 DB 영속 볼륨**: `user-service`와 3대의 `goal-service` 인스턴스는 동일한 MySQL 컨테이너에 접속. MySQL 컨테이너 재기동·재생성 후 동일 볼륨 연결 시 데이터 영구 보존.
-2. **세션 공유와 단기 토큰**: Spring Session + Redis. 역방향 프록시가 Round-Robin으로 `goal-service` 인스턴스 중 어디로 보내도 로그인 세션을 유지한다. 이메일 인증·비밀번호 재설정 토큰은 목적별 Redis 키와 TTL로 관리한다.
+2. **세션 공유와 단기 토큰**: Spring Session + Redis. 역방향 프록시가 Round-Robin으로 `goal-service` 인스턴스 중 어디로 보내도 로그인 세션을 유지한다. 가입 인증번호·가입권·비밀번호 재설정 토큰은 목적별 Redis 키와 TTL로 관리한다.
 3. **인스턴스 식별자** (`DIST-003`): 모든 `goal-service` 응답에 `X-Instance-Id` 헤더(컨테이너 호스트명/IP) 포함하여 분산 처리 입증.
 4. **소유권 검증**: `goal-service`에서 `weekly_goals`, `monthly_goals` 접근 시 `yearly_goals.user_id` 까지의 조인으로 소유권 확인. 단순 과제 범위에서는 정규화 유지.
 
@@ -718,7 +721,7 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 `criteria_last_revised_at`은 최근 개정 시각을 표시한다. 기간별 비교 불가 여부는 `goal_progress_logs.change_type='CRITERIA_REVISION'` 이벤트로 판단한다. `criteria_confirmed_at`은 최초 확정 시각만 가리킨다.
 
 ### 결정 7 — 이메일 전용 로그인과 사용자명 중복 허용 (`AUTH-002`)
-로그인 식별자는 UNIQUE 제약이 있는 `email`만 사용한다. `username`은 화면 표시명이며 다른 사용자와 같아도 된다.
+로그인 식별자는 UNIQUE 제약이 있는 `email`만 사용한다. 이메일은 앞뒤 공백을 지우고 소문자로 바꿔 저장하며, 열은 `utf8mb4_bin`으로 두어 정규화 결과가 정확히 같을 때만 같은 이메일로 본다. 기본 대소문자 무시 규칙이면 정규화를 빠뜨린 경로에서 다른 이메일이 같은 것으로 취급될 수 있기 때문이다. `username`은 화면 표시명이며 다른 사용자와 같아도 된다.
 
 ### 결정 8 — `calendar_items` hard-delete 정책
 달력 항목은 삭제 복원·아카이빙 요구사항이 없으므로 소프트 삭제 없이 hard-delete 적용. 과제 범위 단순화. 기능 명세서 §1의 "삭제는 소프트 삭제" 원칙에 대한 명시적 예외다.
@@ -726,8 +729,8 @@ FK ON DELETE RESTRICT를 유지하되 배치 처리는 하위(actions) → 중�
 ### 결정 9 — AI·BYOK 관련 테이블 미포함
 제출판 AI·BYOK·결제 기능은 "개발 중" 안내만 표시. 미확정 보안 설계가 필요한 BYOK 키 테이블 등은 본 ERD에서 제외. 확장 시 별도 설계.
 
-### 결정 10 — 일회용 인증 토큰은 Redis에 보관
-이메일 인증·비밀번호 재설정 토큰은 수명이 짧고 한 번만 사용하므로 MySQL 테이블을 두지 않는다. Redis 키에 원문 토큰의 해시를 사용하고 TTL을 설정한다. 인증 완료와 비밀번호 변경 결과는 MySQL의 `users` 행에 영속적으로 기록한다.
+### 결정 10 — 일회용 인증 데이터는 Redis에 보관하고 미인증 계정은 두지 않는다
+가입 인증번호·가입권·비밀번호 재설정 토큰은 수명이 짧고 한 번만 사용하므로 MySQL 테이블을 두지 않는다. Redis 키에는 이메일·토큰의 해시를 사용하고 TTL을 설정한다. 회원가입은 이메일 인증번호 확인을 먼저 마친 뒤 계정을 만들므로(API 명세 결정 22) 미인증 계정이 생기지 않고 `users.is_verified` 컬럼을 두지 않는다. 가입 결과와 비밀번호 변경 결과는 MySQL의 `users` 행에 영속적으로 기록한다.
 
 ### 결정 11 — 월간·주간 목표 표시 색상 (`GOAL-011`, `FN-GOAL-02`)
 월간·주간 목표에도 `color`를 둔다. 값이 NULL이면 부모 목표의 색을 그대로 쓰므로, 사용자가 따로 바꾸지 않으면 한 목표 경로가 같은 색으로 보인다. 달력 항목은 결정 2대로 연간 목표 색을 사용한다.

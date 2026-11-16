@@ -35,6 +35,21 @@ API 경로·응답 형식·오류 코드·세션 정책 자체는 [API 명세서
 | `SPRING_DATASOURCE_PASSWORD` | `spring.datasource.password` | MySQL `MYSQL_PASSWORD`와 같은 값 |
 | `SPRING_DATA_REDIS_HOST` | `spring.data.redis.host` | `aim2day-redis` |
 
+`user-service`는 메일과 링크 주소를 위해 다음 값을 더 받는다.
+
+| 환경 변수 | 설정 키 | 값 |
+|---|---|---|
+| `APP_BASE_URL` | `app.base-url` | 메일 링크의 앞부분. 서버에서는 `http://192.168.136.128`, 기본값 `http://localhost` |
+| `SPRING_MAIL_HOST` | `spring.mail.host` | `smtp.gmail.com` |
+| `SPRING_MAIL_PORT` | `spring.mail.port` | `587` |
+| `SPRING_MAIL_USERNAME` | `spring.mail.username` | 보내는 Gmail 주소 |
+| `SPRING_MAIL_PASSWORD` | `spring.mail.password` | Gmail 앱 비밀번호(16자리) |
+| `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH` | `spring.mail.properties.mail.smtp.auth` | `true` |
+| `SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE` | `spring.mail.properties.mail.smtp.starttls.enable` | `true` |
+
+- **메일 값은 DB 비밀번호와 달리 커밋하지 않는다.** 서버의 `/opt/aim2day/env/mail.env`(저장소 밖, 권한 600)에만 두고 `--env-file`로 넣는다. 실제 Google 계정의 자격 증명이기 때문이다.
+- **메일 설정이 없으면 메일을 보내지 않고 로그로 대신한다.** `spring.mail.host`가 없으면 메일 발송기는 받는 주소를 마스킹(예: `u***@gmail.com`)해 인증번호 또는 재설정 링크와 함께 INFO 로그로 남기고 성공으로 처리한다. 다른 사람이 SMTP 키 없이 제출물을 재현할 수 있게 하려는 것이다(요구사항 "제출판 시연 및 수용 범위"). 이때 인증번호와 링크는 `docker logs aim2day-user-service`로 확인한다. 인증번호·토큰이 든 링크를 로그에 남기는 것은 이 로그 모드에서만 허용하며, 이메일 원문은 어떤 로그에도 남기지 않는다.
+
 MySQL 컨테이너는 `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE=aim2day`, `MYSQL_USER=aim2day_app`, `MYSQL_PASSWORD`를 받는다. 이 값들은 볼륨이 비어 있는 첫 실행 때만 적용된다.
 
 ## 3. 데이터베이스 공유
@@ -71,7 +86,7 @@ MySQL 컨테이너는 `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE=aim2day`, `MYSQL_US
 - 세션 쿠키는 `CookieSerializer`로 이름 `SESSION`, `Path=/`, `HttpOnly`, `SameSite=Lax`를 두 서비스가 같게 둔다. 쿠키 값의 Base64 인코딩 등 나머지는 기본값을 바꾸지 않는다.
 - CSRF는 `CookieCsrfTokenRepository.withHttpOnlyFalse()`(쿠키 `XSRF-TOKEN`, `Path=/`, 헤더 `X-XSRF-TOKEN`)와 `csrf.spa()`를 두 서비스가 같게 쓴다. `spa()`가 없으면 기본 처리기가 마스킹된 토큰을 기대해, 쿠키 값을 그대로 헤더에 넣은 요청이 403이 된다.
 - 로그인(세션 생성·`userId` 저장)과 로그아웃(세션 무효화)은 `user-service`만 한다. `goal-service`는 세션을 읽기만 하고 새로 만들지 않는다.
-- Redis의 `auth:*` 키(인증·재설정 토큰, 메일 재요청 제한)는 `user-service`만 쓴다(API 명세 §3.1).
+- Redis의 `auth:*` 키(가입 인증번호·가입권, 재설정 토큰, 메일 재요청 제한)는 `user-service`만 쓴다(API 명세 §3.1).
 
 ## 5. 공통 응답 형식
 

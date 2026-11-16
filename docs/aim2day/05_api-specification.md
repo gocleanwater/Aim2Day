@@ -10,7 +10,7 @@
 
 | 접두사 | 서비스 | 인스턴스 | 담당 |
 |---|---|---|---|
-| `/api/auth/**` | `user-service` | 1 | 가입, 이메일 인증, 로그인·로그아웃, 비밀번호 재설정 |
+| `/api/auth/**` | `user-service` | 1 | 가입 전 이메일 인증번호, 가입, 로그인·로그아웃, 비밀번호 재설정 |
 | `/api/users/**` | `user-service` | 1 | 내 기본 정보 |
 | `/api/settings/**` | `goal-service` | 3 (RR) | 주 시작 요일, 시간대 (ERD 결정 14) |
 | `/api/goals/**` | `goal-service` | 3 (RR) | 온보딩, 연·월·주 목표, 달성 기준, 수치 기록, 휴지통, 진행 기록 |
@@ -23,9 +23,9 @@
 | 메서드 | 경로 | 설명 | 기능 ID |
 |---|---|---|---|
 | GET | `/api/auth/csrf` | CSRF 토큰 쿠키 발급(인증 불필요, 결정 13) | NFR-009 |
-| POST | `/api/auth/signup` | 회원가입 | FN-AUTH-01 |
-| POST | `/api/auth/verification-emails` | 인증 메일 재발송 | FN-AUTH-01, 03 |
-| POST | `/api/auth/email-verification` | 이메일 인증 완료 | FN-AUTH-02 |
+| POST | `/api/auth/email-codes` | 가입용 이메일 인증번호 요청 | FN-AUTH-01 |
+| POST | `/api/auth/email-codes/verify` | 인증번호 확인과 가입권 발급 | FN-AUTH-01 |
+| POST | `/api/auth/signup` | 회원가입 | FN-AUTH-02 |
 | POST | `/api/auth/login` | 로그인 | FN-AUTH-03 |
 | POST | `/api/auth/logout` | 로그아웃 | FN-AUTH-03 |
 | POST | `/api/auth/password-reset-requests` | 비밀번호 재설정 링크 요청 | FN-AUTH-04 |
@@ -179,13 +179,14 @@
 |---|---|---|---|
 | 400 | `MALFORMED_REQUEST` | JSON 파싱 실패, 알 수 없는 열거값 | `null` |
 | 400 | `VALIDATION_FAILED` | 필수값 누락, 길이·형식·범위 위반 | `{ "fieldErrors": [{ "field": "email", "reason": "INVALID_FORMAT" }] }` |
-| 400 | `AUTH_INVALID_TOKEN` | 인증·재설정 토큰이 만료·사용·변조됨. 세 경우를 구분하지 않는다 | `null` |
+| 400 | `AUTH_INVALID_TOKEN` | 가입권·재설정 토큰이 만료·사용·변조됨. 세 경우를 구분하지 않는다 | `null` |
+| 400 | `AUTH_INVALID_CODE` | 인증번호가 틀림. 한 번호당 5번까지 시도할 수 있다 | `{ "remainingAttempts": 3 }` |
+| 400 | `AUTH_CODE_EXPIRED` | 인증번호가 없거나 만료됐거나 5번 모두 틀림. 새 인증번호를 받아야 한다 | `null` |
 | 401 | `UNAUTHENTICATED` | 세션 없음·만료·무효 | `null` |
 | 401 | `AUTH_INVALID_CREDENTIALS` | 이메일 또는 비밀번호 불일치 | `null` |
-| 403 | `AUTH_EMAIL_NOT_VERIFIED` | 이메일 미인증 계정의 로그인 | `{ "email": "user@example.com" }` |
 | 403 | `CSRF_TOKEN_INVALID` | 상태 변경 요청에 `X-XSRF-TOKEN` 헤더가 없거나 `XSRF-TOKEN` 쿠키와 다름 | `null` |
 | 404 | `RESOURCE_NOT_FOUND` | 없음, 다른 사용자 소유, 삭제·숨김 상태 | `{ "resource": "WEEKLY_GOAL", "id": 31 }` |
-| 409 | `AUTH_EMAIL_EXISTS` | 가입된 이메일로 가입 | `null` |
+| 409 | `AUTH_EMAIL_EXISTS` | 이미 가입된 이메일로 인증번호 요청·가입 | `null` |
 | 409 | `VERSION_CONFLICT` | `version` 불일치 | `{ "currentVersion": 4 }` |
 | 409 | `GOAL_LIMIT_EXCEEDED` | 연간 목표 생성·복원 시 활성 목표가 이미 3개 | `{ "year": 2026, "current": 3, "max": 3 }` |
 | 409 | `GOAL_DELETE_CONFIRM_REQUIRED` | 하위 항목이 있는 목표를 확인 없이 삭제 | §4.7 참고 |
@@ -208,9 +209,9 @@
 | 422 | `GOAL_ORDER_MISMATCH` | 순서 저장 목록과 활성 목표 집합이 다름 | `{ "expectedIds": [3, 5, 9] }` |
 | 422 | `CALENDAR_ITEM_TYPE_IMMUTABLE` | 달력 항목 종류 변경 | `null` |
 | 422 | `REPORT_INVALID_PERIOD` | 존재하지 않는 리포트 기간 또는 너무 긴 조회 범위 | `{ "maxDays": 100 }` |
-| 429 | `TOO_MANY_REQUESTS` | 같은 이메일로 메일 재요청 간격(60초) 미만 | `{ "retryAfterSeconds": 42 }` |
+| 429 | `TOO_MANY_REQUESTS` | 같은 이메일로 인증번호·재설정 메일 재요청 간격(60초) 미만 | `{ "retryAfterSeconds": 42 }` |
 | 500 | `INTERNAL_ERROR` | 예상하지 못한 서버 오류 | `null` |
-| 502 | `AUTH_MAIL_SEND_FAILED` | 회원가입 직후 메일 서버 전송 실패. 가입 API에서만 쓴다. 재발송·재설정 API는 실패해도 200을 반환한다(결정 15) | `{ "accountCreated": true }` |
+| 502 | `AUTH_MAIL_SEND_FAILED` | 인증번호 메일 전송 실패(인증번호 요청 API). 재설정 요청 API는 실패해도 200을 반환한다(결정 15) | `null` |
 
 `VALIDATION_FAILED`의 `reason` 값은 `REQUIRED`, `INVALID_FORMAT`, `TOO_LONG`, `OUT_OF_RANGE`, `PASSWORD_POLICY`, `PASSWORD_MISMATCH`를 쓴다.
 
@@ -225,32 +226,73 @@
 | 필드 | 규칙 |
 |---|---|
 | `email` | 이메일 형식, 최대 255자. 앞뒤 공백을 지우고 소문자로 바꿔 저장·비교 |
+| `code` | 숫자 6자리 문자열(`000000`~`999999`). 앞의 0을 유지하므로 문자열이다 |
 | `username` | 공백 제외 1자 이상, 최대 50자. 다른 사용자와 같아도 됨 |
-| `password` | 8~64자. 영문, 숫자, 특수문자(영문·숫자·공백이 아닌 출력 가능한 ASCII 문자)를 각각 1자 이상 포함 |
+| `password` | 8~64자. 출력 가능한 ASCII 문자(`!`~`~`)만 허용하며 영문 대소문자, 숫자, 기호(영문·숫자가 아닌 `!`~`~` 문자)를 각각 1자 이상 포함. 공백·한글·이모지 등 그 밖의 문자는 허용하지 않음 |
 
-메일 링크와 토큰은 다음과 같이 처리한다. 저장 방식은 ERD의 Redis 임시 인증 토큰 절을 따른다.
+비밀번호를 ASCII로 제한하는 이유는 BCrypt가 비밀번호의 앞 72바이트만 처리하기 때문이다. ASCII 문자는 한 글자가 1바이트이므로 최대 64자는 항상 64바이트라 잘리지 않는다. 한글이나 이모지는 한 글자가 여러 바이트라 64자 이하여도 72바이트를 넘어 뒷부분이 비교에서 무시될 수 있다. 규칙은 가입과 비밀번호 재설정이 같고, 위반은 400 `VALIDATION_FAILED`의 `reason` `PASSWORD_POLICY`로 알린다.
 
-| 목적 | 링크 | Redis 키 | 만료 |
+가입 인증번호와 가입권, 비밀번호 재설정 링크는 다음과 같이 처리한다. 저장 방식은 ERD의 Redis 임시 인증 데이터 절을 따른다. 모든 값의 원문은 Redis·DB·로그에 저장하지 않는다(메일 설정이 없는 로그 메일 모드만 공유 계약 §2의 예외).
+
+| 목적 | 전달 | Redis 키 | 만료 |
 |---|---|---|---|
-| 이메일 인증 | `{BASE_URL}/verify-email.html?token={token}` | `auth:verify:{SHA-256(token)}` | 24시간 |
+| 가입 인증번호 | 메일 본문의 6자리 숫자 | `auth:signup-code:{SHA-256(email)}` | 10분 |
+| 가입권(`signupToken`) | 인증번호 확인 응답 | `auth:signup-ticket:{SHA-256(token)}` | 30분 |
 | 비밀번호 재설정 | `{BASE_URL}/reset-password.html?token={token}` | `auth:reset:{SHA-256(token)}` | 30분 |
 
-- 토큰은 32바이트 난수를 Base64URL로 인코딩한 값이다.
-- 새 토큰을 발급하면 같은 사용자의 같은 목적 토큰은 지운다. 마지막 링크만 유효하다.
-- 링크를 여는 페이지는 토큰을 바로 소비하지 않는다. 사용자가 확인 버튼이나 새 비밀번호 제출을 눌러 API를 호출할 때 `GETDEL`로 소비한다.
-- 메일 재요청은 이메일별로 60초에 한 번만 허용한다(Redis 키 `auth:mail-throttle:{purpose}:{SHA-256(email)}`, TTL 60초).
+- 인증번호는 `SecureRandom`으로 `000000`~`999999` 중에서 고른 6자리다. Redis에는 번호의 해시와 남은 시도 횟수를 저장한다. 같은 이메일로 새 번호를 받으면 이전 번호는 무효가 되어 마지막 번호만 유효하다.
+- 가입권과 재설정 토큰은 32바이트 난수를 Base64URL로 인코딩한 값이다. 둘 다 `GETDEL`로 한 번만 소비한다.
+- 새 재설정 토큰을 발급하면 같은 사용자의 이전 재설정 토큰은 지운다. 마지막 링크만 유효하다.
+- 재설정 링크를 여는 페이지는 토큰을 바로 소비하지 않는다. 사용자가 새 비밀번호 제출을 눌러 API를 호출할 때 소비한다.
+- 메일 재요청은 이메일별로 60초에 한 번만 허용한다(Redis 키 `auth:mail-throttle:{purpose}:{SHA-256(email)}`, TTL 60초, `purpose`는 `signup`과 `reset`). 가입 인증번호와 재설정 메일은 제한을 따로 센다.
 
 #### GET `/api/auth/csrf`
 
 CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그인 전 화면(로그인·가입·재설정)이 첫 변경 요청 전에 호출한다. 200과 `data: null`을 반환한다. (`NFR-009`, 결정 13)
 
+#### POST `/api/auth/email-codes`
+
+가입할 이메일로 6자리 인증번호를 보낸다. 가입 전 단계이므로 세션이 필요 없지만 CSRF 토큰은 필요하다. (`AUTH-007`, `FN-AUTH-01`)
+
+```json
+{ "email": "user@example.com" }
+```
+
+200 응답: `{ "expiresInSeconds": 600 }`
+
+- 이미 가입된 이메일이면 409 `AUTH_EMAIL_EXISTS`를 반환하고 메일을 보내지 않는다. 가입 API가 원래 가입 여부를 드러내던 것과 같은 이유로 숨기지 않는다(결정 15).
+- 인증번호는 10분 동안 유효하다. 같은 이메일로 새 번호를 받으면 이전 번호는 무효가 된다.
+- 같은 이메일의 재요청은 60초에 한 번이다. 간격 안에 다시 요청하면 429 `TOO_MANY_REQUESTS`와 `details.retryAfterSeconds`를 반환한다.
+- 메일 전송에 실패하면 502 `AUTH_MAIL_SEND_FAILED`를 반환한다. 사용자가 응답을 기다리는 동기 호출이므로 실패를 숨기지 않는다. 이때 저장한 인증번호와 재요청 제한을 지워 바로 다시 요청할 수 있게 한다.
+- 처리 순서: 입력 검증 → 가입 여부(409) → 재요청 제한(429) → 번호 저장 → 메일 전송.
+- 오류: 400 `VALIDATION_FAILED`, 403 `CSRF_TOKEN_INVALID`, 409 `AUTH_EMAIL_EXISTS`, 429 `TOO_MANY_REQUESTS`, 502 `AUTH_MAIL_SEND_FAILED`
+
+#### POST `/api/auth/email-codes/verify`
+
+받은 인증번호를 확인하고 가입권을 발급한다. 세션 없이 호출하며 CSRF 토큰이 필요하다. (`AUTH-007`, `FN-AUTH-01`)
+
+```json
+{ "email": "user@example.com", "code": "048213" }
+```
+
+200 응답:
+
+```json
+{ "signupToken": "q4n0...Base64URL", "expiresInSeconds": 1800 }
+```
+
+- 번호가 틀리면 400 `AUTH_INVALID_CODE`와 `details.remainingAttempts`를 반환한다. 한 번호당 5번까지 시도할 수 있다. 5번째 실패이거나 번호가 없거나 만료됐으면 400 `AUTH_CODE_EXPIRED`를 반환하며, 사용자는 새 인증번호를 받아야 한다.
+- 번호가 맞으면 번호를 지우고 가입권 `signupToken`을 발급한다. 가입권은 32바이트 난수(Base64URL)이고 1회용이며 30분 동안 유효하다. 서버는 가입권의 해시를 키로 이메일을 저장한다.
+- 가입권을 따로 주는 이유는, 이메일 기준으로만 "인증됨"을 기억하면 인증을 마친 직후 다른 사람이 그 이메일로 먼저 가입할 수 있기 때문이다. 가입권은 인증을 마친 브라우저만 가지고 있다.
+- 오류: 400 `VALIDATION_FAILED`, 400 `AUTH_INVALID_CODE`, 400 `AUTH_CODE_EXPIRED`, 403 `CSRF_TOKEN_INVALID`
+
 #### POST `/api/auth/signup`
 
-회원가입 후 인증 메일을 보낸다. (`AUTH-001`, `AUTH-006`, `AUTH-007`)
+가입권으로 계정을 만든다. 이메일은 받지 않고 가입권에서 꺼낸다. (`AUTH-001`, `AUTH-006`, `FN-AUTH-02`)
 
 ```json
 {
-  "email": "user@example.com",
+  "signupToken": "q4n0...Base64URL",
   "username": "정수",
   "password": "Aim2day!2026",
   "passwordConfirm": "Aim2day!2026"
@@ -260,37 +302,15 @@ CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그
 201 응답:
 
 ```json
-{ "userId": 7, "email": "user@example.com", "verificationMailSent": true }
+{ "userId": 7, "email": "user@example.com" }
 ```
 
-- 비밀번호는 BCrypt로 해시해 저장한다. `is_verified=false`로 만든다.
-- 계정 저장 후 메일 전송에 실패하면 502 `AUTH_MAIL_SEND_FAILED`와 `details.accountCreated=true`를 반환한다. 화면은 가입이 끝난 것처럼 보이지 않게 실패를 알리고 `[인증 메일 다시 보내기]`를 제공한다.
-- 오류: 400 `VALIDATION_FAILED`(`PASSWORD_POLICY`, `PASSWORD_MISMATCH` 포함), 403 `CSRF_TOKEN_INVALID`, 409 `AUTH_EMAIL_EXISTS`, 502 `AUTH_MAIL_SEND_FAILED`
-- 가입 API는 이미 409로 가입 여부를 드러내므로 메일 실패도 숨기지 않는다. 사용자가 인증 메일을 다시 요청해야 하기 때문이다. (결정 15)
-
-#### POST `/api/auth/verification-emails`
-
-인증 메일을 다시 보낸다.
-
-```json
-{ "email": "user@example.com" }
-```
-
-- 가입 여부나 인증 여부와 상관없이 200과 `data: null`을 반환한다. 다른 사람의 가입 여부를 알아낼 수 없게 하기 위해서다. 메일은 미인증 계정에만 보낸다.
-- 메일 전송이 실패해도 200을 반환한다. 실패는 서버 로그에만 남기고(사용자 ID만 기록, 토큰 원문·이메일은 남기지 않음 `NFR-010`) 응답에 드러내지 않는다. 사용자는 60초 뒤 다시 요청할 수 있다. (결정 15)
-- 오류: 400 `VALIDATION_FAILED`, 403 `CSRF_TOKEN_INVALID`, 429 `TOO_MANY_REQUESTS`
-
-#### POST `/api/auth/email-verification`
-
-인증 링크의 토큰으로 이메일 인증을 마친다. (`FN-AUTH-02`)
-
-```json
-{ "token": "q4n0...Base64URL" }
-```
-
-200 응답: `{ "email": "user@example.com" }`
-
-- 오류: 400 `AUTH_INVALID_TOKEN`, 403 `CSRF_TOKEN_INVALID`
+- 입력 검증(사용자명, 비밀번호 규칙, 확인 일치)을 가입권 소비보다 먼저 한다. 비밀번호가 규칙에 맞지 않으면 가입권을 소비하지 않고 400 `VALIDATION_FAILED`를 반환해 사용자가 같은 가입권으로 다시 제출할 수 있다.
+- 가입권은 `GETDEL`로 한 번만 소비한다. 없거나 만료됐거나 이미 사용했으면 400 `AUTH_INVALID_TOKEN`을 반환하며, 사용자는 인증번호부터 다시 받아야 한다.
+- 인증을 마친 뒤 가입 전에 같은 이메일로 가입이 끝났다면 409 `AUTH_EMAIL_EXISTS`를 반환한다.
+- 비밀번호는 BCrypt로 해시해 저장한다. 계정은 이미 인증된 이메일로만 만들어지므로 인증 여부 컬럼이 없다(ERD 결정 10).
+- 가입 직후 자동 로그인하지 않는다. 프론트엔드는 로그인 화면으로 이동한다.
+- 오류: 400 `VALIDATION_FAILED`(`PASSWORD_POLICY`, `PASSWORD_MISMATCH` 포함), 400 `AUTH_INVALID_TOKEN`, 403 `CSRF_TOKEN_INVALID`, 409 `AUTH_EMAIL_EXISTS`
 
 #### POST `/api/auth/login`
 
@@ -303,8 +323,7 @@ CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그
 200 응답: `{ "id": 7, "email": "user@example.com", "username": "정수" }` 와 `Set-Cookie: SESSION=...`
 
 - 로그인 성공 시 세션 ID를 새로 발급한다(세션 고정 공격 방지).
-- 비밀번호가 맞지만 미인증 계정이면 403 `AUTH_EMAIL_NOT_VERIFIED`를 반환한다. 화면은 `이메일 인증 후 로그인할 수 있습니다.`와 `[인증 메일 다시 보내기]`를 표시한다.
-- 오류: 400 `VALIDATION_FAILED`, 401 `AUTH_INVALID_CREDENTIALS`, 403 `AUTH_EMAIL_NOT_VERIFIED`, 403 `CSRF_TOKEN_INVALID`
+- 오류: 400 `VALIDATION_FAILED`, 401 `AUTH_INVALID_CREDENTIALS`, 403 `CSRF_TOKEN_INVALID`
 - 로그인에 성공하면 세션 속성 `PRINCIPAL_NAME_INDEX_NAME`에 `userId`를 문자열로 저장한다(§2.2). 로그인 전 요청이라도 CSRF 토큰은 필요하다. 공격자 사이트가 피해자 브라우저를 공격자 계정으로 로그인시키는 로그인 CSRF를 막기 위해서다.
 
 로그인 후 프론트엔드는 `GET /api/goals/onboarding/status`로 온보딩과 대시보드 중 이동할 곳을 정한다.
@@ -315,9 +334,10 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 #### POST `/api/auth/password-reset-requests`
 
-비밀번호 재설정 링크를 요청한다. 요청 본문은 `{ "email": "..." }`이다. 가입 여부와 상관없이 200과 `data: null`을 반환하고, 인증을 마친 계정에만 메일을 보낸다.
+비밀번호 재설정 링크를 요청한다. 요청 본문은 `{ "email": "..." }`이다. 가입 여부와 상관없이 200과 `data: null`을 반환하고, 가입된 계정에만 메일을 보낸다.
 
 - 메일 전송이 실패해도 200을 반환한다. 실패는 사용자 ID만 로그에 남기고 응답에 드러내지 않는다. 사용자는 60초 뒤 다시 요청할 수 있다. (결정 15)
+- 재요청 제한은 `purpose=reset`으로 따로 센다.
 - 오류: 400 `VALIDATION_FAILED`, 403 `CSRF_TOKEN_INVALID`, 429 `TOO_MANY_REQUESTS`
 
 #### POST `/api/auth/password-reset`
@@ -1220,8 +1240,8 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 | 화면 | 진입 시 호출 | 주요 동작 |
 |---|---|---|
 | 공통 상단 내비게이션 | `GET /api/users/me` | 로그아웃 `POST /api/auth/logout` |
-| 로그인·회원가입 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `POST /api/auth/login`, `POST /api/auth/signup`, `POST /api/auth/verification-emails` |
-| 이메일 인증 결과 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `[인증 완료]` 버튼 → `POST /api/auth/email-verification` |
+| 로그인 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `POST /api/auth/login` |
+| 회원가입 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `[인증번호 받기]` → `POST /api/auth/email-codes`, `[확인]` → `POST /api/auth/email-codes/verify`, `[가입하기]` → `POST /api/auth/signup`. 가입 성공 뒤 로그인 화면으로 이동 |
 | 비밀번호 재설정 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `POST /api/auth/password-reset-requests`, `POST /api/auth/password-reset` |
 | 온보딩 | `GET /api/goals/onboarding/status`, `GET /api/goals/onboarding/draft`, `GET /api/settings`, `GET /api/goals/yearly` | 단계 이동마다 `PUT .../draft`, 완료 `POST .../complete` |
 | 대시보드 | `GET /api/settings`, `GET /api/actions`, `GET /api/calendar/dashboard`, `GET /api/goals/weekly`, `GET /api/goals/monthly`, `GET /api/goals/progress-logs` | 행동 완료, 달력 항목 완료, 날짜 이동 시 `GET /api/actions?date=` 재호출 |
@@ -1247,8 +1267,8 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 ### 결정 3 — 온보딩 API는 `/api/goals/onboarding` 아래에 둔다
 프록시 라우팅을 새로 추가하지 않고 기존 `/api/goals` 경로로 `goal-service`에 보낸다. 완료 요청 한 번으로 모든 목표·행동을 한 트랜잭션에서 만들어, 이탈 시 일부만 저장되는 상태를 막는다.
 
-### 결정 4 — 비밀번호 규칙과 토큰 만료
-비밀번호는 8~64자이며 영문·숫자·특수문자를 각각 포함한다. 인증 링크는 24시간, 재설정 링크는 30분 뒤 만료된다. 재설정 성공 시 해당 사용자의 기존 세션을 모두 끊는다.
+### 결정 4 — 비밀번호 규칙과 인증번호·토큰 만료
+비밀번호는 8~64자의 출력 가능한 ASCII 문자(`!`~`~`)이며 영문·숫자·기호를 각각 1자 이상 포함한다. BCrypt가 72바이트까지만 처리하므로, 한 글자가 1바이트인 ASCII만 허용하면 64자도 항상 64바이트라 잘리지 않는다. 가입과 재설정이 같은 규칙을 쓴다. 인증번호는 10분, 가입권은 30분, 재설정 링크는 30분 뒤 만료된다. 재설정 성공 시 해당 사용자의 기존 세션을 모두 끊는다.
 
 ### 결정 5 — 주간 목표는 현재 주로만 생성
 월간 목표가 현재 달로만 만들어지는 규칙(`GOAL-014`)과 맞춰 주간 목표도 이번 주로만 만든다. 계획 흐름(주초에 이번 주 계획)과 화면(`이번 주 목표 만들기`)에도 맞는다.
@@ -1290,12 +1310,12 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 **버린 대안.** (1) 사용자별 세션 ID 목록을 별도 Redis 키로 직접 관리: 세션 만료·삭제와 목록을 맞추는 코드를 직접 짜야 한다. (2) 세션에 비밀번호 변경 시각을 넣고 매 요청에서 비교: 요청마다 DB 조회가 늘고 모든 서비스에 같은 검사를 넣어야 한다.
 
-### 결정 15 — 메일 재발송·재설정 API는 메일 실패를 응답에 드러내지 않는다 (`AUTH-007`, `AUTH-008`)
-**문제.** `POST /api/auth/verification-emails`와 `POST /api/auth/password-reset-requests`는 가입 여부와 상관없이 같은 200을 주기로 했다. 그런데 메일 전송 실패 때 502를 주면, 메일 서버가 불안정한 동안에는 "실제 계정이 있는 이메일에만 502, 없는 이메일에는 200"이 되어 계정 존재 여부가 드러난다. 예를 들어 공격자가 `a@x.com`과 `b@x.com`을 보냈는데 앞의 것만 502면 `a@x.com`이 가입자임을 알 수 있다.
+### 결정 15 — 인증번호 요청 API는 메일 실패를 알리고, 재설정 요청 API는 숨긴다 (`AUTH-007`, `AUTH-008`)
+**문제.** `POST /api/auth/password-reset-requests`는 가입 여부와 상관없이 같은 200을 주기로 했다. 그런데 메일 전송 실패 때 502를 주면, 메일 서버가 불안정한 동안에는 "실제 계정이 있는 이메일에만 502, 없는 이메일에는 200"이 되어 계정 존재 여부가 드러난다. 예를 들어 공격자가 `a@x.com`과 `b@x.com`을 보냈는데 앞의 것만 502면 `a@x.com`이 가입자임을 알 수 있다. 반면 가입용 `POST /api/auth/email-codes`는 이미 가입된 이메일에 409 `AUTH_EMAIL_EXISTS`를 주므로 가입 여부를 이미 드러낸다.
 
-**결정.** 두 API는 항상 200 `data: null`을 반환한다. 메일 전송 실패는 서버 로그에만 남긴다(`NFR-010`에 따라 토큰 원문과 이메일은 남기지 않고 사용자 ID만 기록). 응답에서는 502를 제거했다. 사용자는 메일이 오지 않으면 60초 재요청 제한이 풀린 뒤 다시 요청할 수 있다. 회원가입의 502 `AUTH_MAIL_SEND_FAILED`는 유지한다. 가입은 이미 409 `AUTH_EMAIL_EXISTS`로 가입 여부를 드러내고, 가입 직후에는 사용자가 인증 메일을 다시 요청해야 한다는 사실을 알아야 하기 때문이다.
+**결정.** 재설정 요청 API는 항상 200 `data: null`을 반환한다. 메일 전송 실패는 서버 로그에만 남긴다(`NFR-010`에 따라 토큰 원문과 이메일은 남기지 않고 사용자 ID만 기록). 사용자는 메일이 오지 않으면 60초 재요청 제한이 풀린 뒤 다시 요청할 수 있다. 인증번호 요청 API는 메일 전송 실패를 502 `AUTH_MAIL_SEND_FAILED`로 알린다. 가입 여부가 이미 409로 드러나 숨길 이점이 없고, 사용자가 인증번호를 기다리는 동기 호출이라 실패를 알려야 바로 다시 시도할 수 있기 때문이다. 실패하면 저장한 인증번호와 재요청 제한을 지워 60초를 기다리지 않고 다시 요청하게 한다.
 
-**버린 대안.** (1) 존재하지 않는 계정에도 같은 확률로 502를 주는 방법: 실제로 보내지 않은 요청에 가짜 실패를 만들어야 하고, 정상 사용자에게 불필요한 실패를 보여준다. (2) 실패한 메일을 큐에 쌓아 자동 재시도: 제출판 범위를 넘고, 재시도 중에도 사용자에게 상태를 알릴 방법이 필요하다.
+**버린 대안.** (1) 존재하지 않는 계정에도 같은 확률로 502를 주는 방법: 실제로 보내지 않은 요청에 가짜 실패를 만들어야 하고, 정상 사용자에게 불필요한 실패를 보여준다. (2) 실패한 메일을 큐에 쌓아 자동 재시도: 제출판 범위를 넘고, 재시도 중에도 사용자에게 상태를 알릴 방법이 필요하다. (3) 인증번호 요청도 실패를 숨기고 항상 200: 가입 여부가 이미 409로 드러나므로 숨겨도 얻는 것이 없고, 사용자는 오지 않는 번호를 기다리게 된다.
 
 ### 결정 16 — 진행률 동시 갱신과 `version` 분리 (ERD 결정 16·17 참조)
 서로 다른 행동의 동시 완료에서 기여량이 사라지지 않게 하고, 진행률 변경이 목표 수정 화면의 `version`과 충돌하지 않게 하는 방법은 DB 구조와 직결되어 ERD 결정 16·17에 상세히 적었다. API에서는 §2.4와 §4.6·§4.9의 규칙을 따른다. 요약하면 `current_value`는 원자적 UPDATE로, 진행률 재계산은 잠금 순서(주간 → 월간)를 고정한 같은 트랜잭션에서 처리하고, 이 컬럼들은 엔티티에서 읽기 전용이라 `version`을 올리지 않는다.
@@ -1335,3 +1355,10 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 **결정.** 도메인 코드에 도메인 접두사를 붙이고 뜻이 드러나는 짧은 이름을 쓴다(예: `AUTH_EMAIL_EXISTS`, `ACTION_FUTURE_COMPLETION`). 공통 코드는 접두사 없이 둔다. 성공 응답은 지금처럼 `SUCCESS` 하나만 쓴다. 성공 안에서 프론트엔드가 결과를 구별해야 하면 `code`가 아니라 `data`의 필드로 나타낸다.
 
 **버린 대안.** (1) `GOAL_409_1`처럼 도메인·HTTP 상태·번호를 쓰는 형식: 이름만으로 뜻을 알 수 없고, HTTP 상태를 바꾸면 코드 이름과 프론트엔드 분기도 바꿔야 하며, 번호가 비거나 겹치는 관리 부담이 있다. (2) 성공 코드를 API별로 나누기: 프론트엔드는 자기가 보낸 요청을 알고 있어 성공 코드로 분기하지 않는다. 생성 여부는 HTTP 201이, 화면 문구는 `message`가 이미 나타낸다.
+
+### 결정 22 — 회원가입은 이메일 인증번호로 먼저 인증한 뒤 계정을 만든다 (`AUTH-001`, `AUTH-007`)
+**문제.** 이전 방식은 계정을 `is_verified=false`로 먼저 만들고 메일 링크로 인증하게 했다. 그러면 인증하지 않은 계정이 DB에 남고, 로그인 때 미인증 분기(`AUTH_EMAIL_NOT_VERIFIED`)와 인증 메일 재발송 API가 필요하다. 재발송 API는 가입 여부를 숨기려고 항상 200을 주는데, 실제 메일을 보내는 경우와 아닌 경우의 응답 시간 차이로 계정 존재 여부가 드러날 수 있다. 또 다른 사람의 이메일로 가입만 해 두면 그 주소가 선점된다.
+
+**결정.** 인증을 가입보다 먼저 한다. (1) `POST /api/auth/email-codes`가 6자리 인증번호를 메일로 보내고(10분 유효, 재요청 60초), (2) `POST /api/auth/email-codes/verify`가 번호를 확인해 1회용 가입권을 주고(30분 유효), (3) `POST /api/auth/signup`이 가입권을 소비하며 계정을 만든다. 인증하지 않은 이메일로는 계정이 생기지 않으므로 `users.is_verified`, 로그인의 미인증 분기, 인증 메일 재발송 API, 인증 링크 페이지가 모두 필요 없다. 가입권을 따로 주는 이유는, 이메일 기준으로만 "인증됨"을 기억하면 인증을 마친 직후 다른 사람이 그 이메일로 먼저 가입할 수 있기 때문이다. 인증번호는 5번까지만 시도할 수 있어 6자리(100만 가지)를 무차별 대입하기 어렵다. 이메일은 가입 전에 인증한 값이므로 가입 때 입력받지 않고 가입권에서 꺼낸다. 인증번호 요청 API의 메일 실패 노출은 결정 15를 따른다.
+
+**버린 대안.** (1) 기존 "가입 후 링크 인증": 미인증 계정이 남고, 재발송 API와 재발송 응답 시간 차이 문제가 생긴다. (2) 이메일 기준으로만 인증 상태를 기억하고 가입 때 이메일을 다시 받는 방법: 인증과 가입 사이에 다른 사람이 같은 이메일로 먼저 가입할 수 있고, 가입 요청의 이메일을 인증한 이메일과 맞추는 검사도 필요하다. (3) 가입은 먼저 하고 인증 전에는 로그인만 막는 방법: 기존 방식과 같은 문제가 남는다.
