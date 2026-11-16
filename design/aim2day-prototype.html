@@ -2571,7 +2571,7 @@
 
           const weekly = document.getElementById("weeklyDestination");
           if (destination.value !== "maintenance" && !weekly.value) return;
-          // 서버도 같은 규칙으로 거부한다(GOAL_ACTION_DATE_OUT_OF_RANGE).
+          // 서버도 같은 규칙으로 거부한다(ACTION_DATE_OUT_OF_RANGE).
           if (destination.value !== "maintenance" && isBeyondCurrentWeek())
             return;
           actionModel.push({

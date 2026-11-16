@@ -169,42 +169,48 @@
 
 ### 2.8 HTTP 상태 코드와 오류 코드
 
+오류 코드 이름은 다음 규칙을 따른다. (결정 21)
+
+- 여러 도메인이 함께 쓰는 공통 코드는 접두사 없이 쓴다: `MALFORMED_REQUEST`, `VALIDATION_FAILED`, `UNAUTHENTICATED`, `CSRF_TOKEN_INVALID`, `RESOURCE_NOT_FOUND`, `VERSION_CONFLICT`, `TOO_MANY_REQUESTS`, `INTERNAL_ERROR`.
+- 도메인 코드는 `도메인_뜻` 형식이다. 도메인 접두사는 `AUTH`(인증·계정), `GOAL`(목표·휴지통·수치 측정 방식), `CRITERIA`(달성 기준), `RECORD`(수치 기록), `ACTION`(행동), `QUADRANT`(사분면 분류), `CALENDAR`(달력), `REPORT`(리포트)다.
+- HTTP 상태는 응답의 상태 줄이 나타내므로 코드 이름에 넣지 않는다. 성공 `code`는 항상 `SUCCESS` 하나다(§2.1).
+
 | HTTP | `code` | 상황 | `details` |
 |---|---|---|---|
 | 400 | `MALFORMED_REQUEST` | JSON 파싱 실패, 알 수 없는 열거값 | `null` |
 | 400 | `VALIDATION_FAILED` | 필수값 누락, 길이·형식·범위 위반 | `{ "fieldErrors": [{ "field": "email", "reason": "INVALID_FORMAT" }] }` |
-| 400 | `INVALID_TOKEN` | 인증·재설정 토큰이 만료·사용·변조됨. 세 경우를 구분하지 않는다 | `null` |
+| 400 | `AUTH_INVALID_TOKEN` | 인증·재설정 토큰이 만료·사용·변조됨. 세 경우를 구분하지 않는다 | `null` |
 | 401 | `UNAUTHENTICATED` | 세션 없음·만료·무효 | `null` |
-| 401 | `INVALID_CREDENTIALS` | 이메일 또는 비밀번호 불일치 | `null` |
-| 403 | `EMAIL_NOT_VERIFIED` | 이메일 미인증 계정의 로그인 | `{ "email": "user@example.com" }` |
+| 401 | `AUTH_INVALID_CREDENTIALS` | 이메일 또는 비밀번호 불일치 | `null` |
+| 403 | `AUTH_EMAIL_NOT_VERIFIED` | 이메일 미인증 계정의 로그인 | `{ "email": "user@example.com" }` |
 | 403 | `CSRF_TOKEN_INVALID` | 상태 변경 요청에 `X-XSRF-TOKEN` 헤더가 없거나 `XSRF-TOKEN` 쿠키와 다름 | `null` |
 | 404 | `RESOURCE_NOT_FOUND` | 없음, 다른 사용자 소유, 삭제·숨김 상태 | `{ "resource": "WEEKLY_GOAL", "id": 31 }` |
-| 409 | `EMAIL_ALREADY_EXISTS` | 가입된 이메일로 가입 | `null` |
+| 409 | `AUTH_EMAIL_EXISTS` | 가입된 이메일로 가입 | `null` |
 | 409 | `VERSION_CONFLICT` | `version` 불일치 | `{ "currentVersion": 4 }` |
 | 409 | `GOAL_LIMIT_EXCEEDED` | 연간 목표 생성·복원 시 활성 목표가 이미 3개 | `{ "year": 2026, "current": 3, "max": 3 }` |
-| 409 | `DELETE_CONFIRMATION_REQUIRED` | 하위 항목이 있는 목표를 확인 없이 삭제 | §4.7 참고 |
-| 409 | `PARENT_GOAL_DELETED` | 부모가 삭제 상태인 목표의 복원 | `{ "parentLevel": "MONTHLY", "parentId": 8 }` |
-| 409 | `RESTORE_PERIOD_EXPIRED` | 삭제 후 30일이 지난 목표의 복원 | `{ "deletedAt": "...", "restoreDeadline": "..." }` |
+| 409 | `GOAL_DELETE_CONFIRM_REQUIRED` | 하위 항목이 있는 목표를 확인 없이 삭제 | §4.7 참고 |
+| 409 | `GOAL_PARENT_DELETED` | 부모가 삭제 상태인 목표의 복원 | `{ "parentLevel": "MONTHLY", "parentId": 8 }` |
+| 409 | `GOAL_RESTORE_EXPIRED` | 삭제 후 30일이 지난 목표의 복원 | `{ "deletedAt": "...", "restoreDeadline": "..." }` |
 | 409 | `CRITERIA_ALREADY_CONFIRMED` | 이미 확정된 기준의 재확정 | `null` |
-| 422 | `PARENT_GOAL_UNAVAILABLE` | 부모 목표가 없음·타인 소유·삭제·과거 이력 | `{ "parentLevel": "YEARLY", "parentId": 3 }` |
-| 422 | `PARENT_PERIOD_MISMATCH` | 하위 목표 기간이 부모 기간과 겹치지 않음 | `{ "parentStartDate": "...", "parentEndDate": "..." }` |
-| 422 | `WEEKLY_GOAL_REQUIRED` | 선택한 월간 목표 아래에 행동의 수행일을 기간에 포함하는 주간 목표가 없음 | `{ "monthlyGoalId": 8, "performedDate": "2026-11-12" }` |
-| 422 | `WEEKLY_GOAL_SELECTION_REQUIRED` | 연결 가능한 주간 목표가 여러 개 | `{ "candidates": [{ "id": 31, "title": "...", "startDate": "...", "endDate": "..." }] }` |
+| 422 | `GOAL_PARENT_UNAVAILABLE` | 부모 목표가 없음·타인 소유·삭제·과거 이력 | `{ "parentLevel": "YEARLY", "parentId": 3 }` |
+| 422 | `GOAL_PARENT_PERIOD_MISMATCH` | 하위 목표 기간이 부모 기간과 겹치지 않음 | `{ "parentStartDate": "...", "parentEndDate": "..." }` |
+| 422 | `ACTION_WEEKLY_GOAL_REQUIRED` | 선택한 월간 목표 아래에 행동의 수행일을 기간에 포함하는 주간 목표가 없음 | `{ "monthlyGoalId": 8, "performedDate": "2026-11-12" }` |
+| 422 | `ACTION_WEEKLY_GOAL_AMBIGUOUS` | 연결 가능한 주간 목표가 여러 개 | `{ "candidates": [{ "id": 31, "title": "...", "startDate": "...", "endDate": "..." }] }` |
 | 422 | `CRITERIA_WEIGHT_SUM_INVALID` | 확정·개정 시 배점 합계가 100이 아님 | `{ "totalWeight": 90, "required": 100 }` |
 | 422 | `CRITERIA_NOT_CONFIRMED` | 확정 전 기준의 달성 처리 | `null` |
-| 422 | `FUTURE_ACTION_COMPLETION_BLOCKED` | 수행일이 미래인 행동의 완료, 완료된 행동의 수행일을 미래로 변경 | `{ "today": "2026-11-12", "performedDate": "2026-11-13" }` |
-| 422 | `GOAL_ACTION_DATE_OUT_OF_RANGE` | 목표 연결 행동의 수행일이 현재 주 이후(결정 17) | `{ "currentWeekEndDate": "2026-11-14", "performedDate": "2026-11-20" }` |
+| 422 | `ACTION_FUTURE_COMPLETION` | 수행일이 미래인 행동의 완료, 완료된 행동의 수행일을 미래로 변경 | `{ "today": "2026-11-12", "performedDate": "2026-11-13" }` |
+| 422 | `ACTION_DATE_OUT_OF_RANGE` | 목표 연결 행동의 수행일이 현재 주 이후(결정 17) | `{ "currentWeekEndDate": "2026-11-14", "performedDate": "2026-11-20" }` |
 | 422 | `QUADRANT_OUT_OF_RANGE` | 목표 연결 행동의 x < 50 | `{ "minImportance": 50 }` |
-| 422 | `CLASSIFICATION_DATE_INVALID` | 오늘이 아닌 행동의 분류 | `{ "today": "2026-11-12", "performedDate": "2026-11-11" }` |
-| 422 | `NOT_NUMERIC_GOAL` | 체크형 주간 목표에 수치 기록·기여량 지정 | `null` |
-| 422 | `MEASUREMENT_TYPE_IMMUTABLE` | 생성 후 측정 방식 변경 | `null` |
+| 422 | `QUADRANT_DATE_INVALID` | 오늘이 아닌 행동의 분류 | `{ "today": "2026-11-12", "performedDate": "2026-11-11" }` |
+| 422 | `GOAL_NOT_NUMERIC` | 체크형 주간 목표에 수치 기록·기여량 지정 | `null` |
+| 422 | `GOAL_MEASUREMENT_TYPE_IMMUTABLE` | 생성 후 측정 방식 변경 | `null` |
 | 422 | `RECORD_NOT_DELETABLE` | 행동 완료로 생긴 수치 기록을 직접 삭제 | `null` |
 | 422 | `GOAL_ORDER_MISMATCH` | 순서 저장 목록과 활성 목표 집합이 다름 | `{ "expectedIds": [3, 5, 9] }` |
-| 422 | `ITEM_TYPE_IMMUTABLE` | 달력 항목 종류 변경 | `null` |
-| 422 | `INVALID_PERIOD` | 존재하지 않는 리포트 기간 또는 너무 긴 조회 범위 | `{ "maxDays": 100 }` |
+| 422 | `CALENDAR_ITEM_TYPE_IMMUTABLE` | 달력 항목 종류 변경 | `null` |
+| 422 | `REPORT_INVALID_PERIOD` | 존재하지 않는 리포트 기간 또는 너무 긴 조회 범위 | `{ "maxDays": 100 }` |
 | 429 | `TOO_MANY_REQUESTS` | 같은 이메일로 메일 재요청 간격(60초) 미만 | `{ "retryAfterSeconds": 42 }` |
 | 500 | `INTERNAL_ERROR` | 예상하지 못한 서버 오류 | `null` |
-| 502 | `MAIL_SEND_FAILED` | 회원가입 직후 메일 서버 전송 실패. 가입 API에서만 쓴다. 재발송·재설정 API는 실패해도 200을 반환한다(결정 15) | `{ "accountCreated": true }` |
+| 502 | `AUTH_MAIL_SEND_FAILED` | 회원가입 직후 메일 서버 전송 실패. 가입 API에서만 쓴다. 재발송·재설정 API는 실패해도 200을 반환한다(결정 15) | `{ "accountCreated": true }` |
 
 `VALIDATION_FAILED`의 `reason` 값은 `REQUIRED`, `INVALID_FORMAT`, `TOO_LONG`, `OUT_OF_RANGE`, `PASSWORD_POLICY`, `PASSWORD_MISMATCH`를 쓴다.
 
@@ -258,8 +264,8 @@ CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그
 ```
 
 - 비밀번호는 BCrypt로 해시해 저장한다. `is_verified=false`로 만든다.
-- 계정 저장 후 메일 전송에 실패하면 502 `MAIL_SEND_FAILED`와 `details.accountCreated=true`를 반환한다. 화면은 가입이 끝난 것처럼 보이지 않게 실패를 알리고 `[인증 메일 다시 보내기]`를 제공한다.
-- 오류: 400 `VALIDATION_FAILED`(`PASSWORD_POLICY`, `PASSWORD_MISMATCH` 포함), 403 `CSRF_TOKEN_INVALID`, 409 `EMAIL_ALREADY_EXISTS`, 502 `MAIL_SEND_FAILED`
+- 계정 저장 후 메일 전송에 실패하면 502 `AUTH_MAIL_SEND_FAILED`와 `details.accountCreated=true`를 반환한다. 화면은 가입이 끝난 것처럼 보이지 않게 실패를 알리고 `[인증 메일 다시 보내기]`를 제공한다.
+- 오류: 400 `VALIDATION_FAILED`(`PASSWORD_POLICY`, `PASSWORD_MISMATCH` 포함), 403 `CSRF_TOKEN_INVALID`, 409 `AUTH_EMAIL_EXISTS`, 502 `AUTH_MAIL_SEND_FAILED`
 - 가입 API는 이미 409로 가입 여부를 드러내므로 메일 실패도 숨기지 않는다. 사용자가 인증 메일을 다시 요청해야 하기 때문이다. (결정 15)
 
 #### POST `/api/auth/verification-emails`
@@ -284,7 +290,7 @@ CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그
 
 200 응답: `{ "email": "user@example.com" }`
 
-- 오류: 400 `INVALID_TOKEN`, 403 `CSRF_TOKEN_INVALID`
+- 오류: 400 `AUTH_INVALID_TOKEN`, 403 `CSRF_TOKEN_INVALID`
 
 #### POST `/api/auth/login`
 
@@ -297,8 +303,8 @@ CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그
 200 응답: `{ "id": 7, "email": "user@example.com", "username": "정수" }` 와 `Set-Cookie: SESSION=...`
 
 - 로그인 성공 시 세션 ID를 새로 발급한다(세션 고정 공격 방지).
-- 비밀번호가 맞지만 미인증 계정이면 403 `EMAIL_NOT_VERIFIED`를 반환한다. 화면은 `이메일 인증 후 로그인할 수 있습니다.`와 `[인증 메일 다시 보내기]`를 표시한다.
-- 오류: 400 `VALIDATION_FAILED`, 401 `INVALID_CREDENTIALS`, 403 `EMAIL_NOT_VERIFIED`, 403 `CSRF_TOKEN_INVALID`
+- 비밀번호가 맞지만 미인증 계정이면 403 `AUTH_EMAIL_NOT_VERIFIED`를 반환한다. 화면은 `이메일 인증 후 로그인할 수 있습니다.`와 `[인증 메일 다시 보내기]`를 표시한다.
+- 오류: 400 `VALIDATION_FAILED`, 401 `AUTH_INVALID_CREDENTIALS`, 403 `AUTH_EMAIL_NOT_VERIFIED`, 403 `CSRF_TOKEN_INVALID`
 - 로그인에 성공하면 세션 속성 `PRINCIPAL_NAME_INDEX_NAME`에 `userId`를 문자열로 저장한다(§2.2). 로그인 전 요청이라도 CSRF 토큰은 필요하다. 공격자 사이트가 피해자 브라우저를 공격자 계정으로 로그인시키는 로그인 CSRF를 막기 위해서다.
 
 로그인 후 프론트엔드는 `GET /api/goals/onboarding/status`로 온보딩과 대시보드 중 이동할 곳을 정한다.
@@ -325,7 +331,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - 토큰을 소비하고 새 BCrypt 해시를 저장한다. 이후 이전 비밀번호로는 로그인할 수 없다.
 - 해당 사용자의 기존 세션을 모두 무효화한다. `FindByIndexNameSessionRepository.findByPrincipalName(userId)`로 그 사용자의 세션을 모두 찾아 각각 삭제한다(§2.2의 인덱스형 저장소). 다른 기기의 로그인도 끝난다. (결정 14)
 - 토큰 형식은 맞지만 새 비밀번호가 규칙에 맞지 않으면 토큰을 소비하지 않고 400 `VALIDATION_FAILED`를 반환한다. 입력 검증을 토큰 소비보다 먼저 한다.
-- 오류: 400 `VALIDATION_FAILED`, 400 `INVALID_TOKEN`, 403 `CSRF_TOKEN_INVALID`
+- 오류: 400 `VALIDATION_FAILED`, 400 `AUTH_INVALID_TOKEN`, 403 `CSRF_TOKEN_INVALID`
 
 ### 3.2 사용자
 
@@ -437,7 +443,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - 각 항목의 규칙은 개별 생성 API(§4.3, §4.5, §4.6, §4.9)와 같다. 월간은 현재 달, 주간은 현재 주로 만든다. 연간 목표는 현재 연도로 만든다.
 - 사용자 행을 먼저 잠그고 연간 목표 한도를 검사한다. 하나라도 실패하면 전체를 되돌린다.
 - 성공하면 임시 저장을 지운다.
-- 오류: 400 `VALIDATION_FAILED`(잘못된 `tempId` 참조 포함), 409 `GOAL_LIMIT_EXCEEDED`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `PARENT_PERIOD_MISMATCH`
+- 오류: 400 `VALIDATION_FAILED`(잘못된 `tempId` 참조 포함), 409 `GOAL_LIMIT_EXCEEDED`, 422 `GOAL_PARENT_UNAVAILABLE`, 422 `GOAL_PARENT_PERIOD_MISMATCH`
 
 ### 4.3 연간 목표
 
@@ -629,7 +635,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 - 대상 월은 받지 않는다. 계정 시간대 기준 현재 달의 첫날~말일로 만든다. (`GOAL-014`)
 - 부모 연간 목표의 연도가 현재 연도여야 한다.
-- 오류: 400 `VALIDATION_FAILED`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `PARENT_PERIOD_MISMATCH`
+- 오류: 400 `VALIDATION_FAILED`, 422 `GOAL_PARENT_UNAVAILABLE`, 422 `GOAL_PARENT_PERIOD_MISMATCH`
 
 #### GET `/api/goals/monthly/{id}`
 
@@ -699,7 +705,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - 부모 월간 목표의 기간과 이번 주가 하루라도 겹쳐야 한다. 월·연도 경계 주는 겹치는 두 월간 목표 중 하나를 고르며 나누지 않는다. (`GOAL-006`)
 - `measurementType`은 `CHECKLIST`(기본) 또는 `NUMERIC`이다. `NUMERIC`이면 `targetValue`(0 초과, 소수점 둘째 자리까지)가 필수다. `weight`는 0 초과 999.99 이하이며 기본값은 1이다.
 - 만든 뒤 부모 월간 목표의 진행률을 다시 계산한다(새 주간 목표는 0%로 분모에 들어간다).
-- 오류: 400 `VALIDATION_FAILED`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `PARENT_PERIOD_MISMATCH`
+- 오류: 400 `VALIDATION_FAILED`, 422 `GOAL_PARENT_UNAVAILABLE`, 422 `GOAL_PARENT_PERIOD_MISMATCH`
 
 #### GET `/api/goals/weekly/previous-summary`
 
@@ -733,7 +739,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - 바꿀 수 있는 필드: `title`, `description`, `color`, `status`, `targetValue`, `weight`, `monthlyGoalId`
 - `monthlyGoalId`는 이 주와 기간이 겹치는 다른 월간 목표로만 옮길 수 있다. 옮기면 이전·새 월간 목표의 진행률을 모두 다시 계산한다.
 - `targetValue`, `weight`를 바꾸면 진행률을 다시 계산한다. 기간과 `measurementType`은 바꿀 수 없다.
-- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `MEASUREMENT_TYPE_IMMUTABLE`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `PARENT_PERIOD_MISMATCH`
+- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `GOAL_MEASUREMENT_TYPE_IMMUTABLE`, 422 `GOAL_PARENT_UNAVAILABLE`, 422 `GOAL_PARENT_PERIOD_MISMATCH`
 
 #### DELETE `/api/goals/weekly/{id}?confirm=true`
 
@@ -759,7 +765,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - `amount`는 0 초과다. 기록 삽입, `current_value` 가산, 주간·월간 진행률 재계산을 한 트랜잭션에서 처리한다. `current_value`는 `UPDATE weekly_goals SET current_value = current_value + :amount WHERE id = :id`로 DB에서 원자적으로 더하고, 진행률은 행을 `FOR UPDATE`로 잠근 뒤 다시 읽어 계산한다(§4.9 완료 항목, ERD 결정 16).
 - 같은 작업을 행동 완료로도 적었는지는 서버가 판별하지 않는다. 직접 기록 화면에서 중복 입력을 안내한다.
 - 201 응답: `{ "record": { /* 기록 */ }, "weeklyGoal": { /* 주간 목표 객체 */ } }`
-- 오류: 400 `VALIDATION_FAILED`, 422 `NOT_NUMERIC_GOAL`
+- 오류: 400 `VALIDATION_FAILED`, 422 `GOAL_NOT_NUMERIC`
 
 #### DELETE `/api/goals/weekly/{id}/numeric-records/{recordId}`
 
@@ -773,11 +779,11 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 `level`은 `yearly`, `monthly`, `weekly`다. 경로는 §4.3·4.5·4.6과 같다.
 
-- 숨겨질 하위 목표나 미완료 행동이 있는데 `confirm=true`가 없으면 삭제하지 않고 409 `DELETE_CONFIRMATION_REQUIRED`를 반환한다. 화면은 이 정보로 확인 창을 띄운다. (`GOAL-007`)
+- 숨겨질 하위 목표나 미완료 행동이 있는데 `confirm=true`가 없으면 삭제하지 않고 409 `GOAL_DELETE_CONFIRM_REQUIRED`를 반환한다. 화면은 이 정보로 확인 창을 띄운다. (`GOAL-007`)
 
 ```json
 {
-  "code": "DELETE_CONFIRMATION_REQUIRED",
+  "code": "GOAL_DELETE_CONFIRM_REQUIRED",
   "message": "하위 목표와 미완료 행동이 함께 숨겨집니다. 삭제할까요?",
   "details": {
     "monthlyGoalCount": 2,
@@ -821,7 +827,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - 연간 목표는 사용자 행을 잠근 뒤 한도를 다시 검사한다.
 - 자동 정리가 아직 돌지 않았어도 기한이 지났으면 거부한다.
 - 200 응답: 복원한 목표 객체
-- 오류: 404 `RESOURCE_NOT_FOUND`, 409 `GOAL_LIMIT_EXCEEDED`, 409 `PARENT_GOAL_DELETED`, 409 `RESTORE_PERIOD_EXPIRED`
+- 오류: 404 `RESOURCE_NOT_FOUND`, 409 `GOAL_LIMIT_EXCEEDED`, 409 `GOAL_PARENT_DELETED`, 409 `GOAL_RESTORE_EXPIRED`
 
 30일 뒤 정리는 API가 아니라 `goal-service`의 예약 작업이 처리한다. 세 인스턴스가 동시에 돌아도 같은 결과가 나오도록, 정리 대상 행을 `SELECT ... FOR UPDATE SKIP LOCKED`로 잠근 뒤 ERD §4.4 순서대로 처리한다.
 
@@ -903,7 +909,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 |---|---|---|---|---|
 | 지난 날짜 | 가능 (`performedDate`=그 날짜). 목표 연결은 그 주의 주간 목표가 있을 때만(§4.9 `POST`) | 가능 | 보기만 | `null` |
 | 오늘 | 가능 | 가능 | 가능 | 채움 |
-| 미래 날짜 | 가능 (`performedDate`=그 날짜). 현재 주 이후 날짜는 `MAINTENANCE`만(결정 17) | 불가 (`FUTURE_ACTION_COMPLETION_BLOCKED`) | 보기만 | `null` |
+| 미래 날짜 | 가능 (`performedDate`=그 날짜). 현재 주 이후 날짜는 `MAINTENANCE`만(결정 17) | 불가 (`ACTION_FUTURE_COMPLETION`) | 보기만 | `null` |
 
 | `sort` | 순서 |
 |---|---|
@@ -954,15 +960,15 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - `title` 1~255자. `performedDate`는 생략하면 오늘이다. (`FN-ACT-01`)
 - `type=GOAL`이면 연결 주간 목표를 다음과 같이 정한다. (`FOCUS-002`)
   - `weeklyGoalId`가 있으면 그 목표에 연결한다.
-  - 없고 `monthlyGoalId`만 있으면, 그 월간 목표 아래에서 기간에 `performedDate`가 들어가는 활성 주간 목표를 찾는다. 1개면 자동으로 연결한다. 0개면 422 `WEEKLY_GOAL_REQUIRED`(수행일이 이번 주이면 화면은 `먼저 이번 주 목표를 만들어 주세요`, 지난 주이면 `그 주에 만들어 둔 주간 목표가 없어요` 안내)를 반환한다. 여러 개면 422 `WEEKLY_GOAL_SELECTION_REQUIRED`와 후보 목록을 반환한다.
-  - 지난 주 날짜도 같은 방식으로 찾는다. 그 주에 만들어 둔 주간 목표가 남아 있으면 연결하고, 없으면 `WEEKLY_GOAL_REQUIRED`다. 없는 주간 목표를 새로 만들어 주지 않는다.
-  - `performedDate`가 현재 주(주 시작 요일 기준, §2.3)의 마지막 날보다 뒤이면 위 판단에 앞서 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`를 반환한다. 주간 목표는 현재 주로만 만들 수 있어(결정 5) 그 이후 주에는 연결할 주간 목표가 있을 수 없다. 그 주가 오면 주간 목표를 만든 뒤 추가한다. (결정 17)
+  - 없고 `monthlyGoalId`만 있으면, 그 월간 목표 아래에서 기간에 `performedDate`가 들어가는 활성 주간 목표를 찾는다. 1개면 자동으로 연결한다. 0개면 422 `ACTION_WEEKLY_GOAL_REQUIRED`(수행일이 이번 주이면 화면은 `먼저 이번 주 목표를 만들어 주세요`, 지난 주이면 `그 주에 만들어 둔 주간 목표가 없어요` 안내)를 반환한다. 여러 개면 422 `ACTION_WEEKLY_GOAL_AMBIGUOUS`와 후보 목록을 반환한다.
+  - 지난 주 날짜도 같은 방식으로 찾는다. 그 주에 만들어 둔 주간 목표가 남아 있으면 연결하고, 없으면 `ACTION_WEEKLY_GOAL_REQUIRED`다. 없는 주간 목표를 새로 만들어 주지 않는다.
+  - `performedDate`가 현재 주(주 시작 요일 기준, §2.3)의 마지막 날보다 뒤이면 위 판단에 앞서 422 `ACTION_DATE_OUT_OF_RANGE`를 반환한다. 주간 목표는 현재 주로만 만들 수 있어(결정 5) 그 이후 주에는 연결할 주간 목표가 있을 수 없다. 그 주가 오면 주간 목표를 만든 뒤 추가한다. (결정 17)
   - 둘 다 없으면 400 `VALIDATION_FAILED`다. 목표 없는 핵심 행동은 만들 수 없다. (`FOCUS-009`)
 - `type=MAINTENANCE`이면 `monthlyGoalId`, `weeklyGoalId`, `contributionValue`를 보내지 않는다. 수행일 제한은 없어 미래 날짜에도 추가할 수 있다.
 - `contributionValue`는 연결 주간 목표가 `NUMERIC`일 때만 받으며 0 초과다.
 - 체크형 주간 목표에 연결하면 분모가 늘어나므로 주간·월간 진행률을 다시 계산한다.
 - 201 응답: 행동 객체
-- 오류: 400 `VALIDATION_FAILED`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `WEEKLY_GOAL_REQUIRED`, 422 `WEEKLY_GOAL_SELECTION_REQUIRED`, 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`, 422 `NOT_NUMERIC_GOAL`
+- 오류: 400 `VALIDATION_FAILED`, 422 `GOAL_PARENT_UNAVAILABLE`, 422 `ACTION_WEEKLY_GOAL_REQUIRED`, 422 `ACTION_WEEKLY_GOAL_AMBIGUOUS`, 422 `ACTION_DATE_OUT_OF_RANGE`, 422 `GOAL_NOT_NUMERIC`
 
 #### PATCH `/api/actions/{id}`
 
@@ -973,8 +979,8 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
   - `contributionValue`를 바꾸면 기록의 `amount`를 새 값으로 바꾸고 실제값에 (새 값 − 이전 값)을 더한다. 예: 실제값 2, 기여량 2 → 5로 수정하면 실제값 5. `null`로 바꾸면 기록을 지우고 이전 값을 뺀다.
   - `weeklyGoalId`를 바꾸면 이전 주간 목표에서 기여량을 빼고 새 주간 목표에 더한다. 새 목표가 체크형이면 같은 요청에서 `contributionValue`를 `null`로 보내야 한다.
 - `performedDate`를 바꾸면 이전 날짜의 분류 좌표는 그대로 두고, 행동은 새 수행일의 목록에 보인다. 완료된 행동의 수행일은 미래로 바꿀 수 없다.
-- 목표 연결(`GOAL`) 행동의 `performedDate`를 현재 주의 마지막 날보다 뒤로 바꿀 수 없다. 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`다. `MAINTENANCE`는 제한이 없다. 지난 주 날짜로 바꾸는 것과 `[오늘로 옮기기]`는 막지 않는다. (결정 17)
-- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `PARENT_GOAL_UNAVAILABLE`, 422 `NOT_NUMERIC_GOAL`, 422 `FUTURE_ACTION_COMPLETION_BLOCKED`, 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`
+- 목표 연결(`GOAL`) 행동의 `performedDate`를 현재 주의 마지막 날보다 뒤로 바꿀 수 없다. 422 `ACTION_DATE_OUT_OF_RANGE`다. `MAINTENANCE`는 제한이 없다. 지난 주 날짜로 바꾸는 것과 `[오늘로 옮기기]`는 막지 않는다. (결정 17)
+- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `GOAL_PARENT_UNAVAILABLE`, 422 `GOAL_NOT_NUMERIC`, 422 `ACTION_FUTURE_COMPLETION`, 422 `ACTION_DATE_OUT_OF_RANGE`
 
 #### PUT `/api/actions/{id}/completion`
 
@@ -1039,7 +1045,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - **`null`을 보낼 때**: 확정 좌표가 없으면(미분류·미확정) 행을 지워 바로 `UNCLASSIFIED`가 된다. 확정 좌표가 있으면 `PENDING_UNCLASSIFY`가 된다. 확정을 눌러야 미분류가 되고, 그 전까지 확정 좌표는 남는다. 이미 트레이에 있는 점이면 아무것도 바꾸지 않고 200이다.
 - 좌표는 완료 상태, 진행률, 저장 순서를 바꾸지 않는다.
 - 응답: `{ "actionId": 101, "placement": { /* §4.9 placement */ } }`
-- 오류: 400 `VALIDATION_FAILED`, 404 `RESOURCE_NOT_FOUND`, 422 `QUADRANT_OUT_OF_RANGE`, 422 `CLASSIFICATION_DATE_INVALID`
+- 오류: 400 `VALIDATION_FAILED`, 404 `RESOURCE_NOT_FOUND`, 422 `QUADRANT_OUT_OF_RANGE`, 422 `QUADRANT_DATE_INVALID`
 
 #### DELETE `/api/actions/{id}/placement/pending`
 
@@ -1085,7 +1091,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 - `from`, `to`는 필수이며 범위는 최대 100일이다. 월 달력의 앞뒤 주까지 한 번에 받는다.
 - `yearlyGoalIds`를 생략하면 모든 목표의 항목을 준다. `includeUnlinked`(기본 `true`)는 목표에 연결하지 않은 항목을 포함할지다. 둘을 조합해 목표별 필터를 만든다. (`DASH-007`)
-- 오류: 400 `VALIDATION_FAILED`, 422 `INVALID_PERIOD`
+- 오류: 400 `VALIDATION_FAILED`, 422 `REPORT_INVALID_PERIOD`
 
 #### POST `/api/calendar/items`
 
@@ -1096,13 +1102,13 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - `TASK`는 `endDate`를 보내지 않거나 `startDate`와 같게 보낸다. `EVENT`는 `endDate`를 생략하면 하루 일정이며, 있으면 `startDate` 이상이어야 한다.
 - `yearlyGoalId`는 선택이며 활성 연간 목표여야 한다.
 - 201 응답: 달력 항목 객체
-- 오류: 400 `VALIDATION_FAILED`, 422 `PARENT_GOAL_UNAVAILABLE`
+- 오류: 400 `VALIDATION_FAILED`, 422 `GOAL_PARENT_UNAVAILABLE`
 
 #### PATCH `/api/calendar/items/{id}`
 
 바꿀 수 있는 필드는 `title`, `description`, `startDate`, `endDate`, `yearlyGoalId`, `version`이다. `itemType`은 바꿀 수 없다.
 
-- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `ITEM_TYPE_IMMUTABLE`, 422 `PARENT_GOAL_UNAVAILABLE`
+- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `CALENDAR_ITEM_TYPE_IMMUTABLE`, 422 `GOAL_PARENT_UNAVAILABLE`
 
 #### PUT `/api/calendar/items/{id}/completion`
 
@@ -1133,7 +1139,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 #### GET `/api/reports/tabs?month=2026-12`
 
-기준 월에 끝나는 리포트 기간을 탭 순서(월간 → 분기 → 연간)로 반환한다. `month`를 생략하면 이번 달이다. 미래 달은 422 `INVALID_PERIOD`다. (`REVIEW-004`)
+기준 월에 끝나는 리포트 기간을 탭 순서(월간 → 분기 → 연간)로 반환한다. `month`를 생략하면 이번 달이다. 미래 달은 422 `REPORT_INVALID_PERIOD`다. (`REVIEW-004`)
 
 ```json
 {
@@ -1156,7 +1162,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 | `QUARTERLY` | `2026-Q4` | 달력 분기 |
 | `YEARLY` | `2026` | 1월 1일~12월 31일 |
 
-진행 중인 기간도 조회할 수 있으며 오늘까지의 기록으로 계산한다. 미래 기간은 422 `INVALID_PERIOD`다.
+진행 중인 기간도 조회할 수 있으며 오늘까지의 기록으로 계산한다. 미래 기간은 422 `REPORT_INVALID_PERIOD`다.
 
 ```json
 {
@@ -1207,7 +1213,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 - 두 필드 모두 선택이며 각각 최대 5,000자다. 처음 저장할 때는 `version`을 생략한다.
 - 서버는 사용자가 쓴 내용만 저장한다. AI 문장을 넣지 않는다.
-- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `INVALID_PERIOD`
+- 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `REPORT_INVALID_PERIOD`
 
 ## 5. 화면별 호출 API
 
@@ -1287,7 +1293,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 ### 결정 15 — 메일 재발송·재설정 API는 메일 실패를 응답에 드러내지 않는다 (`AUTH-007`, `AUTH-008`)
 **문제.** `POST /api/auth/verification-emails`와 `POST /api/auth/password-reset-requests`는 가입 여부와 상관없이 같은 200을 주기로 했다. 그런데 메일 전송 실패 때 502를 주면, 메일 서버가 불안정한 동안에는 "실제 계정이 있는 이메일에만 502, 없는 이메일에는 200"이 되어 계정 존재 여부가 드러난다. 예를 들어 공격자가 `a@x.com`과 `b@x.com`을 보냈는데 앞의 것만 502면 `a@x.com`이 가입자임을 알 수 있다.
 
-**결정.** 두 API는 항상 200 `data: null`을 반환한다. 메일 전송 실패는 서버 로그에만 남긴다(`NFR-010`에 따라 토큰 원문과 이메일은 남기지 않고 사용자 ID만 기록). 응답에서는 502를 제거했다. 사용자는 메일이 오지 않으면 60초 재요청 제한이 풀린 뒤 다시 요청할 수 있다. 회원가입의 502 `MAIL_SEND_FAILED`는 유지한다. 가입은 이미 409 `EMAIL_ALREADY_EXISTS`로 가입 여부를 드러내고, 가입 직후에는 사용자가 인증 메일을 다시 요청해야 한다는 사실을 알아야 하기 때문이다.
+**결정.** 두 API는 항상 200 `data: null`을 반환한다. 메일 전송 실패는 서버 로그에만 남긴다(`NFR-010`에 따라 토큰 원문과 이메일은 남기지 않고 사용자 ID만 기록). 응답에서는 502를 제거했다. 사용자는 메일이 오지 않으면 60초 재요청 제한이 풀린 뒤 다시 요청할 수 있다. 회원가입의 502 `AUTH_MAIL_SEND_FAILED`는 유지한다. 가입은 이미 409 `AUTH_EMAIL_EXISTS`로 가입 여부를 드러내고, 가입 직후에는 사용자가 인증 메일을 다시 요청해야 한다는 사실을 알아야 하기 때문이다.
 
 **버린 대안.** (1) 존재하지 않는 계정에도 같은 확률로 502를 주는 방법: 실제로 보내지 않은 요청에 가짜 실패를 만들어야 하고, 정상 사용자에게 불필요한 실패를 보여준다. (2) 실패한 메일을 큐에 쌓아 자동 재시도: 제출판 범위를 넘고, 재시도 중에도 사용자에게 상태를 알릴 방법이 필요하다.
 
@@ -1295,14 +1301,14 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 서로 다른 행동의 동시 완료에서 기여량이 사라지지 않게 하고, 진행률 변경이 목표 수정 화면의 `version`과 충돌하지 않게 하는 방법은 DB 구조와 직결되어 ERD 결정 16·17에 상세히 적었다. API에서는 §2.4와 §4.6·§4.9의 규칙을 따른다. 요약하면 `current_value`는 원자적 UPDATE로, 진행률 재계산은 잠금 순서(주간 → 월간)를 고정한 같은 트랜잭션에서 처리하고, 이 컬럼들은 엔티티에서 읽기 전용이라 `version`을 올리지 않는다.
 
 ### 결정 17 — 목표 연결 행동은 현재 주 안의 날짜까지만 추가한다 (`FOCUS-002`, `DASH-011`)
-**문제.** 대시보드는 미래 날짜에도 행동을 미리 추가하게 한다. 그런데 목표 연결 행동은 주간 목표 아래에 저장되고, 주간 목표는 현재 주로만 만들 수 있다(결정 5). 예를 들어 오늘이 11월 12일(목)이고 이번 주가 11월 8~14일일 때 11월 20일 행동을 월간 목표에 연결하려 하면 그 주에는 주간 목표가 없다. 서버는 `WEEKLY_GOAL_REQUIRED`를 주겠지만 화면이 안내하는 `먼저 이번 주 목표를 만들어 주세요`는 이번 주가 아닌 날짜에는 틀린 말이다. 이번 주 목표를 만들어도 그 날짜의 문제는 풀리지 않는다.
+**문제.** 대시보드는 미래 날짜에도 행동을 미리 추가하게 한다. 그런데 목표 연결 행동은 주간 목표 아래에 저장되고, 주간 목표는 현재 주로만 만들 수 있다(결정 5). 예를 들어 오늘이 11월 12일(목)이고 이번 주가 11월 8~14일일 때 11월 20일 행동을 월간 목표에 연결하려 하면 그 주에는 주간 목표가 없다. 서버는 `ACTION_WEEKLY_GOAL_REQUIRED`를 주겠지만 화면이 안내하는 `먼저 이번 주 목표를 만들어 주세요`는 이번 주가 아닌 날짜에는 틀린 말이다. 이번 주 목표를 만들어도 그 날짜의 문제는 풀리지 않는다.
 
-**결정.** 목표 연결 행동의 `performedDate`는 현재 주의 마지막 날 이전이어야 한다. 현재 주 이후 날짜에서는 `그 밖의 할 일`(`MAINTENANCE`)만 추가할 수 있고, 목표 행동은 그 주가 되어 주간 목표를 만든 뒤 추가한다. 이를 어기면 `POST /api/actions`와 `PATCH /api/actions/{id}`가 422 `GOAL_ACTION_DATE_OUT_OF_RANGE`를 반환한다. 화면은 같은 날짜에서 폼의 목표 선택을 막고 안내 문구를 보여 주므로 이 오류는 방어용이다. 지난 주 날짜에는 새 규칙을 두지 않고 기존 방식으로 그 날짜를 기간에 포함하는 주간 목표를 찾는다. 그 주에 만든 주간 목표가 있으면 연결하고 없으면 `WEEKLY_GOAL_REQUIRED`다. 이때 응답 `details`에 `performedDate`를 넣어 화면이 이번 주와 지난 주 문구를 가르게 했다. `[오늘로 옮기기]`처럼 지난 주 연결을 그대로 둔 채 수행일만 오늘로 바꾸는 요청은 현재 주 안이므로 막지 않는다.
+**결정.** 목표 연결 행동의 `performedDate`는 현재 주의 마지막 날 이전이어야 한다. 현재 주 이후 날짜에서는 `그 밖의 할 일`(`MAINTENANCE`)만 추가할 수 있고, 목표 행동은 그 주가 되어 주간 목표를 만든 뒤 추가한다. 이를 어기면 `POST /api/actions`와 `PATCH /api/actions/{id}`가 422 `ACTION_DATE_OUT_OF_RANGE`를 반환한다. 화면은 같은 날짜에서 폼의 목표 선택을 막고 안내 문구를 보여 주므로 이 오류는 방어용이다. 지난 주 날짜에는 새 규칙을 두지 않고 기존 방식으로 그 날짜를 기간에 포함하는 주간 목표를 찾는다. 그 주에 만든 주간 목표가 있으면 연결하고 없으면 `ACTION_WEEKLY_GOAL_REQUIRED`다. 이때 응답 `details`에 `performedDate`를 넣어 화면이 이번 주와 지난 주 문구를 가르게 했다. `[오늘로 옮기기]`처럼 지난 주 연결을 그대로 둔 채 수행일만 오늘로 바꾸는 요청은 현재 주 안이므로 막지 않는다.
 
-**버린 대안.** (1) 미래 주간 목표를 미리 만들 수 있게 한다: 결정 5와 월간 목표의 현재 달 규칙을 깨고, 주간 목표 기간 겹침·리포트 기간 계산·`이번 주` 판단이 복잡해진다. (2) `WEEKLY_GOAL_REQUIRED`를 그대로 쓴다: 미래 주에서는 사용자가 할 수 있는 조치가 없어 안내가 틀린다. 오류 원인(날짜가 범위 밖)이 코드에 드러나는 편이 낫다. (3) 미래 날짜 행동을 아예 막는다: `그 밖의 할 일`은 주간 목표가 필요 없고 미리 적어 두는 쓰임이 있어(`DASH-011`) 유지한다.
+**버린 대안.** (1) 미래 주간 목표를 미리 만들 수 있게 한다: 결정 5와 월간 목표의 현재 달 규칙을 깨고, 주간 목표 기간 겹침·리포트 기간 계산·`이번 주` 판단이 복잡해진다. (2) `ACTION_WEEKLY_GOAL_REQUIRED`를 그대로 쓴다: 미래 주에서는 사용자가 할 수 있는 조치가 없어 안내가 틀린다. 오류 원인(날짜가 범위 밖)이 코드에 드러나는 편이 낫다. (3) 미래 날짜 행동을 아예 막는다: `그 밖의 할 일`은 주간 목표가 필요 없고 미리 적어 두는 쓰임이 있어(`DASH-011`) 유지한다.
 
 ### 결정 18 — 지난 날짜의 확정하지 않은 변경은 없는 것으로 본다 (`FOCUS-016`, `FN-QUAD-02`)
-**문제.** 분류는 수행일이 오늘인 행동에만 할 수 있다(`CLASSIFICATION_DATE_INVALID`). 그래서 어제 점을 옮기고 확정하지 않은 채 날이 지나면, 그 변경은 확정할 수도 취소할 수도 없다. 그대로 두면 어제 날짜를 조회할 때 확정하지 않은 위치가 확정 좌표처럼 보이거나, `RECLASSIFYING`·`PENDING_UNCLASSIFY` 상태가 영원히 남는다.
+**문제.** 분류는 수행일이 오늘인 행동에만 할 수 있다(`QUADRANT_DATE_INVALID`). 그래서 어제 점을 옮기고 확정하지 않은 채 날이 지나면, 그 변경은 확정할 수도 취소할 수도 없다. 그대로 두면 어제 날짜를 조회할 때 확정하지 않은 위치가 확정 좌표처럼 보이거나, `RECLASSIFYING`·`PENDING_UNCLASSIFY` 상태가 영원히 남는다.
 
 **결정.** 오늘이 아닌 날짜를 조회할 때는 확정 좌표만 쓰고, 미확정 좌표와 되돌리기 대기는 없는 것으로 응답한다. 확정 좌표가 있으면 `CONFIRMED`, 없으면 `UNCLASSIFIED`다. `classification.unconfirmedChanges`도 0이다. DB의 미확정 값은 지우지 않는다. 읽을 때만 무시하면 요청 경로에 쓰기가 생기지 않고, 별도 정리 코드가 필요 없으며, 규칙이 읽는 한 곳에만 있어 인스턴스마다 결과가 같다. 기존 예약 작업은 30일 지난 삭제 목표를 정리하는 작업(ERD §4.4)이라 사분면 값을 지우는 일과 성격이 맞지 않는다. 남은 값은 어디에서도 쓰이지 않으므로 저장 공간 외의 문제가 없다.
 
@@ -1321,3 +1327,11 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 **결정.** 연간 리포트는 요구사항(`REVIEW-001`)대로 연말에 보는 리포트라 12월에만, 분기 리포트는 분기 마지막 달에만 탭을 보여 준다. 진행 중인 기간의 탭은 만들지 않는다. 끝나지 않은 기간을 지난 기간과 비교하면 아직 쌓이지 않은 기록 때문에 변화가 작게 보여 성과가 줄어든 것처럼 오해하기 쉽다. 탭 수가 달마다 고정되지 않으면 화면과 서버(`startBase`, 진행 중 표시)가 처리할 경우도 늘어난다. 다만 `GET /api/reports`는 진행 중인 기간도 계산해 주므로(§4.12) 탭이 없을 뿐 API가 막는 것은 아니다.
 
 **버린 대안.** (1) 모든 달에 분기·연간 탭 표시: 위의 오해와 복잡도 문제가 있다. (2) 진행 중 탭에 `진행 중` 배지를 붙여 표시: 배지로도 막대 두 개의 비교 의미가 달라지지 않아 오해를 막지 못한다.
+
+### 결정 21 — 오류 코드는 `도메인_뜻`, 성공 코드는 `SUCCESS` 하나
+
+**문제.** 오류 코드가 34개로 늘었고 일부는 이름이 길며(`FUTURE_ACTION_COMPLETION_BLOCKED`), 어느 도메인의 오류인지 이름만으로 드러나지 않는다. 도메인을 구현할 때 오류 코드를 도메인별로 나눌 예정이다.
+
+**결정.** 도메인 코드에 도메인 접두사를 붙이고 뜻이 드러나는 짧은 이름을 쓴다(예: `AUTH_EMAIL_EXISTS`, `ACTION_FUTURE_COMPLETION`). 공통 코드는 접두사 없이 둔다. 성공 응답은 지금처럼 `SUCCESS` 하나만 쓴다. 성공 안에서 프론트엔드가 결과를 구별해야 하면 `code`가 아니라 `data`의 필드로 나타낸다.
+
+**버린 대안.** (1) `GOAL_409_1`처럼 도메인·HTTP 상태·번호를 쓰는 형식: 이름만으로 뜻을 알 수 없고, HTTP 상태를 바꾸면 코드 이름과 프론트엔드 분기도 바꿔야 하며, 번호가 비거나 겹치는 관리 부담이 있다. (2) 성공 코드를 API별로 나누기: 프론트엔드는 자기가 보낸 요청을 알고 있어 성공 코드로 분기하지 않는다. 생성 여부는 HTTP 201이, 화면 문구는 `message`가 이미 나타낸다.
