@@ -31,11 +31,11 @@
 
 | 작업 | 상태 | 명세 |
 |---|---|---|
-| `users` 마이그레이션 | 🔶 | ERD(`is_verified` 없음, email `utf8mb4_bin`). V1이 실제 MySQL 8.4에 적용되는 것 확인. Codex 리뷰 완료 |
-| CSRF 발급, 인증번호 발송·확인, 가입권으로 가입 | 🔶 | API 명세 §3.1, 결정 22. 메일은 Gmail SMTP/로그 대체. 80 테스트 통과, 서버 실제 MySQL·Redis E2E 15개 통과. Codex 2회차 후 남은 major 1건(저장 시 제한 소유자 확인)은 사용자 결정으로 3회차 없이 반영·직접 검증. 운영 배포·Gmail 발송 확인 대기 |
-| 로그인·로그아웃 | ⬜ | API 명세 §3.1 |
+| `users` 마이그레이션 | ✅ | ERD(`is_verified` 없음, email `utf8mb4_bin`). Codex 리뷰 완료. 2026-11-16 운영 DB 적용 |
+| CSRF 발급, 인증번호 발송·확인, 가입권으로 가입 | ✅ | API 명세 §3.1, 결정 22. 메일은 Gmail SMTP/로그 대체. 80 테스트 통과, 서버 실제 MySQL·Redis E2E 15개 통과. Codex 2회차 후 남은 major 1건(저장 시 제한 소유자 확인)은 사용자 결정으로 3회차 없이 반영·직접 검증. 2026-11-16 운영 배포, 프록시 경유 Gmail 인증번호 수신 확인 |
+| 로그인·로그아웃 | 🔶 | API 명세 §3.1. Codex 리뷰 minor 3건 반영(재리뷰 생략, major 없음), 99 테스트 통과. 서버 E2E: 로그인 SESSION으로 프록시 경유 goal-service 1·2·3 모두 인증 통과, 로그아웃·재로그인 시 옛 쿠키 401, 만료 쿠키 로그아웃 Max-Age=0, createdAt 실제 시각 일치 |
 | 비밀번호 재설정 | ⬜ | API 명세 §3.1 |
-| 내 정보 `/api/users/me` | ⬜ | API 명세 §3 |
+| 내 정보 `/api/users/me` | 🔶 | API 명세 §3.2. Codex 리뷰 대기 |
 
 ## 4. goal-service
 
