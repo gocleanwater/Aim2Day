@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
 import com.aim2day.goal.common.exception.BusinessException;
-import com.aim2day.goal.common.exception.ErrorCode;
 import com.aim2day.goal.common.response.ApiResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,7 +39,12 @@ public class TestApiController {
 
 	@GetMapping("/api/test/business")
 	void business() {
-		throw new BusinessException(ErrorCode.GOAL_LIMIT_EXCEEDED, Map.of("year", 2026, "current", 3, "max", 3));
+		throw new BusinessException(TestErrorCode.SAMPLE_CONFLICT, Map.of("year", 2026, "current", 3, "max", 3));
+	}
+
+	@GetMapping("/api/test/rule")
+	void rule() {
+		throw new BusinessException(TestErrorCode.SAMPLE_RULE);
 	}
 
 	@GetMapping("/api/test/denied")

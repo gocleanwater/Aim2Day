@@ -83,9 +83,16 @@ class ErrorHandlingTests {
 	void businessExceptionUsesErrorCodeStatusAndDetails() throws Exception {
 		mockMvc.perform(authed(get("/api/test/business")))
 				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.code").value("GOAL_LIMIT_EXCEEDED"))
+				.andExpect(jsonPath("$.code").value("SAMPLE_CONFLICT"))
 				.andExpect(jsonPath("$.details.year").value(2026))
 				.andExpect(jsonPath("$.details.max").value(3));
+	}
+
+	@Test
+	void domainCodeImplementingInterfaceIsRendered() throws Exception {
+		mockMvc.perform(authed(get("/api/test/rule")))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath("$.code").value("SAMPLE_RULE"));
 	}
 
 	@Test

@@ -1,6 +1,6 @@
 package com.aim2day.goal.common.web;
 
-import com.aim2day.goal.common.exception.ErrorCode;
+import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.GlobalExceptionHandler;
 import com.aim2day.goal.common.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -29,6 +29,6 @@ public class ApiErrorController implements ErrorController {
 			return GlobalExceptionHandler.fromClientStatus(status);
 		}
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-				.body(ErrorResponse.of(ErrorCode.INTERNAL_ERROR));
+				.body(ErrorResponse.of(CommonErrorCode.INTERNAL_ERROR));
 	}
 }

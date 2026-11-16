@@ -98,8 +98,8 @@ public class GlobalExceptionHandler {
 	/** JSON 문법 오류, 알 수 없는 enum 값 등 본문을 읽지 못함(명세: MALFORMED_REQUEST, details null). */
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException e) {
-		return ResponseEntity.status(ErrorCode.MALFORMED_REQUEST.status())
-				.body(ErrorResponse.of(ErrorCode.MALFORMED_REQUEST));
+		return ResponseEntity.status(CommonErrorCode.MALFORMED_REQUEST.status())
+				.body(ErrorResponse.of(CommonErrorCode.MALFORMED_REQUEST));
 	}
 
 	/**
@@ -109,8 +109,8 @@ public class GlobalExceptionHandler {
 	 */
 	@ExceptionHandler(OptimisticLockingFailureException.class)
 	public ResponseEntity<ErrorResponse> handleOptimisticLock(OptimisticLockingFailureException e) {
-		return ResponseEntity.status(ErrorCode.VERSION_CONFLICT.status())
-				.body(ErrorResponse.of(ErrorCode.VERSION_CONFLICT));
+		return ResponseEntity.status(CommonErrorCode.VERSION_CONFLICT.status())
+				.body(ErrorResponse.of(CommonErrorCode.VERSION_CONFLICT));
 	}
 
 	/**
@@ -132,8 +132,8 @@ public class GlobalExceptionHandler {
 					.body(fromClientStatus(springError.getStatusCode()).getBody());
 		}
 		log.error("처리되지 않은 예외", e);
-		return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.status())
-				.body(ErrorResponse.of(ErrorCode.INTERNAL_ERROR));
+		return ResponseEntity.status(CommonErrorCode.INTERNAL_ERROR.status())
+				.body(ErrorResponse.of(CommonErrorCode.INTERNAL_ERROR));
 	}
 
 	/**
@@ -141,13 +141,13 @@ public class GlobalExceptionHandler {
 	 * 404는 RESOURCE_NOT_FOUND, 명세에 코드가 없는 405·415 등은 MALFORMED_REQUEST로 두되 HTTP 상태는 유지한다.
 	 */
 	public static ResponseEntity<ErrorResponse> fromClientStatus(HttpStatusCode status) {
-		ErrorCode code = status.value() == 404 ? ErrorCode.RESOURCE_NOT_FOUND : ErrorCode.MALFORMED_REQUEST;
+		ErrorCode code = status.value() == 404 ? CommonErrorCode.RESOURCE_NOT_FOUND : CommonErrorCode.MALFORMED_REQUEST;
 		return ResponseEntity.status(status).body(ErrorResponse.of(code));
 	}
 
 	private ResponseEntity<ErrorResponse> validationFailed(List<FieldErrorDetail> errors) {
-		return ResponseEntity.status(ErrorCode.VALIDATION_FAILED.status())
-				.body(ErrorResponse.of(ErrorCode.VALIDATION_FAILED, Map.of("fieldErrors", errors)));
+		return ResponseEntity.status(CommonErrorCode.VALIDATION_FAILED.status())
+				.body(ErrorResponse.of(CommonErrorCode.VALIDATION_FAILED, Map.of("fieldErrors", errors)));
 	}
 
 	private FieldErrorDetail toDetail(ObjectError error) {

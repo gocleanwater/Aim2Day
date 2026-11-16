@@ -1,5 +1,6 @@
 package com.aim2day.goal.common.security;
 
+import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.ErrorCode;
 import com.aim2day.goal.common.response.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,7 +34,7 @@ public class SecurityErrorHandlers {
 	/** 세션이 없거나 만료되어 인증되지 않은 요청 -> 401 UNAUTHENTICATED. */
 	public AuthenticationEntryPoint authenticationEntryPoint() {
 		return (HttpServletRequest request, HttpServletResponse response, AuthenticationException ex) ->
-				write(response, ErrorCode.UNAUTHENTICATED);
+				write(response, CommonErrorCode.UNAUTHENTICATED);
 	}
 
 	/**
@@ -44,10 +45,10 @@ public class SecurityErrorHandlers {
 	public AccessDeniedHandler accessDeniedHandler() {
 		return (HttpServletRequest request, HttpServletResponse response, AccessDeniedException ex) -> {
 			if (ex instanceof CsrfException) {
-				write(response, ErrorCode.CSRF_TOKEN_INVALID);
+				write(response, CommonErrorCode.CSRF_TOKEN_INVALID);
 			} else {
 				log.warn("예상하지 못한 접근 거부", ex);
-				write(response, ErrorCode.INTERNAL_ERROR);
+				write(response, CommonErrorCode.INTERNAL_ERROR);
 			}
 		};
 	}
