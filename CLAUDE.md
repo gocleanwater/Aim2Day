@@ -27,7 +27,7 @@ services/user-service/            Spring Boot(Gradle, Java 21) 인증·계정 �
 services/goal-service/            Spring Boot(Gradle, Java 21) 목표 서비스, 컨테이너 3개로 RR 분산
 frontend/                         순수 HTML·CSS·JS, nginx:alpine으로 서빙
 infra/nginx/                      역방향 프록시 Nginx 설정
-infra/scripts/                    docker run 실행 스크립트(bash, Docker Compose 금지)
+docs/aim2day/07_container-commands.md 컨테이너 빌드·실행·검증 명령어 전체(실행 순서대로, 스크립트 파일·Docker Compose 없음)
 ```
 
 컨테이너는 reverse-proxy(Nginx), frontend(Nginx), user-service, goal-service-1~3, redis(세션 공유), mysql(영속 볼륨) 8개다. 서비스 코드는 Dockerfile과 연결 설정까지만 있다. 진행 상황은 `docs/progress.md`를 본다. 새 문서를 만들기 전에 기존 파일과 이름을 확인한다.
@@ -62,7 +62,7 @@ ERD를 설계할 때는 사용자·목표 계층·행동·달력 항목·달성 
 - 같은 파일을 여러 작업이 동시에 고쳐야 하는 예외적인 경우에만 Git worktree로 작업 공간을 나눈다.
 - 서브에이전트 결과는 diff로 직접 검토하고, 빌드·테스트를 직접 실행해 확인한 뒤 사용자에게 보고한다. 한두 줄짜리 짧은 수정은 직접 해도 된다.
 - 작업 단위를 끝내면 `docs/progress.md`의 상태와 결정 기록을 갱신한다. 새 세션은 이 파일부터 읽는다.
-- 인프라(Nginx, 실행 스크립트, CI)는 사용자가 배우려는 영역이다. 설정마다 이유를 설명하고, 분산 정책처럼 선택지가 있는 설계는 사용자가 고르게 한다.
+- 인프라(Nginx, 컨테이너 실행 명령, CI)는 사용자가 배우려는 영역이다. 설정마다 이유를 설명하고, 분산 정책처럼 선택지가 있는 설계는 사용자가 고르게 한다.
 
 ### 서브에이전트
 

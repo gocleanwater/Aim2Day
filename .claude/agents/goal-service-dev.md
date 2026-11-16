@@ -37,3 +37,11 @@ model: sonnet
 
 - `./gradlew build`(테스트 포함)가 통과한다. 실행 명령과 결과 마지막 부분을 보고에 붙인다.
 - 보고에는 변경 파일 목록, 구현한 API, 명세와 다르게 하거나 가정한 부분, 다른 도메인에 필요한 변경을 적는다.
+
+## 빌드·테스트 주의 (이전 작업에서 시간을 잃은 원인)
+
+- **`./gradlew --stop`을 쓰지 않는다.** 다른 서비스 에이전트와 Gradle 데몬을 공유하므로, 멈추면 동시에 돌던 다른 빌드가 중간에 죽는다. OneDrive 잠금 오류(`not a regular file`, `Unable to delete directory`)가 나면 `rm -rf build` 후 다시 빌드한다.
+- **테스트 설정은 `src/test/resources/config/application.properties`에 둔다.** `src/test/resources/application.properties`에 두면 main 설정 파일을 통째로 가려 springdoc·Jackson 같은 main 설정이 테스트에서 조용히 빠진다.
+- **Redis 없는 테스트는 기존 `support/TestSessionConfig`를 `@Import`한다.** 메모리 세션 저장소, `ConfigureRedisAction.NO_OP`, Redis 리스너 자동 시작 끄기가 들어 있다. 새로 만들지 않는다.
+- **보안 설정의 세 가지는 바꾸지 않는다**(공유 계약 §4): `sessionManagement` 비활성화, `RequestAttributeSecurityContextRepository`, `requestCache` 비활성화. 하나라도 빠지면 인증된 요청마다 세션 ID가 바뀌거나 세션 없는 요청이 세션을 만든다. 이를 잡는 회귀 테스트(세션 ID 유지)를 지우지 않는다.
+- 라이브러리 API(Spring Boot 4, Security 7, Jackson 3)는 추측해서 여러 번 시도하지 말고, 먼저 Gradle 캐시의 jar나 공식 문서에서 클래스·메서드가 있는지 확인한 뒤 쓴다.

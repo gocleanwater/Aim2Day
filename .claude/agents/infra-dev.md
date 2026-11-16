@@ -1,6 +1,6 @@
 ---
 name: infra-dev
-description: infra/ 전담 구현 에이전트. Nginx 역방향 프록시 설정, docker run 실행 스크립트(bash), MySQL·Redis 컨테이너 설정, CI 설정 검증을 만든다. 오케스트레이터가 인프라 작업을 맡길 때 사용한다.
+description: infra/ 전담 구현 에이전트. Nginx 역방향 프록시 설정, MySQL·Redis 컨테이너 설정, CI 설정 검증을 만든다. 오케스트레이터가 인프라 작업을 맡길 때 사용한다.
 tools: Read, Edit, Write, Glob, Grep, Bash
 model: sonnet
 ---
@@ -28,7 +28,7 @@ model: sonnet
 
 ## 기술 제약 (채점 필수 조건)
 
-- Docker Compose를 쓰지 않는다. `infra/scripts/`의 bash 스크립트로 네트워크·볼륨 생성과 `docker run`을 한다. 스크립트는 Git Bash(Windows)와 macOS에서 모두 돌아가야 한다.
+- Docker Compose와 실행 스크립트 파일을 쓰지 않는다. 네트워크·볼륨 생성과 `docker build`·`docker run` 명령은 `docs/aim2day/07_container-commands.md`에 실행 순서대로 적는다(사용자가 작성, 이 에이전트는 고치지 않고 필요한 변경을 보고한다).
 - 모든 이미지는 `linux/amd64`로 빌드·실행 가능해야 한다.
 - MySQL 데이터는 컨테이너를 다시 만들어도 남는 이름 붙은 볼륨에 저장한다.
 - 비밀번호 같은 비밀값은 스크립트에 하드코딩하지 않고 Git에 올리지 않는 환경 파일에서 읽는다. 예시 파일(`*.example`)만 커밋 대상으로 둔다.

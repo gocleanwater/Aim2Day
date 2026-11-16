@@ -26,7 +26,7 @@ API 경로·응답 형식·오류 코드·세션 정책 자체는 [API 명세서
 
 ## 2. 서비스 실행 환경 변수
 
-접속 정보는 이미지와 `application.properties`에 넣지 않고 `docker run -e` 또는 `--env-file`로 주입한다. Spring Boot의 relaxed binding으로 아래 변수가 설정 키에 연결된다. 실제 값은 루트의 `.env`(커밋 금지)에, 키 목록은 `.env.example`에 둔다.
+접속 정보는 이미지와 `application.properties`에 넣지 않고 `docker run -e` 또는 `--env-file`로 주입한다. Spring Boot의 relaxed binding으로 아래 변수가 설정 키에 연결된다. 과제 제출물이므로 실제 값은 `docs/aim2day/07_container-commands.md`의 `docker run -e` 명령에 그대로 적고 커밋한다(사용자 결정, 2026-11-16). 이 값은 이 과제 전용이며 다른 곳에 재사용하지 않는다. 출시할 때는 DB 안에서 비밀번호를 바꾸고(`ALTER USER`) 저장소 밖으로 옮긴다.
 
 | 환경 변수 | 설정 키 | 값 |
 |---|---|---|
@@ -66,6 +66,10 @@ MySQL 컨테이너는 `MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE=aim2day`, `MYSQL_US
 
 - **세션에는 JDK 표준 타입(`Long`, `String`)만 넣는다.** 어느 서비스에만 있는 클래스(예: `com.aim2day.user.…`의 DTO, 커스텀 `UserDetails`)를 넣으면 JDK 직렬화로 저장되어 다른 서비스가 역직렬화할 때 `ClassNotFoundException`이 난다.
 - **인증은 두 서비스 모두 `userId` 속성으로 판단한다.** 각 서비스의 보안 필터가 요청마다 세션의 `userId`를 읽어 인증 객체를 만든다. Spring Security의 `SPRING_SECURITY_CONTEXT`를 세션에 저장해 공유하는 방식은 쓰지 않는다. 그 안의 principal 타입이 서비스 간 계약이 되어 깨지기 쉽기 때문이다.
+- `userId`가 `Long`이 아니면(예: `Integer`) 인증하지 않는다.
+- **세션 고정 방어 오작동 방지.** 두 서비스 모두 `sessionManagement`를 끄고, SecurityContext 저장소는 `RequestAttributeSecurityContextRepository`, `requestCache`도 끈다. 우리 필터가 만든 인증은 저장소에 저장되지 않으므로 `SessionManagementFilter`가 켜져 있으면 요청마다 "새 로그인"으로 보고 세션 ID를 바꾼다. 그러면 SESSION 쿠키가 계속 무효화되고, 다른 인스턴스로 동시에 간 요청이 옛 ID로 401이 난다. 로그인 때 세션 ID 재발급은 `user-service`의 로그인 처리가 직접 한다.
+- 세션 쿠키는 `CookieSerializer`로 이름 `SESSION`, `Path=/`, `HttpOnly`, `SameSite=Lax`를 두 서비스가 같게 둔다. 쿠키 값의 Base64 인코딩 등 나머지는 기본값을 바꾸지 않는다.
+- CSRF는 `CookieCsrfTokenRepository.withHttpOnlyFalse()`(쿠키 `XSRF-TOKEN`, `Path=/`, 헤더 `X-XSRF-TOKEN`)와 `csrf.spa()`를 두 서비스가 같게 쓴다. `spa()`가 없으면 기본 처리기가 마스킹된 토큰을 기대해, 쿠키 값을 그대로 헤더에 넣은 요청이 403이 된다.
 - 로그인(세션 생성·`userId` 저장)과 로그아웃(세션 무효화)은 `user-service`만 한다. `goal-service`는 세션을 읽기만 하고 새로 만들지 않는다.
 - Redis의 `auth:*` 키(인증·재설정 토큰, 메일 재요청 제한)는 `user-service`만 쓴다(API 명세 §3.1).
 

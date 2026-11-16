@@ -16,14 +16,14 @@
 | 컨테이너 8개 기동 | 사용자 + 오케스트레이터 | ✅ | 2026-11-15 전부 Up. 프록시 경유 `/` 200, `/api/**` 401(Spring Security 기본, API 미구현), 별칭 `goal-services` → IP 3개 |
 | Nginx 프록시·프론트 이미지 | 사용자(학습) | ✅ | `infra/nginx/`, `frontend/` Dockerfile. 호스트 포트 80 |
 | 실행 스크립트 `infra/scripts/` | 사용자 + infra-dev | 🔶 | Docker Compose 금지 |
-| 스모크 테스트 `infra/scripts/smoke-test.sh` | infra-dev | ⬜ | 세션 공유·RR·영속성 확인 |
+| 검증 명령 (같은 문서의 확인 절) | 사용자 + 오케스트레이터 | ⬜ | 세션 공유·RR·영속성을 `curl`·`docker` 명령으로 확인 |
 
 ## 2. 서비스 공통 기반
 
 | 작업 | 담당 | 상태 | 비고 |
 |---|---|---|---|
-| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5 |
-| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | 🔶 | 공유 계약 §4·§5 |
+| 공통 응답·전역 예외 처리 (두 서비스) | user/goal-service-dev | 🔶 | 공유 계약 §5. 구현·빌드 완료(user 22, goal 32 테스트), Codex 리뷰 대기 |
+| 보안: 세션 `userId` 인증 필터, CSRF, 401·403 JSON | user/goal-service-dev | 🔶 | 공유 계약 §4·§5. Codex 리뷰 대기 |
 | `X-Instance-Id` 헤더 | goal-service-dev | ✅ | API 명세 §2.6. `InstanceIdFilter`(Security보다 먼저 실행, `HOSTNAME` → `InetAddress`, 실패 시 기동 중단). Codex 리뷰 2회차 통과. 2026-11-16 서버에서 프록시 경유 1→2→3 순환 확인(Nginx 워커별 RR 카운터라 가끔 순서가 어긋남) |
 | Swagger(springdoc) | user/goal-service-dev | 🔶 | 프록시 경유 공개, 경로는 공유 계약 §7 |
 
@@ -76,3 +76,6 @@
 - 2026-11-14: Spring 이미지는 멀티 스테이지(JDK 빌드 → JRE 실행), 실행 단계는 bash가 있는 Ubuntu 기반 `eclipse-temurin:21-jre`. plain jar 생성은 끈다.
 - 2026-11-16: Swagger는 프록시 경유로 공개한다(사용자 선택). 서비스별 접두사 `/docs/user/`, `/docs/goal/`(공유 계약 §7).
 - 2026-11-16: Nginx 워커가 여러 개라 RR 순번이 워커마다 따로 돈다. 요청 순서가 가끔 1→2→3에서 어긋나는 것은 정상이다.
+- 2026-11-16: 서브에이전트를 병렬로 돌릴 때 `./gradlew --stop`을 쓰지 않는다(데몬 공유로 서로의 빌드를 죽임). 빌드·테스트 함정은 `.claude/agents/*-service-dev.md`의 "빌드·테스트 주의"에 모은다.
+- 2026-11-16: 실행 스크립트(`infra/scripts/*.sh`)를 만들지 않는다(사용자 결정). 보고서에 직접 실행한 명령으로 적고, 명령어 원본은 `docs/aim2day/07_container-commands.md` 한 곳에 둔다.
+- 2026-11-16: DB 비밀번호는 과제 제출물이라 명령어 문서(`07_container-commands.md`)의 `-e`에 그대로 적어 커밋한다(사용자 결정). 저장소는 공개지만 MySQL은 호스트 포트를 열지 않고 VM도 사설망이다. 과제 전용 값으로 쓰고, 출시 전에 바꾼다.
