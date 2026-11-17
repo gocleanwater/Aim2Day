@@ -57,4 +57,21 @@ public interface YearlyGoalRepository extends JpaRepository<YearlyGoal, Long> {
 	@Query("update YearlyGoal g set g.criteriaConfirmed = true, g.initialBaselineRate = :baseline, "
 			+ "g.criteriaConfirmedAt = :now, g.criteriaLastRevisedAt = :now, g.version = g.version + 1 where g.id = :id")
 	int confirmCriteria(@Param("id") Long id, @Param("baseline") int baseline, @Param("now") LocalDateTime now);
+
+	/**
+	 * 복원·삭제 상태 확인용 행 잠금. findOwnedForUpdate와 반대로 deleted_at이 있는 행만 읽는다.
+	 * 삭제된 목표는 일반 조회에서 404이므로 복원 API만 이 쿼리를 쓴다. 소유 확인은 user_id 조건이다.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select g from YearlyGoal g where g.id = :id and g.userId = :userId and g.deletedAt is not null")
+	Optional<YearlyGoal> findDeletedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+
+	/** 휴지통 목록: 직접 삭제됐고 기한(cutoff 이후 삭제)이 남은 연간 목표. cutoff = 지금 - 30일. */
+	@Query("select g from YearlyGoal g where g.userId = :userId and g.deletedAt >= :cutoff")
+	List<YearlyGoal> findInTrash(@Param("userId") Long userId, @Param("cutoff") LocalDateTime cutoff);
+
+	/** 삭제·복원 표시. 하위 행과 version은 건드리지 않는다(API 명세 §4.7: 연결과 데이터는 바꾸지 않는다). 컨텍스트는 호출자가 비운다. */
+	@Modifying(flushAutomatically = true)
+	@Query("update YearlyGoal g set g.deletedAt = :deletedAt where g.id = :id")
+	int setDeletedAt(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);
 }

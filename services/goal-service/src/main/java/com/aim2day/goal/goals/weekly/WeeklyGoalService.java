@@ -145,13 +145,17 @@ public class WeeklyGoalService {
 
 	public WeeklyGoalDetailResponse detail(long userId, long weeklyGoalId) {
 		UserTime time = settingsService.userTime(userId);
-		return readTx.execute(status -> {
-			WeeklyGoal goal = findOwnedVisible(userId, weeklyGoalId);
-			// 연결 행동은 삭제되지 않은 것만 수행일, id 순이다. 목표와 행동을 같은 스냅샷에서 읽는다.
-			return WeeklyGoalDetailResponse.of(assembler.weeklyResponses(List.of(goal), time.today()).get(0),
-					actionAssembler.responses(actionRepository.findActiveByWeeklyGoals(List.of(weeklyGoalId)),
-							time.today()));
-		});
+		return readTx.execute(status -> detailView(userId, weeklyGoalId, time.today()));
+	}
+
+	/**
+	 * 상세 응답 조립. 호출자 트랜잭션 안에서 부른다(조회는 읽기 전용 스냅샷, 복원은 쓰기 트랜잭션 안에서 응답을 완성).
+	 * 연결 행동은 삭제되지 않은 것만 수행일, id 순이다. 목표와 행동을 같은 트랜잭션에서 읽는다.
+	 */
+	public WeeklyGoalDetailResponse detailView(long userId, long weeklyGoalId, LocalDate today) {
+		WeeklyGoal goal = findOwnedVisible(userId, weeklyGoalId);
+		return WeeklyGoalDetailResponse.of(assembler.weeklyResponses(List.of(goal), today).get(0),
+				actionAssembler.responses(actionRepository.findActiveByWeeklyGoals(List.of(weeklyGoalId)), today));
 	}
 
 	public WeeklyGoalResponse update(long userId, long weeklyGoalId, UpdateWeeklyGoalRequest req) {

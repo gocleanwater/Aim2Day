@@ -129,4 +129,9 @@ public class MonthlyGoal {
 		this.color = color;
 		this.status = status;
 	}
+
+	/** 소프트 삭제 시각(UTC). 삭제·복원은 직접 UPDATE로만 바꾸므로 setter는 없다. */
+	public LocalDateTime getDeletedAt() {
+		return deletedAt;
+	}
 }

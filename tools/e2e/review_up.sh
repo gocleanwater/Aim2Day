@@ -19,7 +19,10 @@ docker build -q -t aim2day-goal-service:review /tmp/gs-review/goal-service >/dev
 DB="-e SPRING_DATASOURCE_URL=jdbc:mysql://aim2day-mysql:3306/aim2day_review -e SPRING_DATASOURCE_USERNAME=aim2day_app -e SPRING_DATASOURCE_PASSWORD=aim2daypass! -e SPRING_DATA_REDIS_HOST=aim2day-redis-review"
 docker run -d --name aim2day-user-service-review --hostname aim2day-user-service-review --network aim2day-net $DB -e APP_BASE_URL=http://192.168.136.128 aim2day-user-service >/dev/null
 for t in $(seq 1 60); do docker logs aim2day-user-service-review 2>&1 | grep -q "Started UserServiceApplication" && break; sleep 2; done
-for i in 1 2; do docker run -d --name aim2day-goal-service-review-$i --hostname aim2day-goal-service-review-$i --network aim2day-net $DB aim2day-goal-service:review >/dev/null; done
+# 휴지통 정리 주기를 짧게 하려면 실행 전에 AIM2DAY_TRASH_PURGE_CRON을 넘긴다(예: "*/5 * * * * *"). 비우면 기본값(매시 정각).
+EXTRA=()
+if [ -n "${AIM2DAY_TRASH_PURGE_CRON:-}" ]; then EXTRA=(-e "AIM2DAY_TRASH_PURGE_CRON=$AIM2DAY_TRASH_PURGE_CRON"); fi
+for i in 1 2; do docker run -d --name aim2day-goal-service-review-$i --hostname aim2day-goal-service-review-$i --network aim2day-net $DB "${EXTRA[@]}" aim2day-goal-service:review >/dev/null; done
 for i in 1 2; do
   for t in $(seq 1 60); do docker logs aim2day-goal-service-review-$i 2>&1 | grep -qE "Started GoalServiceApplication|APPLICATION FAILED|Application run failed" && break; sleep 2; done
   echo "goal-review-$i: $(docker logs aim2day-goal-service-review-$i 2>&1 | grep -oE 'Started GoalServiceApplication in [0-9.]+ seconds|APPLICATION FAILED TO START|Application run failed' | head -1)"

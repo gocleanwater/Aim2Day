@@ -3,6 +3,7 @@ package com.aim2day.goal.goals.weekly;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -78,4 +79,29 @@ public interface WeeklyGoalRepository extends JpaRepository<WeeklyGoal, Long> {
 	@Modifying(flushAutomatically = true)
 	@Query("update WeeklyGoal w set w.progressRate = :rate where w.id = :id")
 	int updateProgressRate(@Param("id") Long id, @Param("rate") BigDecimal rate);
+
+	String OWNED = "w.id = :id and w.deletedAt is not null and exists (select 1 from MonthlyGoal m, YearlyGoal y "
+			+ "where m.id = w.monthlyGoalId and y.id = m.yearlyGoalId and y.userId = :userId)";
+
+	/** 복원용 행 잠금(잠금 순서 users -> 주간 -> 월간의 주간 단계). 자신은 삭제 상태여야 하고 조상의 삭제 여부는 보지 않는다. */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select w from WeeklyGoal w where " + OWNED)
+	Optional<WeeklyGoal> findDeletedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+
+	/** 휴지통 목록: (주간, 부모 월간, 연간) 묶음. 직접 삭제됐고 기한이 남은 것. 연간 소유자가 현재 사용자다. */
+	@Query("select w, m, y from WeeklyGoal w, MonthlyGoal m, YearlyGoal y where m.id = w.monthlyGoalId "
+			+ "and y.id = m.yearlyGoalId and y.userId = :userId and w.deletedAt >= :cutoff")
+	List<Object[]> findInTrash(@Param("userId") Long userId, @Param("cutoff") LocalDateTime cutoff);
+
+	/** 삭제 확인 창의 하위 개수: 월간 목표 아래 삭제되지 않은 주간 목표 수. */
+	long countByMonthlyGoalIdAndDeletedAtIsNull(Long monthlyGoalId);
+
+	/** 삭제 확인 창의 하위 개수: 연간 목표 아래 보이는(삭제되지 않은 월간 아래의) 삭제되지 않은 주간 목표 수. */
+	@Query("select count(w) from WeeklyGoal w, MonthlyGoal m where m.id = w.monthlyGoalId "
+			+ "and m.yearlyGoalId = :yearlyId and m.deletedAt is null and w.deletedAt is null")
+	long countActiveByYearly(@Param("yearlyId") Long yearlyId);
+
+	@Modifying(flushAutomatically = true)
+	@Query("update WeeklyGoal w set w.deletedAt = :deletedAt where w.id = :id")
+	int setDeletedAt(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);
 }

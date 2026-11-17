@@ -79,4 +79,20 @@ public interface ActionRepository extends JpaRepository<Action, Long> {
 	@Modifying(flushAutomatically = true)
 	@Query("update Action a set a.deletedAt = :deletedAt where a.id = :id")
 	int softDelete(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);
+
+	/**
+	 * 삭제 확인 창의 "함께 숨겨질 미완료 행동" 수. 지금 보이는 경로(삭제되지 않은 하위 목표)의 미삭제 미완료 행동만 센다.
+	 * 따로 삭제된 하위 목표의 행동은 이미 숨겨져 있으므로 세지 않는다. 호출자가 대상 목표의 가시성을 확인했다.
+	 */
+	@Query("select count(a) from Action a where a.completed = false and a.deletedAt is null and a.weeklyGoalId = :weeklyId")
+	long countIncompleteUnderWeekly(@Param("weeklyId") Long weeklyId);
+
+	@Query("select count(a) from Action a where a.completed = false and a.deletedAt is null and a.weeklyGoalId in "
+			+ "(select w.id from WeeklyGoal w where w.monthlyGoalId = :monthlyId and w.deletedAt is null)")
+	long countIncompleteUnderMonthly(@Param("monthlyId") Long monthlyId);
+
+	@Query("select count(a) from Action a where a.completed = false and a.deletedAt is null and a.weeklyGoalId in "
+			+ "(select w.id from WeeklyGoal w, MonthlyGoal m where m.id = w.monthlyGoalId and m.yearlyGoalId = :yearlyId "
+			+ "and m.deletedAt is null and w.deletedAt is null)")
+	long countIncompleteUnderYearly(@Param("yearlyId") Long yearlyId);
 }

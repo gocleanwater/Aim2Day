@@ -125,10 +125,13 @@ public class MonthlyGoalService {
 
 	public MonthlyGoalDetailResponse detail(long userId, long monthlyGoalId) {
 		UserTime time = settingsService.userTime(userId);
-		return readTx.execute(status -> {
-			MonthlyGoal goal = findOwnedVisible(userId, monthlyGoalId);
-			return assembler.monthlyTrees(List.of(goal), time.today()).get(0);
-		});
+		return readTx.execute(status -> detailView(userId, monthlyGoalId, time.today()));
+	}
+
+	/** 상세 응답 조립. 호출자 트랜잭션 안에서 부른다(조회는 읽기 전용 스냅샷, 복원은 쓰기 트랜잭션 안에서 응답을 완성). */
+	public MonthlyGoalDetailResponse detailView(long userId, long monthlyGoalId, LocalDate today) {
+		MonthlyGoal goal = findOwnedVisible(userId, monthlyGoalId);
+		return assembler.monthlyTrees(List.of(goal), today).get(0);
 	}
 
 	public MonthlyGoalResponse update(long userId, long monthlyGoalId, UpdateMonthlyGoalRequest req) {

@@ -190,13 +190,18 @@ public class YearlyGoalService {
 
 	public YearlyGoalDetailResponse detail(long userId, long goalId) {
 		UserTime time = settingsService.userTime(userId);
-		return readTx.execute(status -> {
-			YearlyGoal goal = findOwnedActive(userId, goalId);
-			// 연간·월간·주간·기준을 모두 이 읽기 트랜잭션(한 스냅샷)에서 읽는다. 삭제되지 않은 하위 목표만 담는다.
-			// 월간은 시작일, id 순이고 그 안의 주간도 시작일, id 순이다(조회 쿼리의 정렬).
-			return new YearlyGoalDetailResponse(toResponse(goal, time.today()),
-					assembler.monthlyTrees(monthlyRepository.findActiveByYearlyGoal(goalId), time.today()));
-		});
+		return readTx.execute(status -> detailView(userId, goalId, time.today()));
+	}
+
+	/**
+	 * 상세 응답 조립. 호출자 트랜잭션 안에서 부른다(조회는 읽기 전용 스냅샷, 복원은 쓰기 트랜잭션 안에서 응답을 완성).
+	 * 연간·월간·주간·기준을 모두 그 트랜잭션에서 읽고, 삭제되지 않은 하위 목표만 담는다.
+	 * 월간은 시작일, id 순이고 그 안의 주간도 시작일, id 순이다(조회 쿼리의 정렬).
+	 */
+	public YearlyGoalDetailResponse detailView(long userId, long goalId, LocalDate today) {
+		YearlyGoal goal = findOwnedActive(userId, goalId);
+		return new YearlyGoalDetailResponse(toResponse(goal, today),
+				assembler.monthlyTrees(monthlyRepository.findActiveByYearlyGoal(goalId), today));
 	}
 
 	public YearlyGoalResponse update(long userId, long goalId, UpdateYearlyGoalRequest req) {

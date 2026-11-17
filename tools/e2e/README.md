@@ -14,6 +14,6 @@ cd /tmp/e2e && python3 unit2_yearly_criteria.py
 bash /tmp/e2e/review_down.sh       # WARN/ERROR 로그 요약 후 정리
 ```
 
-- `review_up.sh`: user-service는 운영 이미지를 메일 로그 모드로, goal-service는 업로드한 소스로 빌드해 두 대를 띄운다. 프록시를 거치지 않고 컨테이너 IP로 직접 요청한다.
+- `review_up.sh`: user-service는 운영 이미지를 메일 로그 모드로, goal-service는 업로드한 소스로 빌드해 두 대를 띄운다. 프록시를 거치지 않고 컨테이너 IP로 직접 요청한다. 휴지통 정리 시험(단위 6)은 `AIM2DAY_TRASH_PURGE_CRON="*/5 * * * * *" bash /tmp/e2e/review_up.sh`처럼 정리 주기를 짧게 넘긴다.
 - `e2elib.py`: 가입·로그인(로그의 인증번호 사용), CSRF·세션 쿠키, 동시 요청(`parallel`), 시험용 DB 조회, 테스트 사용자 정리.
 - 단위별 스크립트: `unit2_yearly_criteria.py` …

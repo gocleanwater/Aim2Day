@@ -3,6 +3,7 @@ package com.aim2day.goal.goals.monthly;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -52,4 +53,24 @@ public interface MonthlyGoalRepository extends JpaRepository<MonthlyGoal, Long> 
 	@Modifying(flushAutomatically = true)
 	@Query("update MonthlyGoal m set m.progressRate = :rate where m.id = :id")
 	int updateProgressRate(@Param("id") Long id, @Param("rate") BigDecimal rate);
+
+	String OWNED = "m.id = :id and m.deletedAt is not null and exists (select 1 from YearlyGoal y "
+			+ "where y.id = m.yearlyGoalId and y.userId = :userId)";
+
+	/** 복원용 행 잠금. 자신은 삭제 상태여야 하고, 조상의 삭제 여부는 보지 않는다(복원 API가 따로 409로 가른다). */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select m from MonthlyGoal m where " + OWNED)
+	Optional<MonthlyGoal> findDeletedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+
+	/** 휴지통 목록: (월간, 부모 연간) 쌍. 직접 삭제됐고 기한이 남은 것. 연간 소유자가 현재 사용자다. */
+	@Query("select m, y from MonthlyGoal m, YearlyGoal y where y.id = m.yearlyGoalId and y.userId = :userId "
+			+ "and m.deletedAt >= :cutoff")
+	List<Object[]> findInTrash(@Param("userId") Long userId, @Param("cutoff") LocalDateTime cutoff);
+
+	/** 삭제 확인 창의 하위 개수: 삭제되지 않은 월간 목표 수. */
+	long countByYearlyGoalIdAndDeletedAtIsNull(Long yearlyGoalId);
+
+	@Modifying(flushAutomatically = true)
+	@Query("update MonthlyGoal m set m.deletedAt = :deletedAt where m.id = :id")
+	int setDeletedAt(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);
 }

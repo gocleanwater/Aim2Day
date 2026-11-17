@@ -659,3 +659,51 @@
 ### Task 3: 서버 검증(오케스트레이터)
 
 - `tools/e2e/unit5_quadrant.py`: Review Focus 1·2, 두 인스턴스 교차 PUT·확정, 확정 후 목록 정렬.
+
+---
+
+## 단위 6: 목표 삭제·휴지통·복원 + 30일 자동 정리
+
+**범위:** API 명세 §4.7 전체(연간·월간·주간 삭제, 휴지통 목록, 복원, 30일 뒤 정리 예약 작업), ERD §4.4.
+**새 테이블:** 없다. 기존 `deleted_at`만 쓴다.
+
+### 이 단위에서 정한 것
+
+- **오류 코드:** `GoalErrorCode`에 `GOAL_DELETE_CONFIRM_REQUIRED`(409, 메시지는 명세 §4.7 예시 문장), `GOAL_PARENT_DELETED`(409, details `{parentLevel, parentId}`), `GOAL_RESTORE_EXPIRED`(409, details `{deletedAt, restoreDeadline}`)를 더한다. 나머지 메시지는 `git show 32d78ba:.../ErrorCode.java`의 문장을 쓴다.
+- **기한:** `restoreDeadline = deleted_at + 30일`(UTC 시각, `Clock` 기준). `remainingDays`는 계정 시간대의 오늘부터 기한 날짜까지의 일수(올림 없이 날짜 차, 0 이상, 2026-11-17 사용자 확정). 삭제 시각은 저장 전에 초 단위로 잘라 응답·저장·기한 계산이 같은 값을 쓴다.
+- **잠금:** 삭제·복원은 users 행을 먼저 잠근다(행동·좌표 쓰기와 같은 첫 잠금이라 같은 사용자의 쓰기와 직렬화된다). 이어서 대상 목표 행 → (주간이면) 부모 월간을 잠근다.
+- **삭제(`DELETE /api/goals/{level}/{id}?confirm=true`):**
+  - 404: 타인 소유, 이미 삭제됨, 조상 삭제로 숨김.
+  - 숨겨질 것 = 대상 아래에서 지금 보이는(`deleted_at IS NULL`) 하위 목표 수와, 그 경로의 미삭제 미완료 행동 수(주간 자신의 행동 포함). 하나라도 있고 `confirm=true`가 아니면 409 `GOAL_DELETE_CONFIRM_REQUIRED`(details는 명세 예시의 다섯 필드). 연간은 `monthlyGoalCount`·`weeklyGoalCount`, 월간은 `monthlyGoalCount=0`, 주간은 둘 다 0.
+  - `deleted_at = now`. 하위 행은 바꾸지 않는다. 주간 삭제는 부모 월간을 다시 계산한다(진행 기록 메모 `주간 목표 삭제: {제목}`).
+  - 200 `{deletedAt, restoreDeadline}`.
+- **휴지통(`GET /api/goals/trash`):** `deleted_at`이 있고 기한이 남은 목표(직접 삭제된 것만 `deleted_at`을 가진다). 최근 삭제 순, 같으면 단계(연간→월간→주간)·id. `parent`는 `{level, id, title}`(연간은 `null`), `isParentDeleted`는 부모 또는 그 조상이 삭제 상태인지. `periodLabel`은 명세 형식.
+- **복원(`POST /api/goals/{level}/{id}/restore`):** 검사 순서 404(타인·없음·삭제 상태가 아님) → 409 `GOAL_RESTORE_EXPIRED` → 409 `GOAL_PARENT_DELETED`(부모나 조상이 삭제 상태) → 409 `GOAL_LIMIT_EXCEEDED`(연간만, 해당 연도 활성 3개, 단위 2와 같은 계산). `deleted_at = NULL` 후 주간이면 부모 월간 재계산(메모 `주간 목표 복원: {제목}`). 200은 그 단계의 목표 상세 응답(기존 GET 상세와 같은 모양).
+- **자동 정리:**
+  - `@Scheduled(cron = "${aim2day.trash.purge-cron:0 0 * * * *}")`(매시 정각, 2026-11-17 사용자 결정). 환경 변수 `AIM2DAY_TRASH_PURGE_CRON`으로 바꿀 수 있다. `@EnableScheduling`은 테스트에서 꺼 둘 수 있게 프로퍼티(`aim2day.trash.purge-enabled`, 기본 true)로 조건을 건다.
+  - 대상: 기한이 지난 직접 삭제 목표(root). root마다 별도 트랜잭션: 소유자 users 행 `FOR UPDATE` → root 행을 `FOR UPDATE SKIP LOCKED`로 다시 읽어 아직 기한 지난 삭제 상태인지 확인(잠겼거나 이미 처리됐으면 건너뜀) → ERD §4.4 순서(미완료 행동 hard-delete → 주간 → 월간 → 연간, 각 단계는 완료 기록 유무로 보존 판단).
+  - 대상 경로는 root와 그 모든 자손이다. 자손이 따로 삭제돼 자신의 기한이 아직 남았어도 root 정리 때 함께 처리한다(root가 정리되면 복원할 길이 없다).
+  - 보존된 행은 `deleted_at`을 그대로 둔다. 다음 회차에 다시 확인돼도 결과가 같다(멱등). 별도 처리 표시는 두지 않는다(가정).
+  - 세 인스턴스가 같은 시각에 돌아도 users 잠금으로 직렬화된다. 보존되는 root는 여러 인스턴스가 차례로 다시 처리할 수 있지만 결과는 같다(멱등). SKIP LOCKED는 이미 다른 트랜잭션이 잡은 root를 기다리지 않고 건너뛰게 한다.
+  - 정리 결과는 INFO 로그 한 줄(root 수, 삭제·보존 수).
+- **공유 계약:** `docs/aim2day/06_shared-contracts.md` §2에 `AIM2DAY_TRASH_PURGE_CRON`(선택, 기본 매시 정각)을 오케스트레이터가 추가한다.
+
+### Review Focus (단위 6)
+
+1. **세 인스턴스가 같은 root를 동시에 정리** → 최종 결과가 한 번 처리한 것과 같고 오류 없음. → 서버 E2E(cron을 짧게 둔 review 컨테이너 2대 + 기한 지난 `deleted_at`을 SQL로 만듦).
+2. **삭제와 그 아래 행동 완료가 동시에** → users 잠금으로 직렬화: 완료가 먼저면 완료 기록, 삭제가 먼저면 완료 404. → 서버 E2E.
+3. **기한 지난 복원**(정리 전) → 409 `GOAL_RESTORE_EXPIRED`. → Task 테스트(Clock 이동).
+4. **보존 판단**: 완료 행동 있는 주간·수치 기록 있는 주간·달성 기준 있는 연간은 남고, 빈 경로는 사라지며 진행 기록은 그대로. → Task 테스트.
+5. **연간 복원 한도**: 삭제 후 새로 3개를 만든 뒤 복원 → 409 `GOAL_LIMIT_EXCEEDED`. → Task 테스트.
+
+### Task 1: 삭제 + 휴지통 + 복원
+
+- 테스트 `GoalDeleteApiTests`(단계별 확인 409·details·confirm 삭제·하위 없음 즉시 삭제·주간 삭제 월간 재계산·숨김 404), `TrashApiTests`(목록 모양·정렬·기한 지난 것 제외·isParentDeleted), `GoalRestoreApiTests`(검사 순서 4가지·하위 복귀·따로 삭제된 하위는 유지·주간 복원 재계산·Review Focus 3·5).
+
+### Task 2: 30일 정리 예약 작업
+
+- 테스트 `TrashPurgeTests`(Review Focus 4, 따로 삭제된 자손 함께 처리, 멱등 재실행, 기한 전 미처리). H2가 `SKIP LOCKED`를 지원하지 않으면 그 쿼리만 MySQL 전용으로 두고 테스트에서는 서비스 메서드를 직접 부르는 방식으로 우회한 뒤 결과에 적는다.
+
+### Task 3: 서버 검증(오케스트레이터)
+
+- `tools/e2e/unit6_trash.py`: Review Focus 1·2, 삭제→휴지통→복원 왕복, 확인 409.

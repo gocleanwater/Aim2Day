@@ -27,7 +27,24 @@ public class MutableClock extends Clock {
 
 	@Override
 	public Clock withZone(ZoneId zone) {
-		return this;
+		// 시간대별 "오늘"을 실제로 계산하도록 같은 시각을 가리키는 시계를 돌려준다(this를 돌려주면 항상 UTC 날짜가 된다).
+		MutableClock self = this;
+		return new Clock() {
+			@Override
+			public ZoneId getZone() {
+				return zone;
+			}
+
+			@Override
+			public Clock withZone(ZoneId other) {
+				return self.withZone(other);
+			}
+
+			@Override
+			public Instant instant() {
+				return self.instant();
+			}
+		};
 	}
 
 	@Override

@@ -46,7 +46,7 @@
 | 온보딩 | ⬜ | API 명세 §1.2 |
 | 연간 목표 + 달성 기준 + 진행 기록 조회 (단위 2) | ✅ | API 명세 §4.3(삭제 제외)·§4.4·§4.8. 생성·순서 저장·기준 쓰기는 users 행 → 목표 행 순서로 잠금(진행 기록 FK 공유 잠금과의 교착 방지), 순서 저장은 version 미증가, 조회는 REPEATABLE READ 읽기 트랜잭션 하나로 묶음. Codex(gpt-6-astra, Claude 직접 실행) 1회차 major 1·minor 1, 2회차 E2E 도구 major 1·minor 2(시험용 Redis 분리 등)를 3회차 없이 반영·직접 검증. 125 테스트, 서버 E2E 29/29(`tools/e2e/unit2_yearly_criteria.py`) |
 | 월간·주간 목표, 진행률 엔진, 수치 기록 (단위 3) | ✅ | API 명세 §4.5·§4.6. 수치 기록은 users → 주간 → 월간 순서로 잠그고 `current_value`를 원자적으로 가산, 월간은 주간 저장 진행률의 가중 평균. 서버 계산 열은 일반 PATCH가 덮어쓰지 않음(`updatable=false`). Codex(사용자 실행) 1회차 major 2(수치 기록 응답을 커밋 뒤 재조회해 생기는 경합, E2E가 두 주간 진행률 동시 변경을 검증 못 함)·minor 3, 2회차 minor 3(E2E 중단 시 정리, 경합 currentVersion 값 검사, 문서) 반영. 195 테스트, 서버 E2E 33/33(`tools/e2e/unit3_monthly_weekly.py`). 단위 4 계획은 계획 문서에 있음 |
-| 휴지통·복원 (단위 6) | ⬜ | API 명세 §4.7 |
+| 휴지통·복원 (단위 6) | ✅ | API 명세 §4.7. 삭제·복원은 users 행 잠금으로 같은 사용자의 행동 쓰기와 직렬화, 삭제 시각은 초 단위. 30일 정리는 매시 정각(`AIM2DAY_TRASH_PURGE_CRON`), root마다 users 잠금 → `FOR UPDATE SKIP LOCKED` 재확인 → ERD §4.4 순서(완료 기록 있으면 보존, 멱등). Codex(원격 중 Claude 실행) 1회차 minor 3·사용자 결정 1(remainingDays 날짜 차), 2회차 지적 없음. 334 테스트, 서버 E2E 25/25(`tools/e2e/unit6_trash.py`, 정리 주기 5초) |
 | 달성 기준, 수치 기록, 진행 기록 | ⬜ | API 명세 §1.2 |
 | 행동 + 직전 주 요약 (단위 4) | ✅ | API 명세 §4.9·§4.6 previous-summary. 잠금 순서 users → 행동 → 주간(id순) → 월간(id순), 같은 행동 동시 완료는 행동 행 잠금 후 상태 재확인으로 1회 반영, 체크형 분모는 미삭제 또는 완료. 경로가 삭제된 행동은 쓰기 404, MAINTENANCE 색 #9CA3AF(사용자 결정). Codex(원격 중 Claude 실행) 1회차 major 1(같은 월간 내 이동 시 거짓 월간 기록)·minor 3, 2회차 minor 1(문서) 반영. 269 테스트, 서버 E2E 40/40(`tools/e2e/unit4_actions.py`) |
 | 사분면 분류 (단위 5) | ✅ | API 명세 §4.10. 좌표 쓰기는 users 행 → 행동 행 잠금으로 직렬화, 좌표 행은 `(행동, 수행일)` 기준, 오늘이 아닌 날짜는 확정 좌표만. 확정 날짜는 `user_settings.last_quadrant_confirmed_date`(V5). `classification` 세 수는 시안처럼 겹치지 않음. Codex(원격 중 Claude 실행) 1회차 minor 2·사용자 결정 3, 2회차 minor 1(회귀 테스트) 반영. 292 테스트, 서버 E2E 30/30(`tools/e2e/unit5_quadrant.py`) |
@@ -98,3 +98,5 @@
 - 2026-11-17: 단위 4 가정 확정(사용자). 연결 경로(주간 또는 조상)가 삭제된 행동은 완료 여부와 관계없이 수정·완료·삭제가 404 `ACTION`이다(숨은 목표의 진행률이 바뀌지 않게). `MAINTENANCE` 행동의 표시 색은 회색 `#9CA3AF` 고정.
 - 2026-11-17: 사분면 `confirmedToday`는 `user_settings.last_quadrant_confirmed_date`(새 열, 단위 5 V5)로 판단한다(사용자 결정). 좌표 행에서 유추하면 변경 0건 확정이나 전부 트레이로 되돌린 확정을 놓친다.
 - 2026-11-17: 사분면 확정은 상위 목표가 삭제돼도 목록에 남는 완료 행동의 변경을 포함한다(좌표는 진행률과 무관, 사용자 결정). 지난 날짜의 변경 취소는 422 `QUADRANT_DATE_INVALID`, 응답은 PUT과 같은 모양으로 명세 §4.10에 추가했다(사용자 결정). `classification`의 세 수는 시안처럼 겹치지 않게 센다.
+- 2026-11-17: 휴지통 `remainingDays`는 계정 시간대 날짜 차(0이면 오늘까지, 사용자 결정, 명세 §4.7에 추가).
+- 2026-11-17: 휴지통 30일 자동 정리는 매시 정각(사용자 결정). `AIM2DAY_TRASH_PURGE_CRON`으로 바꿀 수 있고 운영은 기본값을 쓴다.
