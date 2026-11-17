@@ -1,7 +1,8 @@
 package com.aim2day.goal.goals.yearly.dto;
 
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDetailResponse;
 import java.util.List;
 
-/** 월간·주간 하위 트리는 단위 3에서 채운다. 그때까지 monthlyGoals는 빈 배열이다. */
-public record YearlyGoalDetailResponse(YearlyGoalResponse goal, List<Object> monthlyGoals) {
+/** 연간 목표 객체에 삭제되지 않은 월간 목표와 그 하위 주간 목표 트리를 더한 응답(API 명세 §4.3). */
+public record YearlyGoalDetailResponse(YearlyGoalResponse goal, List<MonthlyGoalDetailResponse> monthlyGoals) {
 }

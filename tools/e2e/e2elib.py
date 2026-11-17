@@ -1,5 +1,5 @@
 """서버 E2E 공용 도구. review 컨테이너에 직접 IP로 요청한다(프록시는 운영 컨테이너만 가리킨다)."""
-import json, subprocess, time, re, urllib.request, urllib.error, http.cookiejar, threading
+import atexit, json, subprocess, time, re, urllib.request, urllib.error, http.cookiejar, threading
 
 DB_ARGS = ["docker", "exec", "aim2day-mysql", "mysql", "-uaim2day_app", "-paim2daypass!", "aim2day_review", "-N", "-e"]
 
@@ -159,21 +159,46 @@ def parallel(fns):
     return results
 
 
-def finish():
-    """테스트 사용자 정리(시험용 DB). FK를 켠 채 자식 테이블부터 여러 번 시도해 CASCADE·RESTRICT를 그대로 따른다."""
+def _cleanup():
+    """테스트 사용자 정리(시험용 DB). FK를 켠 채 자식 테이블부터 여러 번 시도해 CASCADE·RESTRICT를 그대로 따른다.
+    이번 실행에서 만든 계정 중 남은 것의 목록을 돌려준다."""
+    global _CLEANED
+    _CLEANED = True
     for e in CREATED_EMAILS:
         uid = sql("SELECT id FROM users WHERE email='%s'" % e)
         if not uid:
             continue
         tables = [t for t in sql("SELECT table_name FROM information_schema.columns WHERE table_schema='aim2day_review' AND column_name='user_id'").split() if t != "users"]
-        for _ in range(len(tables) + 1):
-            for t in tables:
-                subprocess.run(DB_ARGS + ["DELETE FROM %s WHERE user_id=%s" % (t, uid)], capture_output=True)
+        # user_id가 없는 하위 테이블(월간·주간·수치 기록)은 연간 목표 소유자로 찾아 지운다.
+        yg = "SELECT id FROM yearly_goals WHERE user_id=%s" % uid
+        mg = "SELECT id FROM monthly_goals WHERE yearly_goal_id IN (%s)" % yg
+        wg = "SELECT id FROM weekly_goals WHERE monthly_goal_id IN (%s)" % mg
+        chain = ["DELETE FROM weekly_goal_numeric_records WHERE weekly_goal_id IN (SELECT id FROM (%s) t)" % wg,
+                 "DELETE FROM weekly_goals WHERE id IN (SELECT id FROM (%s) t)" % wg,
+                 "DELETE FROM monthly_goals WHERE id IN (SELECT id FROM (%s) t)" % mg]
+        for _ in range(len(tables) + 4):
+            for q in chain + ["DELETE FROM %s WHERE user_id=%s" % (t, uid) for t in tables]:
+                subprocess.run(DB_ARGS + [q], capture_output=True)
             r = subprocess.run(DB_ARGS + ["DELETE FROM users WHERE id=%s" % uid], capture_output=True, text=True)
             if r.returncode == 0:
                 break
-    left = sql("SELECT COUNT(*) FROM users WHERE email LIKE '%%@test.aim2day.dev'")
-    print("leftover test users:", left)
-    print("RESULT pass=%d fail=%d" % (PASS, FAIL))
-    if FAIL:
+    return [e for e in CREATED_EMAILS if sql("SELECT COUNT(*) FROM users WHERE email='%s'" % e) != "0"]
+
+
+_CLEANED = False
+
+
+@atexit.register
+def _cleanup_on_crash():
+    # 스크립트가 예외로 멈춰 finish()에 닿지 못해도 시험 데이터를 지운다. 원래 예외는 이미 출력됐고 종료 코드도 1이다.
+    if not _CLEANED and CREATED_EMAILS:
+        print("aborted before finish(); cleaning up. leftover test users (this run):", _cleanup())
+
+
+def finish():
+    # 이번 실행에서 만든 계정만 다시 확인한다. 하나라도 남으면 정리 실패로 보고 비정상 종료한다.
+    left = _cleanup()
+    print("leftover test users (this run):", left)
+    print("RESULT pass=%d fail=%d cleanup=%s" % (PASS, FAIL, "FAILED" if left else "ok"))
+    if FAIL or left:
         raise SystemExit(1)

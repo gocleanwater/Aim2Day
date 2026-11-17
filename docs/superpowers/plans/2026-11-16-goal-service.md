@@ -469,3 +469,142 @@
   - 연간 상세 트리
   - 진행 기록 대상 이름
 - [ ] 정리 → Codex 리뷰 → 커밋 → 푸시 → 운영 배포 → `progress.md`
+
+---
+
+## 단위 4: 행동 + 직전 주 요약
+
+**범위:** API 명세 §4.9 전체(사분면 `placement`는 단위 5 전까지 항상 `UNCLASSIFIED`), §4.6 `previous-summary`, 주간 상세의 `actions`·`actionCounts`, 체크형 진행률 집계.
+**새 테이블:** `V4__create_actions.sql`
+- `actions`(ERD 3.3-8)
+- `weekly_goal_numeric_records.action_id`에 FK `actions(id) ON DELETE SET NULL` 추가
+
+### 이 단위에서 정한 것
+
+- **패키지:** `actions`(엔티티·서비스·컨트롤러), `actions.dto`, `ActionErrorCode`(`ACTION_WEEKLY_GOAL_REQUIRED`, `ACTION_WEEKLY_GOAL_AMBIGUOUS`, `ACTION_FUTURE_COMPLETION`, `ACTION_DATE_OUT_OF_RANGE`).
+- **진행률 집계:** 체크형 집계를 `WeeklyActionCounter`의 실제 구현으로 바꾼다.
+  - 완료 = 연결 행동 중 `is_completed`인 것(삭제 포함)
+  - 분모 = `deleted_at IS NULL OR is_completed`
+  - 단위 3의 `NoActionCounter`는 지운다.
+- **잠금 순서:** users → 행동 → 주간(id 오름차순) → 월간(id 오름차순).
+  - 진행 기록을 남길 수 있는 모든 쓰기(생성·수정·완료·삭제)가 이 순서를 따른다.
+  - users를 먼저 잠그는 이유는 진행 기록 INSERT의 FK 공유 잠금이다(단위 2에서 배움).
+- **숨김:** 행동 자신이 삭제됐거나 경로의 목표가 삭제(조상 포함)된 **미완료** 행동은 목록·조회에서 빠진다(§4.9 GET).
+  - 경로가 삭제된 행동은 완료 여부와 관계없이 수정·완료·삭제 요청이 404 `ACTION`이다(가정: 숨은 부모의 진행률을 바꾸지 않기 위해).
+- **생성 규칙 순서:**
+  1. 400 입력 검증
+  2. `GOAL`이면 `performedDate > 현재 주 끝` → 422 `ACTION_DATE_OUT_OF_RANGE`
+  3. 연결 대상 결정
+     - `weeklyGoalId`가 있으면 그것을 쓴다. 기간 포함은 묻지 않는다. 함께 온 `monthlyGoalId`가 그 주간의 부모가 아니면 400이다.
+     - `weeklyGoalId`가 없고 `monthlyGoalId`만 있으면 수행일을 포함하는 주간을 찾는다. 0개면 `ACTION_WEEKLY_GOAL_REQUIRED`(`details`에 `monthlyGoalId`, `performedDate`), 여러 개면 `ACTION_WEEKLY_GOAL_AMBIGUOUS`(후보 `id`·`title`·`startDate`·`endDate`)다.
+     - 둘 다 없으면 400 `VALIDATION_FAILED`다.
+  4. 부모가 숨김·타인 소유 → 422 `GOAL_PARENT_UNAVAILABLE`
+  5. `contributionValue`를 체크형에 주면 → 422 `GOAL_NOT_NUMERIC`
+- **`MAINTENANCE`:** `monthlyGoalId`·`weeklyGoalId`·`contributionValue` 중 하나라도 오면 400이다. 날짜 제한은 없다.
+- **입력 범위:**
+  - `title`: 앞뒤 공백 제거 후 1~255자
+  - `resultSummary`: 최대 2,000자
+  - `contributionValue`: 0 초과 99,999,999.99 이하, 소수 둘째 자리까지
+  - `memo`: 최대 255자
+- **완료(`PUT .../completion`):**
+  - 같은 상태면 아무것도 하지 않고 200을 준다.
+  - 완료 시
+    - 수행일이 오늘보다 뒤면 422 `ACTION_FUTURE_COMPLETION`(`details`에 `today`, `performedDate`)이다.
+    - 수치형이고 기여량이 있으면 `ACTION_COMPLETION` 기록을 넣고 `addNumeric(+v)`를 한다.
+    - 그다음 `recalcWeekly`를 부른다.
+  - 취소 시 기록을 지우고 `addNumeric(-amount)` 뒤 재계산한다.
+  - 진행 기록 memo는 요청값을 쓴다. 없으면 완료는 `행동 완료: {제목}`, 취소는 `행동 완료 취소: {제목}`이다.
+  - 응답은 `{action, weeklyGoal{id, progress, currentValue, isTargetReached}, monthlyGoal{id, progress}}`이고, `MAINTENANCE`면 두 목표가 `null`이다.
+  - 행동 행을 `FOR UPDATE`로 잠근 뒤 상태를 다시 읽는다. 같은 행동을 두 인스턴스가 동시에 완료해도 한 번만 반영한다(UNIQUE `action_id`는 이중 안전망).
+- **수정(PATCH):** 바꿀 수 있는 필드는 §4.9 목록이다. `type`을 보내 다른 값이면 400이다. 아래 규칙을 지킨다.
+  - **수행일**
+    - 완료된 행동의 수행일을 미래로 바꾸면 `ACTION_FUTURE_COMPLETION`이다.
+    - `GOAL` 행동은 현재 주 끝보다 뒤로 바꾸면 `ACTION_DATE_OUT_OF_RANGE`다.
+    - 지난 주 연결을 유지한 채 오늘로 옮기는 것은 허용한다.
+  - **주간 이동(`weeklyGoalId`)**
+    - 이전·새 주간을 id 오름차순으로 잠근다.
+    - 완료된 수치 기여가 있으면 이전 주간에서 `-amount`, 새 주간에서 `+amount`를 하고 기록의 `weekly_goal_id`를 옮긴다.
+    - 새 주간이 체크형인데 같은 요청에서 `contributionValue`를 `null`로 보내지 않으면 `GOAL_NOT_NUMERIC`이다.
+    - 이전·새 경로를 모두 다시 계산한다.
+  - **완료된 행동의 `contributionValue`**
+    - 값을 바꾸면 기록 `amount`를 고치고 차이만큼 `addNumeric`한다.
+    - `null`로 바꾸면 기록을 지우고 빼낸다.
+    - `null`에서 값으로 바꾸면 기록을 만들고 더한다.
+  - 진행률 영향이 있으면 재계산한다. 전체를 `translateConflict`로 감싼다.
+- **삭제:** 소프트 삭제다. 미완료면 체크형 분모에서 빠지므로 재계산하고, 완료면 숨기기만 한다.
+- **목록(`GET /api/actions`)**
+  - 정렬(§4.9 표): 이번 단위에서는 모두 미분류라 `IMPORTANCE_URGENCY`·`IMPORTANCE`·`URGENCY`가 `id` 오름차순과 같다. 정렬기는 `placement.displayed`를 쓰는 형태로 미리 만든다.
+  - `summary`: 그날 목록의 `GOAL`·`MAINTENANCE`별 전체·완료 수
+  - `classification`: 이번 단위에서는 `unclassified`=그날 행동 수, 나머지 0, `confirmedToday=false`
+  - `pastIncomplete`: `date`가 오늘일 때만 채운다. 수행일이 오늘보다 앞선 미완료 행동이며 숨김 규칙을 적용한다. 수행일 오름차순, 같은 날이면 `id` 오름차순이다.
+  - `daysUntilDue = dueDate - today`(없으면 `null`)
+  - `goalPath`, `pathStatus`, `displayColor`는 연결 주간의 경로로 만든다. `MAINTENANCE`는 `goalPath=null`, `displayColor`는 고정 회색 `#9CA3AF`(가정)이다.
+- **직전 주 요약:**
+  - 기간은 현재 주 시작 −7일 ~ −1일이다.
+  - 그 기간과 하루라도 겹치는 숨김 아닌 주간 목표를 넣는다.
+  - 각 주간의 `completedActions`·`remainingActions`는 연결된 미삭제 행동이며, 수행일·`id` 오름차순으로 정렬한다.
+
+### Review Focus (단위 4)
+
+1. **같은 행동을 두 인스턴스가 동시에 완료** → 수치 기록 1행, `current_value`는 한 번만 더해진다. → 서버 E2E와 H2 `concurrentSameActionCompletion`.
+2. **같은 주간의 서로 다른 행동 동시 완료** → 기여량 합이 정확하다(ERD 결정 16 예시 2+1=3). → 서버 E2E.
+3. **완료↔취소 반복** → `current_value`가 원래대로 돌아오고, 진행 기록의 이전·다음 값이 이어진다. → 서버 E2E.
+4. **완료된 수치 행동을 다른 주간으로 이동** → 두 주간의 `current_value`와 두 월간 진행률이 맞다. → Task 3 테스트.
+5. **수행일 경계:** 미래 GOAL 날짜는 차단하고, 지난 주 행동을 오늘로 옮기는 것은 허용하며, 미래 날짜 완료는 차단한다. → Task 2·3 테스트.
+
+### Task 1: V4 마이그레이션 + 행동 엔티티 + 체크형 집계
+
+- 파일:
+  - `db/migration/V4__create_actions.sql`
+  - `actions/Action.java`, `ActionRepository.java`, `ActionType.java`
+  - `progress/JpaWeeklyActionCounter.java`(`NoActionCounter` 삭제)
+- 테스트 `ActionCounterTests`
+  - 완료 2·미완료 1 → 66.67
+  - 미완료 1을 삭제 → 100.00
+  - 완료 1을 삭제 → 분모·분자 유지
+
+### Task 2: 행동 생성·목록·조회 + 직전 주 요약 + 주간 상세 `actions`
+
+- 테스트 `ActionCreateApiTests`
+  - 연결 규칙: 0·1·여러 개 후보, `weeklyGoalId` 직접 지정, 둘 다 없음 400
+  - 현재 주 이후 GOAL → `ACTION_DATE_OUT_OF_RANGE`
+  - 미래 MAINTENANCE는 허용
+  - 체크형 생성 시 재계산(0/1 → `RECORDED` 0.00)
+  - `contributionValue` 체크형 422
+  - 숨김 부모 422
+- 테스트 `ActionListApiTests`
+  - `summary`
+  - `pastIncomplete`는 오늘만 채우고, 다른 날짜면 `null`
+  - 정렬 4종의 순서(현재는 `id` 순, `GROUP`은 `GOAL` 먼저)
+  - `daysUntilDue`
+  - 숨김 규칙
+- 테스트 `PreviousSummaryApiTests`
+- 주간 상세의 `actions`와 `actionCounts`를 확인한다.
+
+### Task 3: 완료·수정·삭제
+
+- 테스트 `ActionCompletionApiTests`
+  - 완료 시 기록·가산·재계산·진행 기록(memo 기본값)
+  - 같은 상태 반복은 아무것도 바꾸지 않음
+  - 취소 시 차감
+  - 미래 수행일 422
+  - `MAINTENANCE` 응답의 목표가 `null`
+  - `concurrentSameActionCompletion`
+- 테스트 `ActionUpdateApiTests`
+  - 기여량 변경 2→5(실제값 5), `null`(삭제·차감), `null`→3(생성·가산)
+  - 주간 이동(수치→수치, 수치→체크형은 `contributionValue: null` 필수)
+  - 완료 행동의 수행일을 미래로 → 422
+  - GOAL 수행일을 현재 주 뒤로 → 422
+  - 지난 주 행동을 오늘로 옮기기 허용
+  - `type` 변경 400
+  - stale version 409와 `currentVersion`
+- 테스트 `ActionDeleteApiTests`
+  - 미완료 삭제 시 재계산
+  - 완료 삭제 시 진행률·기록 유지
+
+### Task 4: 서버 검증 (오케스트레이터)
+
+- `tools/e2e/unit4_actions.py` 시나리오
+  - Review Focus 1~3
+  - 두 인스턴스 교차로 완료·취소 20회
+  - 진행 기록 연속성

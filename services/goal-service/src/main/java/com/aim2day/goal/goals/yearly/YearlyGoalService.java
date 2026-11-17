@@ -7,10 +7,13 @@ import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.goals.GoalErrorCode;
+import com.aim2day.goal.goals.GoalFieldRules;
+import com.aim2day.goal.goals.GoalAssembler;
 import com.aim2day.goal.goals.GoalStatus;
 import com.aim2day.goal.goals.criteria.CriteriaCalculator;
 import com.aim2day.goal.goals.criteria.CriterionRepository;
 import com.aim2day.goal.goals.criteria.YearlyGoalCriterion;
+import com.aim2day.goal.goals.monthly.MonthlyGoalRepository;
 import com.aim2day.goal.goals.yearly.dto.CreateYearlyGoalRequest;
 import com.aim2day.goal.goals.yearly.dto.ReorderYearlyGoalsRequest;
 import com.aim2day.goal.goals.yearly.dto.UpdateYearlyGoalRequest;
@@ -49,6 +52,8 @@ public class YearlyGoalService {
 
 	private final YearlyGoalRepository repository;
 	private final CriterionRepository criterionRepository;
+	private final MonthlyGoalRepository monthlyRepository;
+	private final GoalAssembler assembler;
 	private final SettingsService settingsService;
 	private final UserRowLock userRowLock;
 	private final TransactionTemplate tx;
@@ -57,9 +62,12 @@ public class YearlyGoalService {
 	private final TransactionTemplate readTx;
 
 	public YearlyGoalService(YearlyGoalRepository repository, CriterionRepository criterionRepository,
-			SettingsService settingsService, UserRowLock userRowLock, PlatformTransactionManager txManager) {
+			MonthlyGoalRepository monthlyRepository, GoalAssembler assembler, SettingsService settingsService,
+			UserRowLock userRowLock, PlatformTransactionManager txManager) {
 		this.repository = repository;
 		this.criterionRepository = criterionRepository;
+		this.monthlyRepository = monthlyRepository;
+		this.assembler = assembler;
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
 		this.tx = new TransactionTemplate(txManager);
@@ -91,9 +99,9 @@ public class YearlyGoalService {
 		int year = req.targetYear() != null ? req.targetYear() : thisYear;
 
 		FieldErrors errors = new FieldErrors();
-		String title = YearlyGoalRules.title(req.title(), errors);
-		String description = YearlyGoalRules.description(req.description(), errors);
-		String color = req.color() == null ? YearlyGoalRules.DEFAULT_COLOR : YearlyGoalRules.color(req.color(), errors);
+		String title = GoalFieldRules.title(req.title(), errors);
+		String description = GoalFieldRules.description(req.description(), errors);
+		String color = req.color() == null ? GoalFieldRules.DEFAULT_COLOR : GoalFieldRules.color(req.color(), errors);
 		// 현재 연도와 다음 연도만 허용한다(12월의 새해 계획용).
 		if (year < thisYear || year > thisYear + 1) {
 			errors.add("targetYear", ValidationReason.OUT_OF_RANGE);
@@ -184,7 +192,10 @@ public class YearlyGoalService {
 		UserTime time = settingsService.userTime(userId);
 		return readTx.execute(status -> {
 			YearlyGoal goal = findOwnedActive(userId, goalId);
-			return new YearlyGoalDetailResponse(toResponse(goal, time.today()), List.of());
+			// 연간·월간·주간·기준을 모두 이 읽기 트랜잭션(한 스냅샷)에서 읽는다. 삭제되지 않은 하위 목표만 담는다.
+			// 월간은 시작일, id 순이고 그 안의 주간도 시작일, id 순이다(조회 쿼리의 정렬).
+			return new YearlyGoalDetailResponse(toResponse(goal, time.today()),
+					assembler.monthlyTrees(monthlyRepository.findActiveByYearlyGoal(goalId), time.today()));
 		});
 	}
 
@@ -203,7 +214,7 @@ public class YearlyGoalService {
 			String title = goal.getTitle();
 			if (req.title() != null) {
 				if (req.title().isPresent()) {
-					title = YearlyGoalRules.title(req.title().get(), errors);
+					title = GoalFieldRules.title(req.title().get(), errors);
 				} else {
 					errors.add("title", ValidationReason.REQUIRED);
 				}
@@ -211,12 +222,12 @@ public class YearlyGoalService {
 			String description = goal.getDescription();
 			if (req.description() != null) {
 				description = req.description().isPresent()
-						? YearlyGoalRules.description(req.description().get(), errors) : null;
+						? GoalFieldRules.description(req.description().get(), errors) : null;
 			}
 			String color = goal.getColor();
 			if (req.color() != null) {
 				if (req.color().isPresent()) {
-					color = YearlyGoalRules.color(req.color().get(), errors);
+					color = GoalFieldRules.color(req.color().get(), errors);
 				} else {
 					errors.add("color", ValidationReason.REQUIRED);
 				}
