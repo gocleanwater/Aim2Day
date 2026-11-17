@@ -37,6 +37,22 @@ public interface WeeklyGoalRepository extends JpaRepository<WeeklyGoal, Long> {
 			+ "order by y.displayOrder asc, m.id asc, w.id asc")
 	List<WeeklyGoal> findVisibleByDate(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+	/**
+	 * 월간 목표 아래에서 date가 기간에 드는 삭제되지 않은 주간 목표(행동 연결 후보). 호출자가 월간 목표의 가시성을
+	 * 이미 확인했다. id 순이라 후보 목록의 순서가 안정적이다.
+	 */
+	@Query("select w from WeeklyGoal w where w.monthlyGoalId = :monthlyId and w.deletedAt is null "
+			+ "and w.startDate <= :date and w.endDate >= :date order by w.id asc")
+	List<WeeklyGoal> findActiveByMonthlyContaining(@Param("monthlyId") Long monthlyId, @Param("date") LocalDate date);
+
+	/** 기간이 [start, end]와 하루라도 겹치는 보이는 주간 목표(직전 주 요약). 정렬은 findVisibleByDate와 같다. */
+	@Query("select w from WeeklyGoal w, MonthlyGoal m, YearlyGoal y where m.id = w.monthlyGoalId "
+			+ "and y.id = m.yearlyGoalId and y.userId = :userId and y.deletedAt is null and m.deletedAt is null "
+			+ "and w.deletedAt is null and w.startDate <= :end and w.endDate >= :start "
+			+ "order by y.displayOrder asc, m.id asc, w.id asc")
+	List<WeeklyGoal> findVisibleOverlapping(@Param("userId") Long userId, @Param("start") LocalDate start,
+			@Param("end") LocalDate end);
+
 	/** 월간 상세·연간 상세 트리용. 호출자가 상위 목표의 가시성을 이미 확인했다. */
 	@Query("select w from WeeklyGoal w where w.monthlyGoalId in :monthlyIds and w.deletedAt is null "
 			+ "order by w.startDate asc, w.id asc")

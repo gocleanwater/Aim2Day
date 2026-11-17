@@ -157,9 +157,11 @@ class NumericRecordApiTests {
 	@Test
 	void deleteActionCompletionRecordIs422() throws Exception {
 		long weekly = api.numericWeekly(1L, monthly, "수치", "10");
-		// action_id는 아직 FK가 없어 임의 값을 넣을 수 있다(단위 4에서 actions FK가 생긴다).
+		// action_id는 actions(id) FK라 실제 행동 행이 필요하다.
+		long action = GoalTestSupport.seedAction(jdbc, 1L, weekly, "문제 2개", java.time.LocalDate.of(2026, 11, 12),
+				true, false);
 		jdbc.update("INSERT INTO weekly_goal_numeric_records (weekly_goal_id, action_id, record_source, amount) "
-				+ "VALUES (?, 777, 'ACTION_COMPLETION', 2.00)", weekly);
+				+ "VALUES (?, ?, 'ACTION_COMPLETION', 2.00)", weekly, action);
 		jdbc.update("UPDATE weekly_goals SET current_value = 2.00, progress_rate = 20.00 WHERE id = ?", weekly);
 		long recordId = jdbc.queryForObject("SELECT id FROM weekly_goal_numeric_records", Long.class);
 
@@ -167,7 +169,8 @@ class NumericRecordApiTests {
 		assertThat(currentValue(weekly)).isEqualByComparingTo("2.00");
 
 		api.expect(api.get(path(weekly), 1L), 200,
-				"$.data[0].source", "ACTION_COMPLETION", "$.data[0].action.id", 777, "$.data[0].action.title", null);
+				"$.data[0].source", "ACTION_COMPLETION", "$.data[0].action.id", (int) action,
+				"$.data[0].action.title", "문제 2개");
 	}
 
 	@Test

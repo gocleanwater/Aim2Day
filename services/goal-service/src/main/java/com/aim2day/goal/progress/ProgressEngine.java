@@ -62,6 +62,16 @@ public class ProgressEngine {
 	}
 
 	/**
+	 * 주간 목표 행만 잠근다. 행동 이동처럼 주간 목표 두 개를 id 오름차순으로 잠가야 할 때 쓴다
+	 * (두 요청이 서로 반대 순서로 잠그면 교착한다).
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void lockWeekly(long weeklyGoalId) {
+		em.createNativeQuery("SELECT id FROM weekly_goals WHERE id = :id FOR UPDATE")
+				.setParameter("id", weeklyGoalId).getResultList();
+	}
+
+	/**
 	 * 월간 목표 행만 잠근다. 새 주간 목표 INSERT 전에 부른다. INSERT의 FK 확인이 월간 행에 공유 잠금을 걸고,
 	 * 이어 recalcMonthly가 배타 잠금으로 올리려 하면 같은 월간 아래의 두 INSERT가 서로를 기다린다.
 	 * 먼저 배타 잠금을 잡아 두면 이 교착이 없다.
@@ -78,6 +88,18 @@ public class ProgressEngine {
 	 */
 	@Transactional(propagation = Propagation.MANDATORY)
 	public WeeklyProgress recalcWeekly(long userId, long weeklyGoalId, LocalDate logDate, String memo) {
+		WeeklyRecalc r = recalcWeeklyOnly(userId, weeklyGoalId, logDate, memo);
+		recalcMonthly(userId, r.monthlyGoalId(), logDate, memo);
+		return r.progress();
+	}
+
+	/**
+	 * 주간 목표만 다시 계산·저장하고 월간은 건드리지 않는다. 한 요청이 같은 월간 아래 주간 목표 둘을 바꾸는 경우
+	 * (행동을 두 주간 사이로 이동)에 쓴다. 주간 하나를 저장할 때마다 월간을 계산하면 다른 주간이 아직 옛 값인 채로
+	 * 월간을 계산해 가짜 상승·하락 진행 기록이 남는다. 호출자가 모든 주간을 저장한 뒤 월간을 한 번씩 recalcMonthly한다.
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public WeeklyRecalc recalcWeeklyOnly(long userId, long weeklyGoalId, LocalDate logDate, String memo) {
 		// 호출자가 엔티티를 바꾸고 아직 flush하지 않았을 수 있다. 네이티브 쿼리 전에 DB에 반영한다.
 		em.flush();
 		List<?> rows = em.createNativeQuery("SELECT measurement_type, target_value, current_value, progress_rate, "
@@ -109,8 +131,11 @@ public class ProgressEngine {
 			logs.record(userId, ProgressTargetType.WEEKLY_GOAL, weeklyGoalId, stored, rate,
 					ProgressChangeType.PROGRESS_UPDATE, logDate, limit(memo));
 		}
-		recalcMonthly(userId, monthlyGoalId, logDate, memo);
-		return new WeeklyProgress(weeklyGoalId, rate, current, targetReached);
+		return new WeeklyRecalc(monthlyGoalId, new WeeklyProgress(weeklyGoalId, rate, current, targetReached));
+	}
+
+	/** recalcWeeklyOnly 결과: 계산된 주간 진행과 그 주간이 속한 월간 목표 id. */
+	public record WeeklyRecalc(long monthlyGoalId, WeeklyProgress progress) {
 	}
 
 	/** 월간 진행률 = 삭제되지 않은 하위 주간 목표의 저장된 진행률의 가중 평균. 값이 바뀔 때만 UPDATE와 기록을 남긴다. */

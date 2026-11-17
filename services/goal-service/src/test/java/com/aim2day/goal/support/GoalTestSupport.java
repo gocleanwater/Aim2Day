@@ -5,7 +5,9 @@ import jakarta.servlet.http.Cookie;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +41,7 @@ public final class GoalTestSupport {
 	public static void clean(JdbcTemplate jdbc) {
 		jdbc.update("DELETE FROM goal_progress_logs");
 		jdbc.update("DELETE FROM weekly_goal_numeric_records");
+		jdbc.update("DELETE FROM actions");
 		jdbc.update("DELETE FROM weekly_goals");
 		jdbc.update("DELETE FROM monthly_goals");
 		jdbc.update("DELETE FROM yearly_goal_criteria");
@@ -89,6 +92,24 @@ public final class GoalTestSupport {
 		cols.put("measurement_type", type);
 		cols.put("target_value", target);
 		return insert(jdbc, "weekly_goals", cols);
+	}
+
+	/**
+	 * 행동 시드. completed면 completed_at(2026-11-12T03:00Z), deleted면 deleted_at을 채운다.
+	 * weeklyId가 null이면 MAINTENANCE다. 기여 기록·진행률은 건드리지 않는다.
+	 */
+	public static long seedAction(JdbcTemplate jdbc, long userId, Long weeklyId, String title, LocalDate performed,
+			boolean completed, boolean deleted) {
+		Map<String, Object> cols = new HashMap<>();
+		cols.put("user_id", userId);
+		cols.put("weekly_goal_id", weeklyId);
+		cols.put("title", title);
+		cols.put("performed_date", Date.valueOf(performed));
+		cols.put("is_completed", completed);
+		Timestamp stamp = Timestamp.valueOf(LocalDateTime.of(2026, 11, 12, 3, 0));
+		cols.put("completed_at", completed ? stamp : null);
+		cols.put("deleted_at", deleted ? stamp : null);
+		return insert(jdbc, "actions", cols);
 	}
 
 	private static long insert(JdbcTemplate jdbc, String table, Map<String, Object> cols) {

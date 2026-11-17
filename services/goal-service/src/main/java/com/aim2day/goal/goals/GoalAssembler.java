@@ -67,10 +67,13 @@ public class GoalAssembler {
 		monthlyById.values().forEach(m -> yearlyIds.add(m.getYearlyGoalId()));
 		Map<Long, YearlyGoal> yearlyById = yearlies.findAllByIdIn(yearlyIds).stream()
 				.collect(Collectors.toMap(YearlyGoal::getId, Function.identity()));
+		// 행동 수는 주간마다 부르지 않고 한 쿼리로 묶어 센다(주간 N개에 SQL 2N회가 나가는 것을 막는다).
+		Map<Long, com.aim2day.goal.progress.ActionCounts> countsById = actionCounter
+				.countsFor(goals.stream().map(WeeklyGoal::getId).toList());
 		return goals.stream().map(w -> {
 			MonthlyGoal m = monthlyById.get(w.getMonthlyGoalId());
 			return WeeklyGoalResponse.of(w, m, yearlyById.get(m.getYearlyGoalId()),
-					actionCounter.counts(w.getId()), today);
+					countsById.get(w.getId()), today);
 		}).toList();
 	}
 

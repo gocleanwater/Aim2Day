@@ -1,5 +1,7 @@
 package com.aim2day.goal.goals.weekly.record;
 
+import com.aim2day.goal.actions.Action;
+import com.aim2day.goal.actions.ActionRepository;
 import com.aim2day.goal.common.exception.BusinessException;
 import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
@@ -24,8 +26,10 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -47,6 +51,7 @@ public class NumericRecordService {
 	private static final int MEMO_MAX = 255;
 
 	private final NumericRecordRepository records;
+	private final ActionRepository actionRepository;
 	private final WeeklyGoalRepository weeklyRepository;
 	private final WeeklyGoalService weeklyService;
 	private final GoalAssembler assembler;
@@ -59,10 +64,12 @@ public class NumericRecordService {
 	private final TransactionTemplate tx;
 	private final TransactionTemplate readTx;
 
-	public NumericRecordService(NumericRecordRepository records, WeeklyGoalRepository weeklyRepository,
+	public NumericRecordService(NumericRecordRepository records, ActionRepository actionRepository,
+			WeeklyGoalRepository weeklyRepository,
 			WeeklyGoalService weeklyService, GoalAssembler assembler, ProgressEngine engine,
 			SettingsService settingsService, UserRowLock userRowLock, PlatformTransactionManager txManager) {
 		this.records = records;
+		this.actionRepository = actionRepository;
 		this.weeklyRepository = weeklyRepository;
 		this.weeklyService = weeklyService;
 		this.assembler = assembler;
@@ -78,8 +85,14 @@ public class NumericRecordService {
 	public List<NumericRecordResponse> list(long userId, long weeklyGoalId) {
 		return readTx.execute(status -> {
 			weeklyService.findOwnedVisible(userId, weeklyGoalId);
-			return records.findByWeeklyGoalIdOrderByCreatedAtDescIdDesc(weeklyGoalId).stream()
-					.map(NumericRecordResponse::of).toList();
+			List<NumericRecord> found = records.findByWeeklyGoalIdOrderByCreatedAtDescIdDesc(weeklyGoalId);
+			// 행동 완료 기록의 행동 제목을 한 번에 읽는다(삭제된 행동의 제목도 보여 준다).
+			List<Long> actionIds = found.stream().map(NumericRecord::getActionId).filter(Objects::nonNull).toList();
+			Map<Long, String> titles = new HashMap<>();
+			for (Action a : actionRepository.findAllById(actionIds)) {
+				titles.put(a.getId(), a.getTitle());
+			}
+			return found.stream().map(r -> NumericRecordResponse.of(r, titles)).toList();
 		});
 	}
 

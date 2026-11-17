@@ -103,6 +103,26 @@ public class GoalApiClient {
 		return GoalTestSupport.idOf(result);
 	}
 
+	/** 행동을 만든다(201 확인). json은 요청 본문 전체다. */
+	public long action(long userId, String json) throws Exception {
+		MvcResult result = post("/api/actions", userId, json);
+		assertThat(status(result)).as(body(result)).isEqualTo(201);
+		return GoalTestSupport.idOf(result);
+	}
+
+	/** 주간 목표에 직접 연결한 GOAL 행동. extra는 {@code ,"contributionValue":2} 같은 추가 JSON 조각이다. */
+	public long goalAction(long userId, long weeklyId, String title, String extra) throws Exception {
+		return action(userId, "{\"type\":\"GOAL\",\"weeklyGoalId\":" + weeklyId + ",\"title\":\"" + title + "\"" + extra + "}");
+	}
+
+	public long maintenance(long userId, String title, String extra) throws Exception {
+		return action(userId, "{\"type\":\"MAINTENANCE\",\"title\":\"" + title + "\"" + extra + "}");
+	}
+
+	public MvcResult complete(long userId, long actionId, boolean completed) throws Exception {
+		return put("/api/actions/" + actionId + "/completion", userId, "{\"completed\":" + completed + "}");
+	}
+
 	public long numericWeekly(long userId, long monthlyId, String title, String target) throws Exception {
 		return weekly(userId, monthlyId, title, ",\"measurementType\":\"NUMERIC\",\"targetValue\":" + target);
 	}

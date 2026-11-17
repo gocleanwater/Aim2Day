@@ -1,5 +1,7 @@
 package com.aim2day.goal.goals.weekly;
 
+import com.aim2day.goal.actions.ActionAssembler;
+import com.aim2day.goal.actions.ActionRepository;
 import com.aim2day.goal.common.exception.BusinessException;
 import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
@@ -47,6 +49,8 @@ public class WeeklyGoalService {
 	private final WeeklyGoalRepository repository;
 	private final MonthlyGoalRepository monthlyRepository;
 	private final GoalAssembler assembler;
+	private final ActionRepository actionRepository;
+	private final ActionAssembler actionAssembler;
 	private final ProgressEngine engine;
 	private final SettingsService settingsService;
 	private final UserRowLock userRowLock;
@@ -56,11 +60,14 @@ public class WeeklyGoalService {
 	private final TransactionTemplate readTx;
 
 	public WeeklyGoalService(WeeklyGoalRepository repository, MonthlyGoalRepository monthlyRepository,
-			GoalAssembler assembler, ProgressEngine engine, SettingsService settingsService,
+			GoalAssembler assembler, ActionRepository actionRepository, ActionAssembler actionAssembler,
+			ProgressEngine engine, SettingsService settingsService,
 			UserRowLock userRowLock, PlatformTransactionManager txManager) {
 		this.repository = repository;
 		this.monthlyRepository = monthlyRepository;
 		this.assembler = assembler;
+		this.actionRepository = actionRepository;
+		this.actionAssembler = actionAssembler;
 		this.engine = engine;
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
@@ -140,9 +147,10 @@ public class WeeklyGoalService {
 		UserTime time = settingsService.userTime(userId);
 		return readTx.execute(status -> {
 			WeeklyGoal goal = findOwnedVisible(userId, weeklyGoalId);
-			// 연결 행동(actions)은 단위 4에서 채운다.
+			// 연결 행동은 삭제되지 않은 것만 수행일, id 순이다. 목표와 행동을 같은 스냅샷에서 읽는다.
 			return WeeklyGoalDetailResponse.of(assembler.weeklyResponses(List.of(goal), time.today()).get(0),
-					List.of());
+					actionAssembler.responses(actionRepository.findActiveByWeeklyGoals(List.of(weeklyGoalId)),
+							time.today()));
 		});
 	}
 

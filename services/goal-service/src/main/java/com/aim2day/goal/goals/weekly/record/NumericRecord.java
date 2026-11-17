@@ -16,7 +16,7 @@ import org.hibernate.generator.EventType;
 /**
  * 수치형 주간 목표의 실적 기록(ERD 3.5-12). 추가만 하고 고치지 않으며(잘못 입력하면 삭제 후 다시 기록),
  * 자체 version이 없다(ERD 결정 15). 같은 행동의 중복 기여는 action_id UNIQUE가 막는다.
- * action_id는 아직 FK가 없다(단위 4의 마이그레이션이 actions 테이블과 함께 추가한다).
+ * action_id는 actions(id) FK(ON DELETE SET NULL)다(V4).
  */
 @Entity
 @Table(name = "weekly_goal_numeric_records")
@@ -49,13 +49,23 @@ public class NumericRecord {
 	protected NumericRecord() {
 	}
 
-	/** 직접 입력 기록. 행동 완료 기록은 단위 4가 같은 생성자 모양의 팩토리를 더한다. */
+	/** 직접 입력 기록. */
 	public static NumericRecord directInput(Long weeklyGoalId, BigDecimal amount, String memo) {
 		NumericRecord record = new NumericRecord();
 		record.weeklyGoalId = weeklyGoalId;
 		record.source = RecordSource.DIRECT_INPUT;
 		record.amount = amount;
 		record.memo = memo;
+		return record;
+	}
+
+	/** 행동 완료 기록. action_id UNIQUE가 같은 행동의 중복 기여를 막는 이중 안전망이다. */
+	public static NumericRecord actionCompletion(Long weeklyGoalId, Long actionId, BigDecimal amount) {
+		NumericRecord record = new NumericRecord();
+		record.weeklyGoalId = weeklyGoalId;
+		record.actionId = actionId;
+		record.source = RecordSource.ACTION_COMPLETION;
+		record.amount = amount;
 		return record;
 	}
 
