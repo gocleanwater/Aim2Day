@@ -41,6 +41,7 @@ public final class GoalTestSupport {
 	public static void clean(JdbcTemplate jdbc) {
 		jdbc.update("DELETE FROM goal_progress_logs");
 		jdbc.update("DELETE FROM weekly_goal_numeric_records");
+		jdbc.update("DELETE FROM action_quadrant_placements");
 		jdbc.update("DELETE FROM actions");
 		jdbc.update("DELETE FROM weekly_goals");
 		jdbc.update("DELETE FROM monthly_goals");

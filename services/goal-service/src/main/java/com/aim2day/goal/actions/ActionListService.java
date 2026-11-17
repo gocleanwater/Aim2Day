@@ -2,6 +2,8 @@ package com.aim2day.goal.actions;
 
 import com.aim2day.goal.actions.dto.ActionListResponse;
 import com.aim2day.goal.actions.dto.ActionResponse;
+import com.aim2day.goal.quadrant.ConfirmedDateStore;
+import com.aim2day.goal.quadrant.PlacementViews;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
 import java.time.LocalDate;
@@ -21,13 +23,15 @@ public class ActionListService {
 	private final ActionRepository actions;
 	private final ActionAssembler assembler;
 	private final SettingsService settingsService;
+	private final ConfirmedDateStore confirmedDates;
 	private final TransactionTemplate readTx;
 
 	public ActionListService(ActionRepository actions, ActionAssembler assembler, SettingsService settingsService,
-			PlatformTransactionManager txManager) {
+			ConfirmedDateStore confirmedDates, PlatformTransactionManager txManager) {
 		this.actions = actions;
 		this.assembler = assembler;
 		this.settingsService = settingsService;
+		this.confirmedDates = confirmedDates;
 		this.readTx = new TransactionTemplate(txManager);
 		this.readTx.setReadOnly(true);
 		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
@@ -46,9 +50,27 @@ public class ActionListService {
 			ActionListResponse.Counts goal = counts(items, ActionType.GOAL);
 			ActionListResponse.Counts maintenance = counts(items, ActionType.MAINTENANCE);
 
-			// 사분면 분류는 단위 5에서 구현한다. 그 전에는 모든 행동이 미분류이고 확정한 변경이 없다.
+			// 분류 요약은 pastIncomplete를 뺀 items 기준이다. 오늘이 아닌 날짜의 항목은 확정 좌표만 가지므로
+			// unconfirmedChanges가 자연히 0이다. confirmedToday는 오늘 [오늘 분류 확정]을 눌렀는지다(조회 날짜와 무관).
+			int unclassified = 0;
+			int unconfirmed = 0;
+			int confirmed = 0;
+			for (ActionResponse item : items) {
+				// 세 수는 겹치지 않는다(시안의 "미분류 N개 · 확정 대기 M개"와 같은 나눔). 되돌리기 대기는 점이 트레이에
+				// 있어도 확정 대기로 센다.
+				if ("UNCLASSIFIED".equals(item.placement().state())) {
+					unclassified++;
+				}
+				if (PlacementViews.isUnconfirmedChange(item.placement())) {
+					unconfirmed++;
+				}
+				if ("CONFIRMED".equals(item.placement().state())) {
+					confirmed++;
+				}
+			}
+			boolean confirmedToday = time.today().equals(confirmedDates.read(userId));
 			ActionListResponse.Classification classification =
-					new ActionListResponse.Classification(items.size(), 0, 0, false);
+					new ActionListResponse.Classification(unclassified, unconfirmed, confirmed, confirmedToday);
 
 			// 지난 미완료는 오늘 목록을 볼 때만 채운다. 서버가 수행일을 자동으로 바꾸지 않는다(결정 10).
 			ActionListResponse.PastIncomplete past = null;

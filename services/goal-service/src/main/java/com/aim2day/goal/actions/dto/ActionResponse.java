@@ -11,7 +11,7 @@ import java.time.LocalDate;
 
 /**
  * 행동 객체(API 명세 §4.9). MAINTENANCE는 goalPath, contributionValue, pathStatus가 null이고 displayColor는 고정 회색이다.
- * placement는 사분면 분류(단위 5) 전까지 항상 UNCLASSIFIED다.
+ * placement는 수행일에 해당하는 좌표 행에서 만든다(quadrant.PlacementViews).
  */
 public record ActionResponse(long id, ActionType type, String title, LocalDate performedDate, LocalDate dueDate,
 		Integer daysUntilDue, @JsonProperty("isCompleted") boolean isCompleted, Instant completedAt,

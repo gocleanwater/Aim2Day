@@ -608,3 +608,54 @@
   - Review Focus 1~3
   - 두 인스턴스 교차로 완료·취소 20회
   - 진행 기록 연속성
+
+---
+
+## 단위 5: 사분면 분류
+
+**범위:** API 명세 §4.10 전체, §4.9 행동 객체의 `placement`·목록의 `classification`·정렬 4종을 실제 값으로 채운다.
+**새 마이그레이션:** `V5__create_quadrant_placements.sql`
+- `action_quadrant_placements`(ERD 3.3-9, UNIQUE `(action_id, classification_date)`, FK `actions(id) ON DELETE CASCADE`)
+- `ALTER TABLE user_settings ADD COLUMN last_quadrant_confirmed_date DATE NULL`(2026-11-17 사용자 결정)
+
+### 이 단위에서 정한 것
+
+- **패키지:** `quadrant`(엔티티·서비스·컨트롤러), `QuadrantErrorCode`(`QUADRANT_OUT_OF_RANGE` details `{minImportance: 50}`, `QUADRANT_DATE_INVALID` details `{today, performedDate}`).
+- **좌표 행 찾기:** 행동의 좌표는 `classification_date = 행동의 performed_date`인 행이다. 수행일을 옮기면 이전 날짜의 행은 그대로 두고(지우지 않음) 새 날짜에서는 미분류로 시작한다.
+- **오늘이 아닌 날짜:** 확정 좌표만 쓴다(결정 18). 상태는 `CONFIRMED` 또는 `UNCLASSIFIED`이고 `pending`은 `null`이다.
+- **잠금:** 좌표 쓰기(PUT·DELETE pending·confirm)는 users 행을 먼저 잠근다. 같은 사용자의 분류 요청이 두 인스턴스에서 겹쳐도 차례로 처리되고, UNIQUE 위반 500이 나지 않는다. PUT·DELETE는 이어서 행동 행을 `FOR UPDATE`로 잠근다(행동 쓰기와 같은 순서 users → 행동).
+- **PUT 검사 순서:**
+  1. 400 `VALIDATION_FAILED`: 두 필드가 모두 있고, 둘 다 0~100 정수이거나 둘 다 `null`이어야 한다. 필드 누락·하나만 `null`·범위 밖·소수는 400이다. 필드 존재는 `@JsonSetter`+플래그로 구분한다.
+  2. 404 `ACTION`: 타인 소유, 자신이 삭제됨, 경로가 삭제됨(단위 4와 같은 규칙).
+  3. 422 `QUADRANT_DATE_INVALID`: 수행일 ≠ 오늘.
+  4. 422 `QUADRANT_OUT_OF_RANGE`: `GOAL`이고 좌표를 보낼 때 `importance < 50`.
+- **PUT 동작:**
+  - 좌표: 행이 없으면 만들고(`pending`만), 있으면 `pending`을 바꾸고 `is_pending_unclassify=false`.
+  - `null`: 확정 좌표가 없으면 행을 지운다. 있으면 `pending`을 비우고 `is_pending_unclassify=true`. 이미 트레이(행 없음, 또는 되돌리기 대기)면 그대로 200.
+  - 응답 `{actionId, placement}`.
+- **DELETE pending:** 검사 순서는 404 → 422 `QUADRANT_DATE_INVALID`(가정: 지난 날짜의 변경은 취소할 수 없다는 결정 18에 맞춤). `pending`과 되돌리기 대기를 지우고, 확정 좌표가 없으면 행을 지운다. 변경이 없어도 200. 응답은 PUT과 같은 모양이다(가정).
+- **확정(POST confirm):** users 잠금 뒤 `classification_date = 오늘`이고 행동이 숨김이 아니며 `performed_date = 오늘`인 행만 처리한다. 미확정 좌표는 확정으로 옮기고 `confirmed_at=now`, 되돌리기 대기는 행을 지운다. 변경이 0건이어도 `user_settings.last_quadrant_confirmed_date = 오늘`을 직접 UPDATE한다(`version` 미증가, 설정 응답에는 노출하지 않음, 엔티티에서는 `insertable=false, updatable=false`). 응답 `{date, confirmedCount, unclassifiedCount}`.
+- **목록 `classification`**(오늘 목록의 `items` 기준, `pastIncomplete` 제외, 세 수는 겹치지 않음 — 시안 `refreshUnclassified`): `unclassified`=`UNCLASSIFIED` 수, `unconfirmedChanges`=`PENDING`·`RECLASSIFYING`·`PENDING_UNCLASSIFY` 수(오늘이 아니면 0), `confirmed`=`CONFIRMED` 상태 수, `confirmedToday`=`last_quadrant_confirmed_date = 오늘`. 명세 §4.9의 정의와 다르면 명세를 따르고 결과에 적는다.
+- **정렬:** 단위 4의 정렬기를 그대로 쓰고 `placement.displayed`가 실제 값이 된다.
+- **완료 행동:** 분류할 수 있다(명세에 금지 없음, 좌표는 완료 상태를 바꾸지 않는다).
+
+### Review Focus (단위 5)
+
+1. **같은 행동을 두 인스턴스가 동시에 PUT** → 둘 다 200, 행 1개, 마지막 값이 남는다. → 서버 E2E.
+2. **확정과 PUT이 동시에** → 확정 결과와 남은 `pending`이 어긋나지 않는다(PUT이 먼저면 확정됨, 나중이면 새 `pending`). → 서버 E2E.
+3. **어제의 미확정 좌표** → 어제 날짜 조회에서 확정 좌표만 보이고, 오늘 확정이 어제 행을 건드리지 않는다. → H2 테스트(Clock 이동).
+4. **수행일을 오늘로 옮긴 지난 행동** → 오늘 미분류로 시작한다. 어제 좌표 행은 DB에 남고, 수행일을 어제로 되돌리면 다시 보인다(목록은 현재 수행일 기준). → H2 테스트.
+5. **`GOAL` x=49 / `MAINTENANCE` x=0** → 422 / 200. → Task 테스트.
+
+### Task 1: V5 + 좌표 API(PUT·DELETE pending·confirm)
+
+- 테스트 `PlacementApiTests`: 상태 흐름 5가지(ERD 표), 검사 순서, `null` 처리 3가지, 응답 모양, Review Focus 3·4·5.
+- 테스트 `PlacementConfirmApiTests`: 미확정 → 확정, 되돌리기 대기 → 삭제, 0건 확정도 `confirmedToday=true`, 다른 날짜·숨김 행동·수행일이 바뀐 행동의 행은 건드리지 않음.
+
+### Task 2: 행동 목록·객체에 실제 `placement`·`classification`·정렬
+
+- 테스트 `ActionListPlacementTests`: 정렬 4종의 실제 순서(x+y → x → id, 미분류 뒤), `classification` 수, 오늘이 아닌 날짜의 `pending` 무시.
+
+### Task 3: 서버 검증(오케스트레이터)
+
+- `tools/e2e/unit5_quadrant.py`: Review Focus 1·2, 두 인스턴스 교차 PUT·확정, 확정 후 목록 정렬.

@@ -959,6 +959,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 }
 ```
 
+- `classification`의 세 수는 그날 `items`를 겹치지 않게 나눈다. `unclassified`는 `UNCLASSIFIED`, `confirmed`는 `CONFIRMED` 상태인 행동 수다. 되돌리기 대기는 점이 트레이에 있어도 `unconfirmedChanges`로 센다.
 - `classification.unconfirmedChanges`는 확정하지 않은 변경이 있는 행동 수다(`PENDING`, `RECLASSIFYING`, `PENDING_UNCLASSIFY`). 오늘이 아닌 날짜는 항상 0이다. `confirmedToday`는 오늘 한 번이라도 분류를 확정했는지다. 화면은 이 값으로 그날 분류 안내를 줄인다.
 - **`pastIncomplete`** (`FOCUS-017`): `date`가 오늘일 때만 채운다. 다른 날짜면 `null`이다. 수행일이 오늘보다 앞선 미완료 행동이다(`GOAL`·`MAINTENANCE` 모두). 삭제됐거나 상위 목표 삭제로 숨겨진 행동은 빠진다. 화면은 오늘 목록 아래 접힌 `지난 미완료 N개` 영역에 보여준다. 이 행동들은 `summary`의 완료 수와 사분면 분류에 포함하지 않는다.
   - `[오늘로 옮기기]`: `PATCH /api/actions/{id}`로 `performedDate`를 오늘로 바꾼다. 그 뒤 오늘 목록에 들어간다.
@@ -1073,6 +1074,10 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 확정하지 않은 변경을 취소한다. 미확정 좌표와 되돌리기 대기를 지우고 확정 좌표 상태로 돌아간다. 확정 좌표가 없던 행동은 미분류가 된다. 변경이 없어도 200이다.
 
+- 수행일이 오늘인 행동만 취소할 수 있다. 지난 날짜의 확정하지 않은 변경은 확정도 취소도 할 수 없다(결정 18).
+- 응답: PUT과 같다. `{ "actionId": 101, "placement": { /* §4.9 placement */ } }`
+- 오류: 404 `RESOURCE_NOT_FOUND`, 422 `QUADRANT_DATE_INVALID`
+
 #### POST `/api/actions/placements/confirm`
 
 오늘 날짜의 확정하지 않은 변경을 한 트랜잭션에서 모두 확정한다. (`FN-QUAD-02`)
@@ -1080,6 +1085,9 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - 미확정 좌표가 있는 행: 미확정 좌표를 확정 좌표로 옮기고 `confirmed_at`을 갱신한다.
 - 되돌리기 대기 행: 행을 지워 미분류로 만든다.
 - 트레이에 있던 미분류 점은 그대로 미분류로 남는다.
+- 대상은 오늘 목록에 보이는 행동의 변경이다. 상위 목표가 삭제됐어도 목록에 남는 완료 행동은 포함한다(좌표는 진행률에 영향이 없다).
+- `unclassifiedCount`는 이번 확정으로 되돌리기 대기에서 미분류가 된 행동 수다.
+- 확정할 변경이 없어도 `[오늘 분류 확정]`을 누른 날로 기록해 `classification.confirmedToday`가 `true`가 된다.
 - 응답: `{ "date": "2026-11-12", "confirmedCount": 3, "unclassifiedCount": 1 }`
 - 확정할 변경이 없어도 200이며 `confirmedCount`는 0이다.
 

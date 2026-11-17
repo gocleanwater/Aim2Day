@@ -1,6 +1,7 @@
 package com.aim2day.goal.actions;
 
 import com.aim2day.goal.actions.dto.ActionResponse;
+import com.aim2day.goal.actions.dto.ActionResponse.Placement;
 import com.aim2day.goal.common.time.UtcTime;
 import com.aim2day.goal.goals.GoalPath;
 import com.aim2day.goal.goals.GoalRef;
@@ -11,6 +12,9 @@ import com.aim2day.goal.goals.weekly.WeeklyGoal;
 import com.aim2day.goal.goals.weekly.WeeklyGoalRepository;
 import com.aim2day.goal.goals.yearly.YearlyGoal;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
+import com.aim2day.goal.quadrant.PlacementViews;
+import com.aim2day.goal.quadrant.QuadrantPlacement;
+import com.aim2day.goal.quadrant.QuadrantPlacementRepository;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
@@ -33,9 +37,11 @@ public class ActionAssembler {
 	private final WeeklyGoalRepository weeklies;
 	private final MonthlyGoalRepository monthlies;
 	private final YearlyGoalRepository yearlies;
+	private final QuadrantPlacementRepository placements;
 
 	public ActionAssembler(WeeklyGoalRepository weeklies, MonthlyGoalRepository monthlies,
-			YearlyGoalRepository yearlies) {
+			YearlyGoalRepository yearlies, QuadrantPlacementRepository placements) {
+		this.placements = placements;
 		this.weeklies = weeklies;
 		this.monthlies = monthlies;
 		this.yearlies = yearlies;
@@ -62,17 +68,24 @@ public class ActionAssembler {
 				: yearlies.findAllByIdIn(monthlyById.values().stream().map(MonthlyGoal::getYearlyGoalId)
 						.collect(Collectors.toSet())).stream()
 						.collect(Collectors.toMap(YearlyGoal::getId, Function.identity()));
+		// 좌표는 행동의 수행일에 해당하는 행이다(한 쿼리). 수행일이 오늘이 아니면 확정 좌표만 쓴다(결정 18).
+		Map<Long, QuadrantPlacement> placementByAction = placements
+				.findForActions(actions.stream().map(Action::getId).toList()).stream()
+				.collect(Collectors.toMap(QuadrantPlacement::getActionId, Function.identity()));
 		return actions.stream().map(a -> {
+			Placement placement = PlacementViews.of(placementByAction.get(a.getId()),
+					a.getPerformedDate().equals(today));
 			if (a.getWeeklyGoalId() == null) {
-				return of(a, null, null, null, today);
+				return of(a, null, null, null, today, placement);
 			}
 			WeeklyGoal w = weeklyById.get(a.getWeeklyGoalId());
 			MonthlyGoal m = monthlyById.get(w.getMonthlyGoalId());
-			return of(a, w, m, yearlyById.get(m.getYearlyGoalId()), today);
+			return of(a, w, m, yearlyById.get(m.getYearlyGoalId()), today, placement);
 		}).toList();
 	}
 
-	static ActionResponse of(Action a, WeeklyGoal w, MonthlyGoal m, YearlyGoal y, LocalDate today) {
+	static ActionResponse of(Action a, WeeklyGoal w, MonthlyGoal m, YearlyGoal y, LocalDate today,
+			Placement placement) {
 		// daysUntilDue는 조회 날짜가 아니라 오늘 기준이다(§4.9). 기한이 없으면 null이다.
 		Integer daysUntilDue = a.getDueDate() == null ? null
 				: (int) ChronoUnit.DAYS.between(today, a.getDueDate());
@@ -88,6 +101,6 @@ public class ActionAssembler {
 				goal ? GoalPath.pathStatus(w.getStatus(), m.getStatus(), y.getStatus()) : null,
 				goal ? GoalPath.displayColor(w.getColor(), m.getColor(), y.getColor())
 						: ActionResponse.MAINTENANCE_COLOR,
-				ActionResponse.Placement.unclassified(), a.getVersion());
+				placement, a.getVersion());
 	}
 }
