@@ -707,3 +707,85 @@
 ### Task 3: 서버 검증(오케스트레이터)
 
 - `tools/e2e/unit6_trash.py`: Review Focus 1·2, 삭제→휴지통→복원 왕복, 확인 409.
+
+---
+
+## 단위 7: 달력 + 대시보드
+
+**범위:** API 명세 §4.11 전체(달력 항목 CRUD·완료, 기간 조회, `GET /api/calendar/dashboard`).
+**새 테이블:** `V6__create_calendar_items.sql` — `calendar_items`(ERD 3.4-10, 소유 FK `users`, 연간 목표 FK).
+
+### 이 단위에서 정한 것
+
+- **패키지:** `calendar`(엔티티·서비스·컨트롤러·dto), `CalendarErrorCode`(`CALENDAR_ITEM_TYPE_IMMUTABLE` 422). 기간 오류는 명세대로 422 `REPORT_INVALID_PERIOD`를 쓴다(공용 위치에 없으면 이 단위에서 만들고 단위 9가 재사용한다).
+- **입력 규칙:** `title` 앞뒤 공백 제거 후 1~255자(ERD 길이에 맞춤), `description` 최대 2,000자. `TASK`의 `endDate`는 생략 또는 `startDate`와 같아야 하고(다르면 400), 저장은 `endDate = startDate`. `EVENT`는 생략이면 하루, 있으면 `>= startDate`.
+- **연결 목표:** `yearlyGoalId`는 본인 소유의 보이는(삭제 안 된) 연간 목표여야 한다. 아니면 422 `GOAL_PARENT_UNAVAILABLE`(details `{parentLevel: "YEARLY", parentId}`). 연간 목표의 `status`는 묻지 않는다(명세의 "활성"을 삭제되지 않음으로 읽음, 가정). PATCH에서 `yearlyGoalId: null`은 연결 해제다(`@JsonSetter`+`Optional`).
+- **삭제된 목표에 연결된 항목:** 응답의 `yearlyGoal`은 `null`이고, 필터에서도 미연결로 본다(`includeUnlinked`에 포함, `yearlyGoalIds`로는 걸리지 않음). 목표를 복원하면 다시 연결돼 보인다(가정).
+- **기간 조회:** `from`·`to` 필수(없으면 400), `to < from`이거나 100일 초과(`to - from + 1 > 100`)면 422 `REPORT_INVALID_PERIOD`. `yearlyGoalIds` 형식 오류는 400. 정렬 `startDate`, `id`.
+- **완료:** `PUT .../completion`은 version을 받지도 올리지도 않는다. 직접 UPDATE(`is_completed`, `completed_at`), 같은 상태면 그대로 200. 응답은 항목 객체.
+- **수정:** `translateConflict`로 감싸고 409에 `currentVersion`. `itemType`을 보내 다르면 422 `CALENDAR_ITEM_TYPE_IMMUTABLE`(같으면 무시). 날짜를 바꿀 때 `TASK`는 `endDate = startDate`를 유지한다.
+- **삭제:** 즉시 hard-delete, 200 `data: null`.
+- **대시보드:** 명세 세 목록 그대로. `today`는 계정 시간대. 읽기 전용 REPEATABLE_READ 한 트랜잭션. `daysUntilDue`는 `TASK` 마감일, `EVENT` 시작일까지(음수 허용). `pastEvents`에 `daysSinceEnd = today - endDate`.
+- **잠금:** 달력 항목은 진행 기록을 남기지 않으므로 users 행 잠금이 필요 없다. 단, 연결 목표 확인과 저장이 같은 트랜잭션이어야 한다(그 사이 목표 삭제 경합은 목표 삭제가 users를 잠그므로, 생성·수정도 users를 먼저 잠가 직렬화한다 — 다른 쓰기와 같은 첫 잠금).
+- **휴지통 정리와의 관계:** 연간 목표를 영구 삭제할 때 연결된 달력 항목이 FK를 막지 않도록 `ON DELETE SET NULL`로 둔다(ERD에 다르게 적혀 있으면 ERD를 따르고 결과에 적는다).
+
+### Review Focus (단위 7)
+
+1. **두 탭에서 같은 항목 PATCH** → 200 하나 + 409(`currentVersion`). → 서버 E2E.
+2. **기간 경계**: 100일은 200, 101일은 422, `to < from`은 422, 걸쳐 있는 일정(`startDate < from <= endDate`)은 포함. → Task 테스트.
+3. **연결 목표 삭제 후 조회·필터** → `yearlyGoal: null`, 미연결로 필터. → Task 테스트.
+4. **대시보드 경계**: 오늘+7일 시작 포함·+8일 제외, 어제 끝난 일정은 `pastEvents`(D+1), 8일 전은 제외, 완료 TASK 제외. → Task 테스트(Clock 고정, 계정 시간대 서울).
+5. **완료 반복**: 같은 상태 반복은 200이고 `completedAt`이 바뀌지 않음. → Task 테스트.
+
+### Task 1: V6 + 달력 항목 CRUD·완료·기간 조회
+- 테스트 `CalendarItemApiTests`, `CalendarRangeApiTests`(Review Focus 2·3·5).
+
+### Task 2: 대시보드
+- 테스트 `CalendarDashboardApiTests`(Review Focus 4).
+
+### Task 3: 서버 검증(오케스트레이터)
+- `tools/e2e/unit7_calendar.py`: Review Focus 1, 두 인스턴스 교차 CRUD, 목표 삭제·복원 뒤 연결 표시.
+
+---
+
+## 단위 8: 온보딩
+
+**범위:** API 명세 §4.2 전체(상태, 임시 저장 GET·PUT·DELETE, 한 번에 완료).
+**새 테이블:** `V7__create_onboarding_drafts.sql` — `onboarding_drafts`(ERD 3.1-3, `draft_data JSON NOT NULL`, `user_id` UNIQUE, FK `users` CASCADE).
+
+### 이 단위에서 정한 것
+
+- **`draft_data`는 MySQL `JSON` 타입 그대로 둔다(2026-11-17 사용자 결정).** 엔티티는 문자열로 들고, 저장·조회가 H2와 MySQL에서 같은 값이 되도록 매핑한다(예: Hibernate `@JdbcTypeCode(SqlTypes.JSON)`). 응답의 `draftData`는 저장한 JSON 값 그대로(객체면 객체)다. MySQL에서 객체가 문자열로 감싸져 저장되지 않는지(`JSON_TYPE(draft_data) = 'OBJECT'`)는 서버 E2E로 확인한다.
+- **임시 저장 입력:** `currentStep` 1~4 정수(필수), `draftData` 필수·`null` 불가, 직렬화한 UTF-8 바이트가 65,536 이하(넘으면 400 `TOO_LONG`). 서버는 내용을 해석하지 않는다.
+- **PUT과 version:** users 행을 먼저 잠근다.
+  - 행이 없고 `version` 생략 → 새로 만든다.
+  - 행이 있는데 `version` 생략, 또는 `version`이 다름 → 409 `VERSION_CONFLICT`(`currentVersion`).
+  - 행이 없는데 `version`을 보냄 → 409 `VERSION_CONFLICT`(`currentVersion: null`). 다른 탭이 온보딩을 끝내 임시 저장을 지운 뒤 오래된 탭이 되살리지 못하게 한다(가정).
+  - 응답은 임시 저장 객체 `{currentStep, draftData, version, updatedAt}`.
+- **DELETE:** users 잠금 뒤 삭제, 없어도 200 `data: null`.
+- **상태:** `needsOnboarding = 올해 활성 연간 목표 0개 || 임시 저장 있음`. 활성은 소프트 삭제되지 않은 것(상태 무관). `firstQuestion`은 계정 시간대 기준 1월/그 외 문구. 읽기 전용 REPEATABLE_READ.
+- **완료(`POST .../complete`):** 한 트랜잭션.
+  1. 400 구조 검증을 먼저 전부 한다: `tempId` 비어 있음·단계 안 중복, 부모 지정은 `...TempId`와 `...Id` 중 정확히 하나, 없는 `tempId` 참조, 각 항목의 필드 규칙(개별 생성 API와 같은 검증). 필드 경로는 `yearlyGoals[0].title`처럼 쓴다.
+  2. users 행 잠금 → 올해 활성 연간 수 + 새 연간 수 > 3이면 409 `GOAL_LIMIT_EXCEEDED`.
+  3. 기존 `...Id` 부모는 본인 소유·보이는 목표여야 하고(422 `GOAL_PARENT_UNAVAILABLE`), 기간이 맞아야 한다(연간=올해, 월간=이번 달, 422 `GOAL_PARENT_PERIOD_MISMATCH`).
+  4. 연간 → 월간 → 주간 → 행동 순서로 만든다. 연간은 올해, 월간은 이번 달, 주간은 이번 주. 행동은 §4.9 규칙(연결 대상 결정·`contributionValue`·날짜 범위)을 그대로 따르고, `weeklyGoalTempId`·`monthlyGoalTempId`도 받는다. 진행률은 개별 생성과 같이 엔진으로 계산한다.
+  5. 임시 저장을 지운다. 201 `{yearlyGoals: {tempId: id}, monthlyGoals, weeklyGoals, actions: [id...]}`(행동은 요청 순서).
+  - 기존 생성 서비스의 검증·생성 로직을 "트랜잭션 안에서 부르는" 메서드로 나눠 재사용한다. 규칙을 복사하지 않는다.
+  - 어느 단계든 실패하면 전체 롤백(임시 저장도 그대로 남음).
+
+### Review Focus (단위 8)
+
+1. **두 인스턴스가 같은 사용자의 첫 PUT을 동시에** → 하나는 201/200, 하나는 409(500 아님), 행 1개. → 서버 E2E.
+2. **두 인스턴스가 동시에 complete** → 한쪽만 성공하거나 둘 다 성공해도 연간 한도를 넘지 않는다. → 서버 E2E.
+3. **중간 항목이 실패하는 complete**(마지막 행동의 부모가 타인 소유) → 아무것도 만들어지지 않고 임시 저장도 남음. → Task 테스트 + 서버 E2E.
+4. **JSON 왕복**: 중첩 객체·배열·유니코드·숫자 정밀도가 그대로 돌아오고, MySQL에서 `JSON_TYPE = OBJECT`. → Task 테스트 + 서버 E2E.
+5. **64KB 경계**: 65,536바이트 200, 65,537바이트 400(한글 3바이트 문자로 경계 확인). → Task 테스트.
+
+### Task 1: V7 + 상태 + 임시 저장
+- 테스트 `OnboardingStatusApiTests`, `OnboardingDraftApiTests`(Review Focus 4·5, version 규칙 네 가지).
+
+### Task 2: 한 번에 완료
+- 테스트 `OnboardingCompleteApiTests`(구조 400 각 경우, 한도 409, 기존 부모 422 두 가지, tempId·기존 id 혼합, 행동 연결 규칙, 진행률 계산, 임시 저장 삭제, Review Focus 3).
+
+### Task 3: 서버 검증(오케스트레이터)
+- `tools/e2e/unit8_onboarding.py`: Review Focus 1·2·3·4.

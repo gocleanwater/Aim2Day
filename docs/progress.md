@@ -43,14 +43,14 @@
 |---|---|---|
 | goal-service 테이블 마이그레이션 | 🔶 | ERD. 단위마다 그 단위가 쓰는 테이블만 추가한다(계획 `docs/superpowers/plans/2026-11-16-goal-service.md`). V1 `user_settings`, V2 연간 목표·기준·진행 기록 완료 |
 | 공통 도메인 기반 + 설정 `/api/settings` (단위 1) | ✅ | API 명세 §4.1. `ErrorCode` interface + `CommonErrorCode`(도메인 코드는 단위별 enum), `VersionGuard`(사전 비교·커밋 시점 충돌 모두 currentVersion), `CalendarMath`·`UserTime`. Codex 1회차 major 1·minor 1 반영, 2회차 blocker·major 없음. 57 테스트 통과. 서버 실제 MySQL·인스턴스 2대 E2E 21/21(V1 동시 기동 1회 적용, 동시 첫 조회 경합 복구, 동시 PUT 40라운드 200+409·currentVersion) |
-| 온보딩 | ⬜ | API 명세 §1.2 |
+| 온보딩 (단위 8) | ⏸ | API 명세 §4.2. 2026-11-17 사용자 요청으로 구현 중간에 중단. 작업 폴더에 미완성 변경이 있다(onboarding/, V7, 연간·월간·주간·행동 서비스와 FieldErrors 수정, 빌드 미확인). 이어서 할지 되돌릴지 사용자 결정 대기 |
 | 연간 목표 + 달성 기준 + 진행 기록 조회 (단위 2) | ✅ | API 명세 §4.3(삭제 제외)·§4.4·§4.8. 생성·순서 저장·기준 쓰기는 users 행 → 목표 행 순서로 잠금(진행 기록 FK 공유 잠금과의 교착 방지), 순서 저장은 version 미증가, 조회는 REPEATABLE READ 읽기 트랜잭션 하나로 묶음. Codex(gpt-6-astra, Claude 직접 실행) 1회차 major 1·minor 1, 2회차 E2E 도구 major 1·minor 2(시험용 Redis 분리 등)를 3회차 없이 반영·직접 검증. 125 테스트, 서버 E2E 29/29(`tools/e2e/unit2_yearly_criteria.py`) |
 | 월간·주간 목표, 진행률 엔진, 수치 기록 (단위 3) | ✅ | API 명세 §4.5·§4.6. 수치 기록은 users → 주간 → 월간 순서로 잠그고 `current_value`를 원자적으로 가산, 월간은 주간 저장 진행률의 가중 평균. 서버 계산 열은 일반 PATCH가 덮어쓰지 않음(`updatable=false`). Codex(사용자 실행) 1회차 major 2(수치 기록 응답을 커밋 뒤 재조회해 생기는 경합, E2E가 두 주간 진행률 동시 변경을 검증 못 함)·minor 3, 2회차 minor 3(E2E 중단 시 정리, 경합 currentVersion 값 검사, 문서) 반영. 195 테스트, 서버 E2E 33/33(`tools/e2e/unit3_monthly_weekly.py`). 단위 4 계획은 계획 문서에 있음 |
 | 휴지통·복원 (단위 6) | ✅ | API 명세 §4.7. 삭제·복원은 users 행 잠금으로 같은 사용자의 행동 쓰기와 직렬화, 삭제 시각은 초 단위. 30일 정리는 매시 정각(`AIM2DAY_TRASH_PURGE_CRON`), root마다 users 잠금 → `FOR UPDATE SKIP LOCKED` 재확인 → ERD §4.4 순서(완료 기록 있으면 보존, 멱등). Codex(원격 중 Claude 실행) 1회차 minor 3·사용자 결정 1(remainingDays 날짜 차), 2회차 지적 없음. 334 테스트, 서버 E2E 25/25(`tools/e2e/unit6_trash.py`, 정리 주기 5초) |
 | 달성 기준, 수치 기록, 진행 기록 | ⬜ | API 명세 §1.2 |
 | 행동 + 직전 주 요약 (단위 4) | ✅ | API 명세 §4.9·§4.6 previous-summary. 잠금 순서 users → 행동 → 주간(id순) → 월간(id순), 같은 행동 동시 완료는 행동 행 잠금 후 상태 재확인으로 1회 반영, 체크형 분모는 미삭제 또는 완료. 경로가 삭제된 행동은 쓰기 404, MAINTENANCE 색 #9CA3AF(사용자 결정). Codex(원격 중 Claude 실행) 1회차 major 1(같은 월간 내 이동 시 거짓 월간 기록)·minor 3, 2회차 minor 1(문서) 반영. 269 테스트, 서버 E2E 40/40(`tools/e2e/unit4_actions.py`) |
 | 사분면 분류 (단위 5) | ✅ | API 명세 §4.10. 좌표 쓰기는 users 행 → 행동 행 잠금으로 직렬화, 좌표 행은 `(행동, 수행일)` 기준, 오늘이 아닌 날짜는 확정 좌표만. 확정 날짜는 `user_settings.last_quadrant_confirmed_date`(V5). `classification` 세 수는 시안처럼 겹치지 않음. Codex(원격 중 Claude 실행) 1회차 minor 2·사용자 결정 3, 2회차 minor 1(회귀 테스트) 반영. 292 테스트, 서버 E2E 30/30(`tools/e2e/unit5_quadrant.py`) |
-| 달력, 대시보드 | ⬜ | API 명세 §1.2 |
+| 달력 + 대시보드 (단위 7) | ✅ | API 명세 §4.11. 달력 항목 CRUD·완료, 기간 조회(최대 100일), 대시보드. 375 테스트·서버 E2E 28/28(`tools/e2e/unit7_calendar.py`). Codex 1회차 minor 1·계약 확정 반영, 2회차 지적 없음. V6 배포 |
 | 리포트, 직접 회고 | ⬜ | API 명세 §1.2 |
 
 ## 5. 프론트엔드
@@ -98,5 +98,9 @@
 - 2026-11-17: 단위 4 가정 확정(사용자). 연결 경로(주간 또는 조상)가 삭제된 행동은 완료 여부와 관계없이 수정·완료·삭제가 404 `ACTION`이다(숨은 목표의 진행률이 바뀌지 않게). `MAINTENANCE` 행동의 표시 색은 회색 `#9CA3AF` 고정.
 - 2026-11-17: 사분면 `confirmedToday`는 `user_settings.last_quadrant_confirmed_date`(새 열, 단위 5 V5)로 판단한다(사용자 결정). 좌표 행에서 유추하면 변경 0건 확정이나 전부 트레이로 되돌린 확정을 놓친다.
 - 2026-11-17: 사분면 확정은 상위 목표가 삭제돼도 목록에 남는 완료 행동의 변경을 포함한다(좌표는 진행률과 무관, 사용자 결정). 지난 날짜의 변경 취소는 422 `QUADRANT_DATE_INVALID`, 응답은 PUT과 같은 모양으로 명세 §4.10에 추가했다(사용자 결정). `classification`의 세 수는 시안처럼 겹치지 않게 센다.
+- 2026-11-17: goal-service 단위 9까지 끝나면 프런트엔드 전에 백엔드 전체(user-service·goal-service와 두 서비스 사이 공통 부분) 코드 정리(중복 제거 등) 단계를 둔다(사용자 요청).
+- 2026-11-17: 온보딩 `draft_data`는 ERD대로 MySQL `JSON` 타입 유지(사용자 결정). H2·MySQL 차이는 서버 E2E에서 `JSON_TYPE`으로 확인한다.
+- 2026-11-17: Codex 사용 한도(19:42까지)로 단위 7 2회차 리뷰를 미루고, 사용자 결정으로 한도가 풀릴 때까지 단위 7은 커밋하지 않고 단위 8을 먼저 진행한다.
+- 2026-11-17: 달력 계약 확정(사용자): 삭제된 목표의 항목은 필터에서도 미연결, EVENT 종료일 생략 시 유지·`null`이면 하루 일정, 빈 `yearlyGoalIds`는 고른 목표 없음, 보류 목표에도 연결 가능, 설명 2,000자, 지난 일정은 오래된 것부터. 명세 §4.11에 추가.
 - 2026-11-17: 휴지통 `remainingDays`는 계정 시간대 날짜 차(0이면 오늘까지, 사용자 결정, 명세 §4.7에 추가).
 - 2026-11-17: 휴지통 30일 자동 정리는 매시 정각(사용자 결정). `AIM2DAY_TRASH_PURGE_CRON`으로 바꿀 수 있고 운영은 기본값을 쓴다.

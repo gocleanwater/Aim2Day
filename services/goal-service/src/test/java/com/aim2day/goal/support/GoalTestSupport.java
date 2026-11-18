@@ -45,6 +45,7 @@ public final class GoalTestSupport {
 		jdbc.update("DELETE FROM actions");
 		jdbc.update("DELETE FROM weekly_goals");
 		jdbc.update("DELETE FROM monthly_goals");
+		jdbc.update("DELETE FROM calendar_items");
 		jdbc.update("DELETE FROM yearly_goal_criteria");
 		jdbc.update("DELETE FROM yearly_goals");
 		jdbc.update("DELETE FROM user_settings");

@@ -1116,6 +1116,8 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - `itemType`: `TASK`(해야 할 일) 또는 `EVENT`(일정). `TASK`는 `startDate`와 `endDate`가 모두 마감일이다.
 - `yearlyGoal`이 `null`이면 목표에 연결하지 않은 항목이다. 연결된 목표가 소프트 삭제 상태면 응답의 `yearlyGoal`은 `null`로 보인다.
 - `daysUntilDue`: `TASK`는 마감일까지, `EVENT`는 시작일까지 남은 일수다.
+- `title`은 1~255자, `description`은 최대 2,000자다.
+- 연결할 수 있는 목표는 삭제되지 않은 본인의 연간 목표다. 보류(`ON_HOLD`) 목표에도 연결할 수 있다.
 
 #### GET `/api/calendar/items?from=2026-11-01&to=2026-12-05&yearlyGoalIds=3,5&includeUnlinked=true`
 
@@ -1123,6 +1125,8 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 - `from`, `to`는 필수이며 범위는 최대 100일이다. 월 달력의 앞뒤 주까지 한 번에 받는다.
 - `yearlyGoalIds`를 생략하면 모든 목표의 항목을 준다. `includeUnlinked`(기본 `true`)는 목표에 연결하지 않은 항목을 포함할지다. 둘을 조합해 목표별 필터를 만든다. (`DASH-007`)
+- `yearlyGoalIds=`처럼 값 없이 보내면 고른 목표가 없는 것으로 보고, 미연결 항목만 `includeUnlinked`에 따라 준다.
+- 연결된 목표가 삭제 상태인 항목은 응답처럼 필터에서도 미연결로 본다. 목표를 복원하면 다시 그 목표로 걸린다.
 - 오류: 400 `VALIDATION_FAILED`, 422 `REPORT_INVALID_PERIOD`
 
 #### POST `/api/calendar/items`
@@ -1139,6 +1143,9 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 #### PATCH `/api/calendar/items/{id}`
 
 바꿀 수 있는 필드는 `title`, `description`, `startDate`, `endDate`, `yearlyGoalId`, `version`이다. `itemType`은 바꿀 수 없다.
+
+- `EVENT`에서 `endDate`를 보내지 않으면 저장된 종료일을 유지한다. 시작일만 종료일 뒤로 옮기면 400이므로 화면은 날짜를 바꿀 때 두 값을 함께 보낸다. `endDate: null`은 하루 일정(종료일 = 시작일)으로 바꾼다. `TASK`는 항상 종료일 = 시작일이다.
+- `yearlyGoalId: null`은 연결 해제다.
 
 - 오류: 400 `VALIDATION_FAILED`, 409 `VERSION_CONFLICT`, 422 `CALENDAR_ITEM_TYPE_IMMUTABLE`, 422 `GOAL_PARENT_UNAVAILABLE`
 
@@ -1165,7 +1172,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 
 - `tasks`: 기한과 관계없이 미완료 `TASK` 전체. 완료하면 목록에서 빠진다.
 - `events`: `startDate <= today + 7`이고 `endDate >= today`인 `EVENT`. 완료 여부와 관계없이 포함하고 완료 항목은 화면에서 옅게 표시한다.
-- `pastEvents`: `today - 7 <= endDate < today`인 `EVENT`. 화면은 `D+{daysSinceEnd}`로 표시한다.
+- `pastEvents`: `today - 7 <= endDate < today`인 `EVENT`. 종료일 오름차순(오래된 것 먼저), 같으면 `id` 순이다. 화면은 `D+{daysSinceEnd}`로 표시한다.
 
 ### 4.12 리포트와 직접 회고
 
