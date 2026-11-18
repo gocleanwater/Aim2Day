@@ -791,3 +791,40 @@
 
 ### Task 3: 서버 검증(오케스트레이터)
 - `tools/e2e/unit8_onboarding.py`: Review Focus 1·2·3·4.
+
+## 단위 9: 리포트·직접 회고
+
+**범위:** API 명세 §4.12 전체(탭, 리포트 조회, 직접 회고 저장). 결정 12·20, ERD §4.2, 기능 명세 FN-REPORT-01~04.
+**새 테이블:** `V8__create_period_reviews.sql` — `period_reviews`(ERD 13, UNIQUE `(user_id, period_type, period_value)`, FK `users` CASCADE).
+
+### 이 단위에서 정한 것
+
+- **기간·날짜:** 모든 날짜는 계정 시간대 기준. 미래 기간(시작일 > 오늘)과 미래 기준 월은 422 `REPORT_INVALID_PERIOD`. `periodType`·`period`·`month` 형식 오류는 400 `VALIDATION_FAILED`. 진행 중 기간의 실질 끝 = min(endDate, 오늘). 행동 집계도 실질 끝까지만. 마지막 날 당일도 진행 중(`오늘 (MM.DD)`).
+- **탭:** 월간 항상, 3·6·9·12월 분기, 12월 연간. 분기·연간 탭은 그 기간이 끝난 뒤(오늘 > 끝일)에만(2026-11-18 사용자 결정, Codex 1회차 뒤 결정 20과 맞춤). 라벨 `2026.12 월간`, `2026 4분기`, `2026년 연간`.
+- **집계 대상:** 수행일이 기간 안이고 완료한 `GOAL` 행동. 사용자가 지운 완료 행동(결정 7)과 삭제된 목표에 연결된 완료 행동도 포함. `MAINTENANCE` 제외. `actions`·`results`는 수행일 오름차순, id 오름차순. `results`는 `resultSummary`가 비어 있지 않은 것만.
+- **goalPath는 목표의 현재 이름(2026-11-18 사용자 결정).** 이름 스냅숏을 저장하지 않는다. 삭제된 목표도 행이 남아 있으면 이름을 보여 준다. 모양은 행동 응답의 `goalPath`와 같다. 명세 §4.12의 "당시 목표 이름"은 "연결된 목표 이름(현재 이름)"으로 고쳤다.
+- **goalProgress:** 기간 연도의 연간 목표 중 영구 삭제되지 않은 것(소프트 삭제 포함), 표시 순서(sort_order, id). 연간 진행 기록(`target_type='YEARLY_GOAL'`)을 id(저장 순서)로 읽고, 유효 날짜 = 그 기록까지의 `log_date` 누적 최댓값으로 판단한다(시간대 변경으로 날짜가 역전돼도 일어난 순서를 지킨다, 2026-11-18 사용자 결정). 최초 기준선은 id 순 첫 기록.
+  - 실질 끝까지 연간 기록이 하나도 없으면 `NOT_CONFIGURED`(note `달성 기준 설정 전`).
+  - 기간 안(시작일~실질 끝)에 `CRITERIA_REVISION`이 있으면 `CRITERIA_REVISED`(`changePp` null, note `기준·배점 변경으로 비교 불가`). 명세 표대로 `changePp`만 null이고 나머지 값은 COMPARABLE과 같은 방식으로 채운다(화면은 막대를 그리지 않는다).
+  - 그 밖은 `COMPARABLE`. 시작일 전 기록이 있으면 `startBase=PREVIOUS_PERIOD_END`, `startRate`=시작일 전 마지막 값, `observedFrom`=시작일, note null. 없으면(기간 중 최초 확정) `INITIAL_BASELINE`, `startRate`=첫 기록 값(최초 기준선), `observedFrom`=첫 기록 날짜, note `MM.DD 기준 확정 이후 변화`. `endRate`=실질 끝까지의 마지막 값, `changePp`=end-start.
+  - 라벨: 지난 기간 이름 `10월 말`·`3분기 말`·`2025년 말`(1월의 지난 달은 `12월 말`, 1분기의 지난 분기는 `4분기 말`), 기간 중 최초 확정이면 `기록 시작 (MM.DD)`. `endLabel`은 `11월 말`·`4분기 말`·`2026년 말`, 진행 중이면 `오늘 (MM.DD)`.
+  - 비율은 소수 둘째 자리까지의 숫자(저장된 DECIMAL 그대로, 정수면 정수처럼 보인다).
+- **직접 회고 PUT:** 두 필드 선택, 각 최대 5,000자(코드 포인트). PUT은 전체 저장이라 빠진 필드는 null이 된다(2026-11-18 사용자 결정). 미래 기간 422. users 행 잠금 후 version 규칙은 온보딩 임시 저장과 같다(없고 생략 → 생성, 있는데 생략·다름 → 409 `currentVersion`, 없는데 보냄 → 409 `currentVersion: null`). 회고는 지우지 않으므로 version 카운터는 필요 없다. 응답 `{improvements, nextFocus, version}`. 서버는 내용을 바꾸지 않는다(AI 문장 없음).
+- **조회:** 읽기 전용 REPEATABLE_READ 한 트랜잭션. 기간 안 행동은 한 쿼리로 읽고 goalPath는 일괄 조립(N+1 금지).
+
+### Review Focus (단위 9)
+
+1. **기간 경계:** 기간 첫날·마지막 날 행동 포함, 전날·다음날 제외. 계정 시간대 날짜 전환. 진행 중 기간 `오늘 (MM.DD)`.
+2. **goalProgress 상태 세 가지와 startBase 두 가지:** 기간 전 확정, 기간 중 최초 확정, 기간 중 개정, 기간 뒤 개정(과거 리포트는 그대로 비교 가능), 미확정, 소프트 삭제 목표.
+3. **집계 포함·제외:** 사용자가 지운 완료 행동 포함, 미완료·MAINTENANCE 제외, 다른 사용자 제외, 삭제된 목표의 완료 행동 포함.
+4. **두 인스턴스가 같은 기간의 첫 회고 PUT을 동시에** → 하나는 200, 하나는 409, 행 1개. → 서버 E2E.
+5. **탭 규칙:** 1·3·11·12월, 미래 달 422.
+
+### Task 1: V8 + 탭 + 직접 회고
+- 테스트 `ReportTabsApiTests`, `PeriodReviewApiTests`(version 규칙 4가지, 5,000자 경계, 빠진 필드 null, 미래 422, 사용자별 독립).
+
+### Task 2: 리포트 조회
+- 테스트 `ReportApiTests`(Review Focus 1·2·3, 월간·분기·연간 각 라벨, 기록 없음 0과 빈 배열).
+
+### Task 3: 서버 검증(오케스트레이터)
+- `tools/e2e/unit9_reports.py`: Review Focus 4, MySQL에서 기간 집계·goalProgress 한 경우, 인스턴스 교차 조회.

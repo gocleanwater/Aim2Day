@@ -34,6 +34,12 @@ public interface YearlyGoalRepository extends JpaRepository<YearlyGoal, Long> {
 	@Query("select max(g.displayOrder) from YearlyGoal g where g.userId = :userId and g.targetYear = :year and g.deletedAt is null")
 	Integer findMaxDisplayOrder(@Param("userId") Long userId, @Param("year") int year);
 
+	/**
+	 * 리포트의 목표별 달성률 변화 대상. 영구 삭제되지 않은 연간 목표라면 소프트 삭제된 것도 포함하므로 deleted_at 조건이 없다.
+	 * 소유 확인은 user_id 조건이다.
+	 */
+	List<YearlyGoal> findByUserIdAndTargetYearOrderByDisplayOrderAscIdAsc(Long userId, int targetYear);
+
 	/** 진행 기록의 대상 제목 조회용. 삭제된 목표의 기록도 제목과 함께 보여 주므로 deleted_at 조건이 없다. */
 	List<YearlyGoal> findAllByIdIn(Collection<Long> ids);
 

@@ -45,6 +45,16 @@ public interface ActionRepository extends JpaRepository<Action, Long> {
 			+ " order by a.performedDate asc, a.id asc")
 	List<Action> findPastIncomplete(@Param("userId") Long userId, @Param("today") LocalDate today);
 
+	/**
+	 * 리포트 집계 대상(FN-REPORT-01): 수행일이 [from, to]이고 완료한 GOAL 행동. 사용자가 지운 완료 행동과 경로가 삭제된
+	 * 목표의 완료 행동도 포함해야 하므로(결정 7, ERD §4.4) deleted_at·PATH_VISIBLE 조건을 걸지 않는다.
+	 * MAINTENANCE(weekly_goal_id가 null)는 제외한다. 표시 순서는 수행일, id 오름차순이다.
+	 */
+	@Query("select a from Action a where a.userId = :userId and a.weeklyGoalId is not null and a.completed = true "
+			+ "and a.performedDate >= :from and a.performedDate <= :to order by a.performedDate asc, a.id asc")
+	List<Action> findCompletedGoalActionsBetween(@Param("userId") Long userId, @Param("from") LocalDate from,
+			@Param("to") LocalDate to);
+
 	/** 주간 목표 상세·직전 주 요약용. 호출자가 주간 목표의 가시성을 이미 확인했다. 삭제된 행동은 빠진다. */
 	@Query("select a from Action a where a.weeklyGoalId in :weeklyIds and a.deletedAt is null "
 			+ "order by a.performedDate asc, a.id asc")

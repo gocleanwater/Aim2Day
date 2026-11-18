@@ -51,6 +51,28 @@ public class ActionAssembler {
 		if (actions.isEmpty()) {
 			return List.of();
 		}
+		Chains chains = loadChains(actions);
+		Map<Long, WeeklyGoal> weeklyById = chains.weekly();
+		Map<Long, MonthlyGoal> monthlyById = chains.monthly();
+		Map<Long, YearlyGoal> yearlyById = chains.yearly();
+		// 좌표는 행동의 수행일에 해당하는 행이다(한 쿼리). 수행일이 오늘이 아니면 확정 좌표만 쓴다(결정 18).
+		Map<Long, QuadrantPlacement> placementByAction = placements
+				.findForActions(actions.stream().map(Action::getId).toList()).stream()
+				.collect(Collectors.toMap(QuadrantPlacement::getActionId, Function.identity()));
+		return actions.stream().map(a -> {
+			Placement placement = PlacementViews.of(placementByAction.get(a.getId()),
+					a.getPerformedDate().equals(today));
+			if (a.getWeeklyGoalId() == null) {
+				return of(a, null, null, null, today, placement);
+			}
+			WeeklyGoal w = weeklyById.get(a.getWeeklyGoalId());
+			MonthlyGoal m = monthlyById.get(w.getMonthlyGoalId());
+			return of(a, w, m, yearlyById.get(m.getYearlyGoalId()), today, placement);
+		}).toList();
+	}
+
+	/** 행동들이 가리키는 주간 -> 월간 -> 연간 목표를 삭제 여부와 무관하게 id 묶음으로 한 번씩만 읽는다(N+1 방지). */
+	private Chains loadChains(List<Action> actions) {
 		Set<Long> weeklyIds = new HashSet<>();
 		actions.forEach(a -> {
 			if (a.getWeeklyGoalId() != null) {
@@ -68,20 +90,37 @@ public class ActionAssembler {
 				: yearlies.findAllByIdIn(monthlyById.values().stream().map(MonthlyGoal::getYearlyGoalId)
 						.collect(Collectors.toSet())).stream()
 						.collect(Collectors.toMap(YearlyGoal::getId, Function.identity()));
-		// 좌표는 행동의 수행일에 해당하는 행이다(한 쿼리). 수행일이 오늘이 아니면 확정 좌표만 쓴다(결정 18).
-		Map<Long, QuadrantPlacement> placementByAction = placements
-				.findForActions(actions.stream().map(Action::getId).toList()).stream()
-				.collect(Collectors.toMap(QuadrantPlacement::getActionId, Function.identity()));
-		return actions.stream().map(a -> {
-			Placement placement = PlacementViews.of(placementByAction.get(a.getId()),
-					a.getPerformedDate().equals(today));
+		return new Chains(weeklyById, monthlyById, yearlyById);
+	}
+
+	private record Chains(Map<Long, WeeklyGoal> weekly, Map<Long, MonthlyGoal> monthly, Map<Long, YearlyGoal> yearly) {
+	}
+
+	/**
+	 * 행동별 goalPath(연결된 목표의 현재 이름)를 행동 id -> 경로로 돌려준다. 리포트(§4.12)가 쓴다. MAINTENANCE는 맵에 없다.
+	 * 좌표 조회 없이 경로만 필요하므로 responses()와 같은 조립 코드(loadChains, pathView)를 재사용한다.
+	 */
+	public Map<Long, ActionResponse.GoalPathView> goalPaths(List<Action> actions) {
+		if (actions.isEmpty()) {
+			return Map.of();
+		}
+		Chains chains = loadChains(actions);
+		Map<Long, ActionResponse.GoalPathView> result = new java.util.HashMap<>();
+		for (Action a : actions) {
 			if (a.getWeeklyGoalId() == null) {
-				return of(a, null, null, null, today, placement);
+				continue;
 			}
-			WeeklyGoal w = weeklyById.get(a.getWeeklyGoalId());
-			MonthlyGoal m = monthlyById.get(w.getMonthlyGoalId());
-			return of(a, w, m, yearlyById.get(m.getYearlyGoalId()), today, placement);
-		}).toList();
+			WeeklyGoal w = chains.weekly().get(a.getWeeklyGoalId());
+			MonthlyGoal m = chains.monthly().get(w.getMonthlyGoalId());
+			result.put(a.getId(), pathView(w, m, chains.yearly().get(m.getYearlyGoalId())));
+		}
+		return result;
+	}
+
+	private static ActionResponse.GoalPathView pathView(WeeklyGoal w, MonthlyGoal m, YearlyGoal y) {
+		return new ActionResponse.GoalPathView(new GoalRef(y.getId(), y.getTitle()),
+				new MonthlyRef(m.getId(), m.getTitle(), YearMonth.from(m.getStartDate()).toString()),
+				new GoalRef(w.getId(), w.getTitle()));
 	}
 
 	static ActionResponse of(Action a, WeeklyGoal w, MonthlyGoal m, YearlyGoal y, LocalDate today,
@@ -90,11 +129,7 @@ public class ActionAssembler {
 		Integer daysUntilDue = a.getDueDate() == null ? null
 				: (int) ChronoUnit.DAYS.between(today, a.getDueDate());
 		boolean goal = w != null;
-		ActionResponse.GoalPathView path = goal
-				? new ActionResponse.GoalPathView(new GoalRef(y.getId(), y.getTitle()),
-						new MonthlyRef(m.getId(), m.getTitle(), YearMonth.from(m.getStartDate()).toString()),
-						new GoalRef(w.getId(), w.getTitle()))
-				: null;
+		ActionResponse.GoalPathView path = goal ? pathView(w, m, y) : null;
 		return new ActionResponse(a.getId(), a.getType(), a.getTitle(), a.getPerformedDate(), a.getDueDate(),
 				daysUntilDue, a.isCompleted(), UtcTime.toInstant(a.getCompletedAt()),
 				goal ? a.getContributionValue() : null, a.getResultSummary(), path,
