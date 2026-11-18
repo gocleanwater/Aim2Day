@@ -2,11 +2,11 @@ package com.aim2day.goal.goals;
 
 import com.aim2day.goal.goals.monthly.MonthlyGoal;
 import com.aim2day.goal.goals.monthly.MonthlyGoalRepository;
-import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDetailResponse;
-import com.aim2day.goal.goals.monthly.dto.MonthlyGoalResponse;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.MonthlyGoalDetailResponse;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.MonthlyGoalResponse;
 import com.aim2day.goal.goals.weekly.WeeklyGoal;
 import com.aim2day.goal.goals.weekly.WeeklyGoalRepository;
-import com.aim2day.goal.goals.weekly.dto.WeeklyGoalResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.WeeklyGoalResponse;
 import com.aim2day.goal.goals.yearly.YearlyGoal;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
 import com.aim2day.goal.progress.WeeklyActionCounter;

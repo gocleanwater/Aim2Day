@@ -1,10 +1,10 @@
 package com.aim2day.goal.goals.monthly;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.goals.monthly.dto.CreateMonthlyGoalRequest;
-import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDetailResponse;
-import com.aim2day.goal.goals.monthly.dto.MonthlyGoalResponse;
-import com.aim2day.goal.goals.monthly.dto.UpdateMonthlyGoalRequest;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.CreateMonthlyGoalRequest;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.MonthlyGoalDetailResponse;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.MonthlyGoalResponse;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.UpdateMonthlyGoalRequest;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

@@ -7,11 +7,13 @@ import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.UtcTime;
-import com.aim2day.goal.goals.criteria.dto.AchievementRequest;
-import com.aim2day.goal.goals.criteria.dto.AchievementResponse;
-import com.aim2day.goal.goals.criteria.dto.ConfirmCriteriaRequest;
-import com.aim2day.goal.goals.criteria.dto.CriteriaResponse;
-import com.aim2day.goal.goals.criteria.dto.SaveCriteriaRequest;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.common.validation.TextRules;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.AchievementRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.AchievementResponse;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.ConfirmCriteriaRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.CriteriaResponse;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.SaveCriteriaRequest;
 import com.aim2day.goal.goals.yearly.YearlyGoal;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
 import com.aim2day.goal.goals.yearly.YearlyGoalService;
@@ -32,7 +34,6 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -76,12 +77,9 @@ public class CriteriaService {
 		this.userRowLock = userRowLock;
 		this.progressLogs = progressLogs;
 		this.clock = clock;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	public CriteriaResponse get(long userId, long goalId) {
@@ -268,9 +266,7 @@ public class CriteriaService {
 		if (req.goalVersion() == null) {
 			errors.add("goalVersion", ValidationReason.REQUIRED);
 		}
-		if (req.memo() != null && req.memo().codePointCount(0, req.memo().length()) > MEMO_MAX) {
-			errors.add("memo", ValidationReason.TOO_LONG);
-		}
+		TextRules.maxLength(req.memo(), "memo", MEMO_MAX, errors);
 		List<SaveCriteriaRequest.Item> items = req.items();
 		if (items == null) {
 			errors.add("items", ValidationReason.REQUIRED);
@@ -287,12 +283,7 @@ public class CriteriaService {
 				errors.add(prefix, ValidationReason.INVALID_FORMAT);
 				continue;
 			}
-			String text = item.text() == null ? "" : item.text().strip();
-			if (text.isEmpty()) {
-				errors.add(prefix + ".text", ValidationReason.REQUIRED);
-			} else if (text.codePointCount(0, text.length()) > TEXT_MAX) {
-				errors.add(prefix + ".text", ValidationReason.TOO_LONG);
-			}
+			String text = TextRules.requiredStrippedText(item.text(), prefix + ".text", TEXT_MAX, errors);
 			if (item.weight() == null) {
 				errors.add(prefix + ".weight", ValidationReason.REQUIRED);
 			} else if (item.weight() < 1 || item.weight() > 100) {

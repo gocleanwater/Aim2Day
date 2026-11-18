@@ -1,8 +1,9 @@
 package com.aim2day.goal.calendar;
 
-import com.aim2day.goal.calendar.dto.CalendarDashboardResponse;
-import com.aim2day.goal.calendar.dto.CalendarItemResponse;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarDashboardResponse;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarItemResponse;
 import com.aim2day.goal.common.exception.BusinessException;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.yearly.YearlyGoal;
 import com.aim2day.goal.reports.ReportErrorCode;
 import com.aim2day.goal.settings.SettingsService;
@@ -16,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -41,9 +41,7 @@ public class CalendarQueryService {
 		this.items = items;
 		this.assembler = assembler;
 		this.settingsService = settingsService;
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	/**

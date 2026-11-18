@@ -1,6 +1,6 @@
 package com.aim2day.goal.calendar;
 
-import com.aim2day.goal.calendar.dto.CalendarItemResponse;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarItemResponse;
 import com.aim2day.goal.common.time.UtcTime;
 import com.aim2day.goal.goals.yearly.YearlyGoal;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;

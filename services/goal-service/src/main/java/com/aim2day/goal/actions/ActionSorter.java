@@ -1,6 +1,6 @@
 package com.aim2day.goal.actions;
 
-import com.aim2day.goal.actions.dto.ActionResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;

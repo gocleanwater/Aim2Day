@@ -9,9 +9,10 @@ import com.aim2day.goal.common.exception.FieldErrors;
 import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.UtcTime;
-import com.aim2day.goal.quadrant.dto.ConfirmResponse;
-import com.aim2day.goal.quadrant.dto.PlacementRequest;
-import com.aim2day.goal.quadrant.dto.PlacementResponse;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.ConfirmResponse;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementRequest;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementResponse;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
 import jakarta.persistence.EntityManager;
@@ -66,7 +67,7 @@ public class QuadrantService {
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
 		this.clock = clock;
-		this.tx = new TransactionTemplate(txManager);
+		this.tx = Tx.write(txManager);
 	}
 
 	// ---------------------------------------------------------------- PUT placement

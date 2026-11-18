@@ -1,8 +1,8 @@
 package com.aim2day.goal.settings;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.settings.dto.SettingsResponse;
-import com.aim2day.goal.settings.dto.UpdateSettingsRequest;
+import com.aim2day.goal.settings.dto.SettingsDtos.SettingsResponse;
+import com.aim2day.goal.settings.dto.SettingsDtos.UpdateSettingsRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;

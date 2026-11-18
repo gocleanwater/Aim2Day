@@ -5,15 +5,16 @@ import com.aim2day.goal.actions.ActionType;
 import com.aim2day.goal.common.exception.FieldErrors;
 import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.lock.UserRowLock;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.monthly.MonthlyGoalService;
 import com.aim2day.goal.goals.weekly.WeeklyGoalService;
 import com.aim2day.goal.goals.yearly.YearlyGoalService;
-import com.aim2day.goal.onboarding.dto.ActionItem;
-import com.aim2day.goal.onboarding.dto.CompleteRequest;
-import com.aim2day.goal.onboarding.dto.CompleteRequest.MonthlyItem;
-import com.aim2day.goal.onboarding.dto.CompleteRequest.WeeklyItem;
-import com.aim2day.goal.onboarding.dto.CompleteRequest.YearlyItem;
-import com.aim2day.goal.onboarding.dto.CompleteResponse;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.ActionItem;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.CompleteRequest;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.CompleteRequest.MonthlyItem;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.CompleteRequest.WeeklyItem;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.CompleteRequest.YearlyItem;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.CompleteResponse;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
 import java.util.ArrayList;
@@ -64,7 +65,7 @@ public class OnboardingCompleteService {
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
 		// 격리 수준을 지정하지 않는다(MySQL 기본 REPEATABLE READ). users 행 잠금이 첫 쿼리라 그 뒤 읽기는 앞선 요청의 커밋을 본다.
-		this.tx = new TransactionTemplate(txManager);
+		this.tx = Tx.write(txManager);
 	}
 
 	public CompleteResponse complete(long userId, CompleteRequest req) {

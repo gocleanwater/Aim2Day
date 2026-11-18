@@ -1,6 +1,6 @@
 package com.aim2day.user.auth;
 
-import com.aim2day.user.auth.dto.PasswordResetRequest;
+import com.aim2day.user.auth.dto.AuthDtos.PasswordResetRequest;
 import com.aim2day.user.auth.token.AuthTokenStore;
 import com.aim2day.user.auth.token.TokenCodec;
 import com.aim2day.user.common.response.BusinessException;

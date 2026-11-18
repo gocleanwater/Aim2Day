@@ -1,7 +1,8 @@
 package com.aim2day.goal.actions;
 
-import com.aim2day.goal.actions.dto.ActionListResponse;
-import com.aim2day.goal.actions.dto.ActionResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionListResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.quadrant.ConfirmedDateStore;
 import com.aim2day.goal.quadrant.PlacementViews;
 import com.aim2day.goal.settings.SettingsService;
@@ -10,7 +11,6 @@ import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -32,9 +32,7 @@ public class ActionListService {
 		this.assembler = assembler;
 		this.settingsService = settingsService;
 		this.confirmedDates = confirmedDates;
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	public ActionListResponse list(long userId, LocalDate date, ActionSort sort) {

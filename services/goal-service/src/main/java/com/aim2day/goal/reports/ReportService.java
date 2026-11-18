@@ -3,22 +3,23 @@ package com.aim2day.goal.reports;
 import com.aim2day.goal.actions.Action;
 import com.aim2day.goal.actions.ActionAssembler;
 import com.aim2day.goal.actions.ActionRepository;
-import com.aim2day.goal.actions.dto.ActionResponse.GoalPathView;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.GoalPathView;
 import com.aim2day.goal.common.exception.BusinessException;
 import com.aim2day.goal.common.exception.FieldErrors;
 import com.aim2day.goal.common.exception.ValidationReason;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.yearly.YearlyGoal;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
 import com.aim2day.goal.progress.GoalProgressLog;
 import com.aim2day.goal.progress.ProgressLogRepository;
-import com.aim2day.goal.reports.dto.ReportResponse;
-import com.aim2day.goal.reports.dto.ReportResponse.GoalProgressItem;
-import com.aim2day.goal.reports.dto.ReportResponse.ReportAction;
-import com.aim2day.goal.reports.dto.ReportResponse.ReportResult;
-import com.aim2day.goal.reports.dto.ReportResponse.Summary;
-import com.aim2day.goal.reports.dto.ReportTabsResponse;
-import com.aim2day.goal.reports.dto.ReportTabsResponse.Tab;
-import com.aim2day.goal.reports.dto.ReviewResponse;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportResponse;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportResponse.GoalProgressItem;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportResponse.ReportAction;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportResponse.ReportResult;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportResponse.Summary;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportTabsResponse;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportTabsResponse.Tab;
+import com.aim2day.goal.reports.dto.ReportDtos.ReviewResponse;
 import com.aim2day.goal.settings.SettingsService;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -32,7 +33,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -64,14 +64,13 @@ public class ReportService {
 		this.logs = logs;
 		this.reviews = reviews;
 		this.settingsService = settingsService;
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	/**
 	 * 기준 월에 끝나는 기간 탭. 월간은 항상, 분기는 3·6·9·12월, 연간은 12월에만 둔다(결정 20).
-	 * month를 생략하면 이번 달이다. 미래 달은 422다. DB를 읽지 않으므로 트랜잭션이 없다.
+	 * month를 생략하면 이번 달이다. 미래 달은 422다. 오늘(계정 시간대)만 SettingsService.userTime이 자체 트랜잭션으로 읽고,
+	 * 탭 계산은 DB를 읽지 않으므로 이 메서드에는 트랜잭션이 없다.
 	 */
 	public ReportTabsResponse tabs(long userId, String rawMonth) {
 		LocalDate today = settingsService.userTime(userId).today();

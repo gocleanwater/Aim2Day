@@ -3,5 +3,5 @@
 for i in 1 2; do echo "goal-review-$i WARN/ERROR:"; docker logs aim2day-goal-service-review-$i 2>&1 | grep -E " (WARN|ERROR) " | grep -v SpringDoc | sed -E "s/^.*(WARN|ERROR)/\1/" | cut -c1-200 | sort | uniq -c | head -20; done
 docker rm -f aim2day-user-service-review aim2day-goal-service-review-1 aim2day-goal-service-review-2 aim2day-redis-review >/dev/null 2>&1
 docker rmi aim2day-goal-service:review >/dev/null 2>&1
-rm -rf /tmp/gs-review /tmp/gs.tgz
+rm -rf /tmp/gs-review /tmp/gs.tgz /tmp/us-review /tmp/us.tgz
 echo "aim2day containers running: $(docker ps --format '{{.Names}}' | grep -c '^aim2day-')"

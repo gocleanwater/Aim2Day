@@ -278,7 +278,7 @@ class OnboardingCompleteApiTests extends OnboardingTestBase {
 		assertThat(rows("monthly_goals")).isEqualTo(1); // 타인 것만
 		assertThat(rows("weekly_goals")).isEqualTo(1);
 		assertThat(rows("actions")).isZero();
-		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.keep", true, "$.data.version", v0());
+		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.keep", true, "$.data.version", firstVersion());
 	}
 
 	@Test
@@ -309,7 +309,7 @@ class OnboardingCompleteApiTests extends OnboardingTestBase {
 		assertThat(rate("monthly_goals", m)).isEqualByComparingTo(monthlyBefore);
 		assertThat(rows("goal_progress_logs")).isEqualTo(logsBefore);
 		assertThat(rows("actions")).isEqualTo(actionsBefore);
-		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.keep", true, "$.data.version", v0());
+		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.keep", true, "$.data.version", firstVersion());
 	}
 
 	@Test

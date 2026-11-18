@@ -2,12 +2,12 @@ package com.aim2day.goal.goals.criteria;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.aim2day.goal.goals.criteria.dto.AchievementRequest;
-import com.aim2day.goal.goals.criteria.dto.ConfirmCriteriaRequest;
-import com.aim2day.goal.goals.criteria.dto.CriteriaResponse;
-import com.aim2day.goal.goals.criteria.dto.SaveCriteriaRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.AchievementRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.ConfirmCriteriaRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.CriteriaResponse;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.SaveCriteriaRequest;
 import com.aim2day.goal.goals.yearly.YearlyGoalService;
-import com.aim2day.goal.goals.yearly.dto.CreateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.CreateYearlyGoalRequest;
 import com.aim2day.goal.support.GoalTestSupport;
 import com.aim2day.goal.support.TestClockConfig;
 import com.aim2day.goal.support.TestSessionConfig;

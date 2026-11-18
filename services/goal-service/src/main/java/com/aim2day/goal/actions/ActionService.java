@@ -1,10 +1,10 @@
 package com.aim2day.goal.actions;
 
-import com.aim2day.goal.actions.dto.ActionCompletionResponse;
-import com.aim2day.goal.actions.dto.ActionResponse;
-import com.aim2day.goal.actions.dto.CompletionRequest;
-import com.aim2day.goal.actions.dto.CreateActionRequest;
-import com.aim2day.goal.actions.dto.UpdateActionRequest;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionCompletionResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.CompletionRequest;
+import com.aim2day.goal.actions.dto.ActionDtos.CreateActionRequest;
+import com.aim2day.goal.actions.dto.ActionDtos.UpdateActionRequest;
 import com.aim2day.goal.common.exception.BusinessException;
 import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
@@ -12,6 +12,8 @@ import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.UtcTime;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.common.validation.TextRules;
 import com.aim2day.goal.goals.DecimalRules;
 import com.aim2day.goal.goals.GoalErrorCode;
 import com.aim2day.goal.goals.ProgressView;
@@ -39,7 +41,6 @@ import java.util.Optional;
 import java.util.TreeSet;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -95,9 +96,8 @@ public class ActionService {
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
 		this.clock = clock;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
 	}
 
 	/** 없음·타인 소유·삭제·경로 삭제를 모두 같은 404로 돌려 남의 행동이 존재하는지 알 수 없게 한다. */
@@ -258,9 +258,7 @@ public class ActionService {
 		if (req.completed() == null) {
 			errors.add("completed", ValidationReason.REQUIRED);
 		}
-		if (req.memo() != null && req.memo().codePointCount(0, req.memo().length()) > MEMO_MAX) {
-			errors.add("memo", ValidationReason.TOO_LONG);
-		}
+		TextRules.maxLength(req.memo(), "memo", MEMO_MAX, errors);
 		errors.throwIfAny();
 		boolean completed = req.completed();
 
@@ -397,9 +395,7 @@ public class ActionService {
 			String resultSummary = action.getResultSummary();
 			if (req.resultSummary() != null) {
 				resultSummary = req.resultSummary().orElse(null);
-				if (resultSummary != null && resultSummary.codePointCount(0, resultSummary.length()) > SUMMARY_MAX) {
-					errors.add("resultSummary", ValidationReason.TOO_LONG);
-				}
+				TextRules.maxLength(resultSummary, "resultSummary", SUMMARY_MAX, errors);
 			}
 			boolean contributionGiven = req.contributionValue() != null;
 			BigDecimal newContribution = action.getContributionValue();
@@ -612,13 +608,7 @@ public class ActionService {
 	}
 
 	private static String title(String raw, FieldErrors errors) {
-		String title = raw == null ? "" : raw.strip();
-		if (title.isEmpty()) {
-			errors.add("title", ValidationReason.REQUIRED);
-		} else if (title.codePointCount(0, title.length()) > TITLE_MAX) {
-			errors.add("title", ValidationReason.TOO_LONG);
-		}
-		return title;
+		return TextRules.requiredStrippedText(raw, "title", TITLE_MAX, errors);
 	}
 
 	private static BusinessException outOfRange(LocalDate currentWeekEnd, LocalDate performedDate) {

@@ -17,7 +17,14 @@ fi
 rm -rf /tmp/gs-review && mkdir -p /tmp/gs-review && tar -xzf /tmp/gs.tgz -C /tmp/gs-review
 docker build -q -t aim2day-goal-service:review /tmp/gs-review/goal-service >/dev/null 2>&1
 DB="-e SPRING_DATASOURCE_URL=jdbc:mysql://aim2day-mysql:3306/aim2day_review -e SPRING_DATASOURCE_USERNAME=aim2day_app -e SPRING_DATASOURCE_PASSWORD=aim2daypass! -e SPRING_DATA_REDIS_HOST=aim2day-redis-review"
-docker run -d --name aim2day-user-service-review --hostname aim2day-user-service-review --network aim2day-net $DB -e APP_BASE_URL=http://192.168.136.128 aim2day-user-service >/dev/null
+# 업로드한 user-service 소스(/tmp/us.tgz)가 있으면 그것으로 시험용 이미지를 만들고, 없으면 운영 이미지를 쓴다.
+USER_IMAGE=aim2day-user-service
+if [ -f /tmp/us.tgz ]; then
+  rm -rf /tmp/us-review && mkdir -p /tmp/us-review && tar -xzf /tmp/us.tgz -C /tmp/us-review
+  docker build -q -t aim2day-user-service:review /tmp/us-review/user-service >/dev/null 2>&1 && USER_IMAGE=aim2day-user-service:review
+  echo "user-service image: $USER_IMAGE"
+fi
+docker run -d --name aim2day-user-service-review --hostname aim2day-user-service-review --network aim2day-net $DB -e APP_BASE_URL=http://192.168.136.128 $USER_IMAGE >/dev/null
 for t in $(seq 1 60); do docker logs aim2day-user-service-review 2>&1 | grep -q "Started UserServiceApplication" && break; sleep 2; done
 # 휴지통 정리 주기를 짧게 하려면 실행 전에 AIM2DAY_TRASH_PURGE_CRON을 넘긴다(예: "*/5 * * * * *"). 비우면 기본값(매시 정각).
 EXTRA=()

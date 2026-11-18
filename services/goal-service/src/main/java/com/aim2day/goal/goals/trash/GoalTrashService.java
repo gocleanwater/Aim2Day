@@ -4,12 +4,13 @@ import com.aim2day.goal.actions.ActionRepository;
 import com.aim2day.goal.common.exception.BusinessException;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.UtcTime;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.GoalErrorCode;
 import com.aim2day.goal.goals.monthly.MonthlyGoal;
 import com.aim2day.goal.goals.monthly.MonthlyGoalRepository;
 import com.aim2day.goal.goals.monthly.MonthlyGoalService;
-import com.aim2day.goal.goals.trash.dto.DeleteGoalResponse;
-import com.aim2day.goal.goals.trash.dto.TrashItemResponse;
+import com.aim2day.goal.goals.trash.dto.TrashDtos.DeleteGoalResponse;
+import com.aim2day.goal.goals.trash.dto.TrashDtos.TrashItemResponse;
 import com.aim2day.goal.goals.weekly.WeeklyGoal;
 import com.aim2day.goal.goals.weekly.WeeklyGoalRepository;
 import com.aim2day.goal.goals.weekly.WeeklyGoalService;
@@ -33,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -91,10 +91,8 @@ public class GoalTrashService {
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
 		this.clock = clock;
-		this.tx = new TransactionTemplate(txManager);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.tx = Tx.write(txManager);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	/**

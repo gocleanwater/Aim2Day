@@ -1,11 +1,11 @@
 package com.aim2day.goal.actions;
 
-import com.aim2day.goal.actions.dto.ActionCompletionResponse;
-import com.aim2day.goal.actions.dto.ActionListResponse;
-import com.aim2day.goal.actions.dto.ActionResponse;
-import com.aim2day.goal.actions.dto.CompletionRequest;
-import com.aim2day.goal.actions.dto.CreateActionRequest;
-import com.aim2day.goal.actions.dto.UpdateActionRequest;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionCompletionResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionListResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.CompletionRequest;
+import com.aim2day.goal.actions.dto.ActionDtos.CreateActionRequest;
+import com.aim2day.goal.actions.dto.ActionDtos.UpdateActionRequest;
 import com.aim2day.goal.common.response.ApiResponse;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;

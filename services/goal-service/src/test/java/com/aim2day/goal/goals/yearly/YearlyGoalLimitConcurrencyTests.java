@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aim2day.goal.common.exception.BusinessException;
 import com.aim2day.goal.goals.GoalErrorCode;
-import com.aim2day.goal.goals.yearly.dto.CreateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.CreateYearlyGoalRequest;
 import com.aim2day.goal.support.GoalTestSupport;
 import com.aim2day.goal.support.TestClockConfig;
 import com.aim2day.goal.support.TestSessionConfig;

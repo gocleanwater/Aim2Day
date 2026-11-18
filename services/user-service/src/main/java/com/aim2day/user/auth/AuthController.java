@@ -1,15 +1,15 @@
 package com.aim2day.user.auth;
 
-import com.aim2day.user.auth.dto.EmailCodeRequest;
-import com.aim2day.user.auth.dto.EmailCodeResponse;
-import com.aim2day.user.auth.dto.EmailCodeVerifyRequest;
-import com.aim2day.user.auth.dto.EmailCodeVerifyResponse;
-import com.aim2day.user.auth.dto.PasswordResetLinkRequest;
-import com.aim2day.user.auth.dto.PasswordResetRequest;
-import com.aim2day.user.auth.dto.SignupRequest;
-import com.aim2day.user.auth.dto.SignupResponse;
-import com.aim2day.user.auth.dto.LoginRequest;
-import com.aim2day.user.auth.dto.LoginResponse;
+import com.aim2day.user.auth.dto.AuthDtos.EmailCodeRequest;
+import com.aim2day.user.auth.dto.AuthDtos.EmailCodeResponse;
+import com.aim2day.user.auth.dto.AuthDtos.EmailCodeVerifyRequest;
+import com.aim2day.user.auth.dto.AuthDtos.EmailCodeVerifyResponse;
+import com.aim2day.user.auth.dto.AuthDtos.PasswordResetLinkRequest;
+import com.aim2day.user.auth.dto.AuthDtos.PasswordResetRequest;
+import com.aim2day.user.auth.dto.AuthDtos.SignupRequest;
+import com.aim2day.user.auth.dto.AuthDtos.SignupResponse;
+import com.aim2day.user.auth.dto.AuthDtos.LoginRequest;
+import com.aim2day.user.auth.dto.AuthDtos.LoginResponse;
 import com.aim2day.user.common.response.ApiResponse;
 import com.aim2day.user.common.security.SessionUserIdAuthenticationFilter;
 import com.aim2day.user.user.User;

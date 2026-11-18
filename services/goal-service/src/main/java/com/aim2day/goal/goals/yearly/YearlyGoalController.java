@@ -1,12 +1,12 @@
 package com.aim2day.goal.goals.yearly;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.goals.yearly.dto.CreateYearlyGoalRequest;
-import com.aim2day.goal.goals.yearly.dto.ReorderYearlyGoalsRequest;
-import com.aim2day.goal.goals.yearly.dto.UpdateYearlyGoalRequest;
-import com.aim2day.goal.goals.yearly.dto.YearlyGoalDetailResponse;
-import com.aim2day.goal.goals.yearly.dto.YearlyGoalListResponse;
-import com.aim2day.goal.goals.yearly.dto.YearlyGoalResponse;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.CreateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.ReorderYearlyGoalsRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.UpdateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.YearlyGoalDetailResponse;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.YearlyGoalListResponse;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.YearlyGoalResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;

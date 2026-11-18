@@ -1,10 +1,10 @@
 package com.aim2day.goal.reports;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.reports.dto.PutReviewRequest;
-import com.aim2day.goal.reports.dto.ReportResponse;
-import com.aim2day.goal.reports.dto.ReportTabsResponse;
-import com.aim2day.goal.reports.dto.ReviewResponse;
+import com.aim2day.goal.reports.dto.ReportDtos.PutReviewRequest;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportResponse;
+import com.aim2day.goal.reports.dto.ReportDtos.ReportTabsResponse;
+import com.aim2day.goal.reports.dto.ReportDtos.ReviewResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

@@ -1,10 +1,10 @@
 package com.aim2day.goal.goals.weekly.record;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.goals.weekly.record.dto.CreateNumericRecordRequest;
-import com.aim2day.goal.goals.weekly.record.dto.NumericRecordCreatedResponse;
-import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDeletedResponse;
-import com.aim2day.goal.goals.weekly.record.dto.NumericRecordResponse;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.CreateNumericRecordRequest;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.NumericRecordCreatedResponse;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.NumericRecordDeletedResponse;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.NumericRecordResponse;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

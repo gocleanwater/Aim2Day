@@ -1,8 +1,8 @@
 package com.aim2day.goal.goals.trash;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.goals.trash.dto.DeleteGoalResponse;
-import com.aim2day.goal.goals.trash.dto.TrashItemResponse;
+import com.aim2day.goal.goals.trash.dto.TrashDtos.DeleteGoalResponse;
+import com.aim2day.goal.goals.trash.dto.TrashDtos.TrashItemResponse;
 import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;

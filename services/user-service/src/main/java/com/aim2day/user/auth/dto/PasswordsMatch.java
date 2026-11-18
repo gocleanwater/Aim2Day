@@ -1,5 +1,7 @@
 package com.aim2day.user.auth.dto;
 
+import com.aim2day.user.auth.dto.AuthDtos.PasswordResetRequest;
+import com.aim2day.user.auth.dto.AuthDtos.SignupRequest;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;

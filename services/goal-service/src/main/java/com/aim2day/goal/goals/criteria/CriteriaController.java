@@ -1,11 +1,11 @@
 package com.aim2day.goal.goals.criteria;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.goals.criteria.dto.AchievementRequest;
-import com.aim2day.goal.goals.criteria.dto.AchievementResponse;
-import com.aim2day.goal.goals.criteria.dto.ConfirmCriteriaRequest;
-import com.aim2day.goal.goals.criteria.dto.CriteriaResponse;
-import com.aim2day.goal.goals.criteria.dto.SaveCriteriaRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.AchievementRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.AchievementResponse;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.ConfirmCriteriaRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.CriteriaResponse;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.SaveCriteriaRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;

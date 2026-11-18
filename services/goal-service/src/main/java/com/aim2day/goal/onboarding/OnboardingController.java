@@ -1,11 +1,11 @@
 package com.aim2day.goal.onboarding;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.onboarding.dto.CompleteRequest;
-import com.aim2day.goal.onboarding.dto.CompleteResponse;
-import com.aim2day.goal.onboarding.dto.DraftResponse;
-import com.aim2day.goal.onboarding.dto.PutDraftRequest;
-import com.aim2day.goal.onboarding.dto.StatusResponse;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.CompleteRequest;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.CompleteResponse;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.DraftResponse;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.PutDraftRequest;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.StatusResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;

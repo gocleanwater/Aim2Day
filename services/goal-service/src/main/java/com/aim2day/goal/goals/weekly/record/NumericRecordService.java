@@ -7,6 +7,8 @@ import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
 import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.lock.UserRowLock;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.common.validation.TextRules;
 import com.aim2day.goal.goals.DecimalRules;
 import com.aim2day.goal.goals.GoalAssembler;
 import com.aim2day.goal.goals.GoalErrorCode;
@@ -14,11 +16,11 @@ import com.aim2day.goal.goals.weekly.MeasurementType;
 import com.aim2day.goal.goals.weekly.WeeklyGoal;
 import com.aim2day.goal.goals.weekly.WeeklyGoalRepository;
 import com.aim2day.goal.goals.weekly.WeeklyGoalService;
-import com.aim2day.goal.goals.weekly.dto.WeeklyGoalResponse;
-import com.aim2day.goal.goals.weekly.record.dto.CreateNumericRecordRequest;
-import com.aim2day.goal.goals.weekly.record.dto.NumericRecordCreatedResponse;
-import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDeletedResponse;
-import com.aim2day.goal.goals.weekly.record.dto.NumericRecordResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.WeeklyGoalResponse;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.CreateNumericRecordRequest;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.NumericRecordCreatedResponse;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.NumericRecordDeletedResponse;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.NumericRecordResponse;
 import com.aim2day.goal.progress.ProgressEngine;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
@@ -32,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -76,10 +77,8 @@ public class NumericRecordService {
 		this.engine = engine;
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
-		this.tx = new TransactionTemplate(txManager);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.tx = Tx.write(txManager);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	public List<NumericRecordResponse> list(long userId, long weeklyGoalId) {
@@ -101,9 +100,7 @@ public class NumericRecordService {
 
 		FieldErrors errors = new FieldErrors();
 		BigDecimal amount = DecimalRules.positive(req.amount(), DecimalRules.MAX_VALUE, "amount", errors);
-		if (req.memo() != null && req.memo().codePointCount(0, req.memo().length()) > MEMO_MAX) {
-			errors.add("memo", ValidationReason.TOO_LONG);
-		}
+		TextRules.maxLength(req.memo(), "memo", MEMO_MAX, errors);
 		errors.throwIfAny();
 
 		return tx.execute(status -> {

@@ -2,7 +2,7 @@ package com.aim2day.goal.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.aim2day.goal.actions.dto.CompletionRequest;
+import com.aim2day.goal.actions.dto.ActionDtos.CompletionRequest;
 import com.aim2day.goal.support.GoalTestSupport;
 import com.aim2day.goal.support.MutableClock;
 import com.aim2day.goal.support.TestClockConfig;

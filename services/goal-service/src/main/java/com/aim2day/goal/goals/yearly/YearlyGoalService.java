@@ -6,6 +6,7 @@ import com.aim2day.goal.common.exception.FieldErrors;
 import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.GoalErrorCode;
 import com.aim2day.goal.goals.GoalFieldRules;
 import com.aim2day.goal.goals.GoalAssembler;
@@ -14,12 +15,12 @@ import com.aim2day.goal.goals.criteria.CriteriaCalculator;
 import com.aim2day.goal.goals.criteria.CriterionRepository;
 import com.aim2day.goal.goals.criteria.YearlyGoalCriterion;
 import com.aim2day.goal.goals.monthly.MonthlyGoalRepository;
-import com.aim2day.goal.goals.yearly.dto.CreateYearlyGoalRequest;
-import com.aim2day.goal.goals.yearly.dto.ReorderYearlyGoalsRequest;
-import com.aim2day.goal.goals.yearly.dto.UpdateYearlyGoalRequest;
-import com.aim2day.goal.goals.yearly.dto.YearlyGoalDetailResponse;
-import com.aim2day.goal.goals.yearly.dto.YearlyGoalListResponse;
-import com.aim2day.goal.goals.yearly.dto.YearlyGoalResponse;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.CreateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.ReorderYearlyGoalsRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.UpdateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.YearlyGoalDetailResponse;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.YearlyGoalListResponse;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.YearlyGoalResponse;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
 import jakarta.persistence.EntityManager;
@@ -32,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -70,12 +70,9 @@ public class YearlyGoalService {
 		this.assembler = assembler;
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	/**
@@ -235,35 +232,10 @@ public class YearlyGoalService {
 
 			// 필드 없음(null)은 유지, JSON null(Optional.empty)은 지움이다. description만 지울 수 있다.
 			FieldErrors errors = new FieldErrors();
-			String title = goal.getTitle();
-			if (req.title() != null) {
-				if (req.title().isPresent()) {
-					title = GoalFieldRules.title(req.title().get(), errors);
-				} else {
-					errors.add("title", ValidationReason.REQUIRED);
-				}
-			}
-			String description = goal.getDescription();
-			if (req.description() != null) {
-				description = req.description().isPresent()
-						? GoalFieldRules.description(req.description().get(), errors) : null;
-			}
-			String color = goal.getColor();
-			if (req.color() != null) {
-				if (req.color().isPresent()) {
-					color = GoalFieldRules.color(req.color().get(), errors);
-				} else {
-					errors.add("color", ValidationReason.REQUIRED);
-				}
-			}
-			GoalStatus newStatus = goal.getStatus();
-			if (req.status() != null) {
-				if (req.status().isPresent()) {
-					newStatus = req.status().get();
-				} else {
-					errors.add("status", ValidationReason.REQUIRED);
-				}
-			}
+			String title = GoalFieldRules.patchTitle(req.title(), goal.getTitle(), errors);
+			String description = GoalFieldRules.patchDescription(req.description(), goal.getDescription(), errors);
+			String color = GoalFieldRules.patchRequiredColor(req.color(), goal.getColor(), errors);
+			GoalStatus newStatus = GoalFieldRules.patchStatus(req.status(), goal.getStatus(), errors);
 			errors.throwIfAny();
 
 			VersionGuard.check(req.version(), goal.getVersion());
@@ -278,11 +250,8 @@ public class YearlyGoalService {
 
 	/** 롤백이 끝난 뒤 새 트랜잭션에서 최신 version을 읽는다. 실패한 트랜잭션의 컨텍스트는 오염돼 있다. */
 	private long currentVersion(long goalId) {
-		Long version = newTx.execute(status -> repository.findById(goalId).map(YearlyGoal::getVersion).orElse(null));
-		if (version == null) {
-			throw notFound(goalId);
-		}
-		return version;
+		return VersionGuard.latestVersion(newTx, () -> repository.findById(goalId).map(YearlyGoal::getVersion).orElse(null),
+				() -> notFound(goalId));
 	}
 
 	private YearlyGoalResponse toResponse(YearlyGoal goal, LocalDate today) {

@@ -1,7 +1,7 @@
 package com.aim2day.goal.quadrant;
 
-import com.aim2day.goal.actions.dto.ActionResponse.Coordinate;
-import com.aim2day.goal.actions.dto.ActionResponse.Placement;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.Coordinate;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.Placement;
 
 /**
  * 좌표 행 -> 응답의 placement(API 명세 §4.9 표). 읽는 규칙이 한 곳에만 있어 모든 인스턴스가 같은 결과를 낸다.

@@ -1,9 +1,9 @@
 package com.aim2day.goal.calendar;
 
-import com.aim2day.goal.calendar.dto.CalendarCompletionRequest;
-import com.aim2day.goal.calendar.dto.CalendarItemResponse;
-import com.aim2day.goal.calendar.dto.CreateCalendarItemRequest;
-import com.aim2day.goal.calendar.dto.UpdateCalendarItemRequest;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarCompletionRequest;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarItemResponse;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CreateCalendarItemRequest;
+import com.aim2day.goal.calendar.dto.CalendarDtos.UpdateCalendarItemRequest;
 import com.aim2day.goal.common.exception.BusinessException;
 import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
@@ -11,6 +11,8 @@ import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.UtcTime;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.common.validation.TextRules;
 import com.aim2day.goal.goals.GoalErrorCode;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
 import com.aim2day.goal.settings.SettingsService;
@@ -25,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -70,9 +71,8 @@ public class CalendarItemService {
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
 		this.clock = clock;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
 	}
 
 	/** 없음·타인 소유를 같은 404로 돌려 남의 항목이 존재하는지 알 수 없게 한다. */
@@ -273,19 +273,10 @@ public class CalendarItemService {
 	}
 
 	private static String title(String raw, FieldErrors errors) {
-		String title = raw == null ? "" : raw.strip();
-		if (title.isEmpty()) {
-			errors.add("title", ValidationReason.REQUIRED);
-		} else if (title.codePointCount(0, title.length()) > TITLE_MAX) {
-			errors.add("title", ValidationReason.TOO_LONG);
-		}
-		return title;
+		return TextRules.requiredStrippedText(raw, "title", TITLE_MAX, errors);
 	}
 
 	private static String description(String raw, FieldErrors errors) {
-		if (raw != null && raw.codePointCount(0, raw.length()) > DESCRIPTION_MAX) {
-			errors.add("description", ValidationReason.TOO_LONG);
-		}
-		return raw;
+		return TextRules.maxLength(raw, "description", DESCRIPTION_MAX, errors);
 	}
 }

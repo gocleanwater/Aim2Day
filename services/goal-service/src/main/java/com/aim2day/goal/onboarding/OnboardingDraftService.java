@@ -1,22 +1,18 @@
 package com.aim2day.goal.onboarding;
 
-import com.aim2day.goal.common.exception.BusinessException;
-import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
 import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
-import com.aim2day.goal.onboarding.dto.DraftResponse;
-import com.aim2day.goal.onboarding.dto.PutDraftRequest;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.DraftResponse;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.PutDraftRequest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.nio.charset.StandardCharsets;
 import com.aim2day.goal.settings.SettingsService;
-import java.util.HashMap;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -52,12 +48,9 @@ public class OnboardingDraftService {
 		this.repository = repository;
 		this.userRowLock = userRowLock;
 		this.settingsService = settingsService;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	/** 임시 저장이 없으면 null(응답 data: null). */
@@ -90,11 +83,11 @@ public class OnboardingDraftService {
 		return VersionGuard.translateConflict(() -> tx.execute(status -> {
 			userRowLock.lock(userId);
 			OnboardingDraft draft = repository.findByUserId(userId).orElse(null);
-			if (draft == null) {
-				if (req.version() != null) {
-					// 임시 저장이 이미 없다(다른 탭이 온보딩을 끝내 지웠다). 오래된 탭이 되살리지 못하게 한다.
-					throw conflict(null);
-				}
+			// 임시 저장이 이미 없는데 version을 보냈으면(다른 탭이 온보딩을 끝내 지웠다) 오래된 탭이 되살리지 못하게
+			// 409 currentVersion null이다. 이미 있는데 version을 생략했거나 다르면 어느 쪽이든 오래된 화면의 저장이다.
+			// 개별 수정 API의 "version 필수 400"과 달리 첫 저장 때만 생략이 정상이므로, 생략도 충돌로 알려 최신 version을 준다.
+			if (VersionGuard.checkUpsert(draft == null ? null : draft.getVersion(),
+					req.version()) == VersionGuard.UpsertAction.CREATE) {
 				// 시작 version = 사용자별 카운터 + 1. 삭제(DELETE·완료) 뒤 다시 만들어도 예전 탭이 가진 어떤 version보다
 				// 크므로 그 탭의 PUT은 409가 된다(이후 PUT은 +1). 카운터는 삭제해도 남는다.
 				// @Version 엔티티는 시작값을 직접 줄 수 없어(값이 있으면 새 엔티티로 취급되지 않는다) 0으로 INSERT한 뒤
@@ -106,11 +99,6 @@ public class OnboardingDraftService {
 				recordVersion(userId, start);
 				em.refresh(created);
 				return DraftResponse.of(created);
-			}
-			// 이미 있는데 version을 생략했거나 다르면 어느 쪽이든 오래된 화면의 저장이다. 개별 수정 API의 "version 필수 400"과
-			// 달리 첫 저장 때만 생략이 정상이므로, 생략도 충돌로 알려 최신 version을 알려 준다.
-			if (req.version() == null || !draft.getVersion().equals(req.version())) {
-				throw conflict(draft.getVersion());
 			}
 			draft.change(step, data);
 			repository.saveAndFlush(draft);
@@ -145,18 +133,8 @@ public class OnboardingDraftService {
 
 	/** 롤백이 끝난 뒤 새 트랜잭션에서 최신 version을 읽는다. 그 사이 지워졌으면 currentVersion null 충돌이다. */
 	private long currentVersionOrConflict(long userId) {
-		Long version = newTx.execute(status -> repository.findByUserId(userId)
-				.map(OnboardingDraft::getVersion).orElse(null));
-		if (version == null) {
-			throw conflict(null);
-		}
-		return version;
-	}
-
-	private static BusinessException conflict(Long currentVersion) {
-		// Map.of는 null 값을 받지 않는다. 명세는 currentVersion: null을 "임시 저장 없음"으로 쓴다.
-		Map<String, Object> details = new HashMap<>();
-		details.put("currentVersion", currentVersion);
-		return new BusinessException(CommonErrorCode.VERSION_CONFLICT, details);
+		return VersionGuard.latestVersion(newTx,
+				() -> repository.findByUserId(userId).map(OnboardingDraft::getVersion).orElse(null),
+				() -> VersionGuard.conflict(null));
 	}
 }

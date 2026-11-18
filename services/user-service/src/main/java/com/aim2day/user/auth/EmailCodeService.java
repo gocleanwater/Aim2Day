@@ -1,7 +1,7 @@
 package com.aim2day.user.auth;
 
-import com.aim2day.user.auth.dto.EmailCodeResponse;
-import com.aim2day.user.auth.dto.EmailCodeVerifyResponse;
+import com.aim2day.user.auth.dto.AuthDtos.EmailCodeResponse;
+import com.aim2day.user.auth.dto.AuthDtos.EmailCodeVerifyResponse;
 import com.aim2day.user.auth.token.AuthTokenStore;
 import com.aim2day.user.auth.token.AuthTokenStore.CodeCheck;
 import com.aim2day.user.auth.token.CodeGenerator;

@@ -1,7 +1,7 @@
 package com.aim2day.user.auth;
 
-import com.aim2day.user.auth.dto.SignupRequest;
-import com.aim2day.user.auth.dto.SignupResponse;
+import com.aim2day.user.auth.dto.AuthDtos.SignupRequest;
+import com.aim2day.user.auth.dto.AuthDtos.SignupResponse;
 import com.aim2day.user.auth.token.AuthTokenStore;
 import com.aim2day.user.common.response.BusinessException;
 import com.aim2day.user.common.response.ErrorCode;

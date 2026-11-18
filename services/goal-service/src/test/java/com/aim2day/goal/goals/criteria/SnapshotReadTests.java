@@ -5,12 +5,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.aim2day.goal.goals.criteria.dto.ConfirmCriteriaRequest;
-import com.aim2day.goal.goals.criteria.dto.CriteriaResponse;
-import com.aim2day.goal.goals.criteria.dto.SaveCriteriaRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.ConfirmCriteriaRequest;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.CriteriaResponse;
+import com.aim2day.goal.goals.criteria.dto.CriteriaDtos.SaveCriteriaRequest;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
 import com.aim2day.goal.goals.yearly.YearlyGoalService;
-import com.aim2day.goal.goals.yearly.dto.CreateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.CreateYearlyGoalRequest;
 import com.aim2day.goal.support.GoalTestSupport;
 import com.aim2day.goal.support.TestClockConfig;
 import com.aim2day.goal.support.TestSessionConfig;

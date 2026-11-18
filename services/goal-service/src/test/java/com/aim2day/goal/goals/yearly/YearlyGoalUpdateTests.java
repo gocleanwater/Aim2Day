@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.aim2day.goal.goals.GoalStatus;
-import com.aim2day.goal.goals.yearly.dto.UpdateYearlyGoalRequest;
+import com.aim2day.goal.goals.yearly.dto.YearlyGoalDtos.UpdateYearlyGoalRequest;
 import com.aim2day.goal.support.GoalTestSupport;
 import com.aim2day.goal.support.MutableClock;
 import com.aim2day.goal.support.TestClockConfig;

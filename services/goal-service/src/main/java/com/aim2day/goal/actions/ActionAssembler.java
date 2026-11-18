@@ -1,7 +1,7 @@
 package com.aim2day.goal.actions;
 
-import com.aim2day.goal.actions.dto.ActionResponse;
-import com.aim2day.goal.actions.dto.ActionResponse.Placement;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse;
+import com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.Placement;
 import com.aim2day.goal.common.time.UtcTime;
 import com.aim2day.goal.goals.GoalPath;
 import com.aim2day.goal.goals.GoalRef;

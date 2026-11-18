@@ -1,9 +1,9 @@
 package com.aim2day.goal.quadrant;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.quadrant.dto.ConfirmResponse;
-import com.aim2day.goal.quadrant.dto.PlacementRequest;
-import com.aim2day.goal.quadrant.dto.PlacementResponse;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.ConfirmResponse;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementRequest;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;

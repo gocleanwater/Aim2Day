@@ -1,49 +1,22 @@
 package com.aim2day.goal.quadrant;
 
-import com.aim2day.goal.support.GoalApiClient;
-import com.aim2day.goal.support.GoalTestSupport;
-import com.aim2day.goal.support.MutableClock;
-import com.aim2day.goal.support.TestClockConfig;
-import com.aim2day.goal.support.TestSessionConfig;
+import com.aim2day.goal.support.ApiTestBase;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.session.MapSessionRepository;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
  * 사분면 테스트 공통 준비. 시계는 2026-11-12T03:00Z(서울 목요일 12:00)라 오늘은 2026-11-12이고 이번 주는 11-08~11-14다.
  * 사용자 1에게 연간 -> 월간 -> 체크형 주간(w1)을 만들어 둔다.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import({TestSessionConfig.class, TestClockConfig.class})
-abstract class QuadrantTestBase {
+abstract class QuadrantTestBase extends ApiTestBase {
 
-	@Autowired
-	MockMvc mockMvc;
-	@Autowired
-	MapSessionRepository sessionRepository;
-	@Autowired
-	JdbcTemplate jdbc;
-	@Autowired
-	MutableClock clock;
-
-	GoalApiClient api;
 	long yearly;
 	long monthly;
 	long w1;
 
 	@BeforeEach
 	void seedGoals() throws Exception {
-		clock.reset();
-		GoalTestSupport.clean(jdbc);
-		api = new GoalApiClient(mockMvc, sessionRepository);
 		yearly = api.yearly(1L, "연간");
 		monthly = api.monthly(1L, yearly, "월간");
 		w1 = api.weekly(1L, monthly, "체크 주간");

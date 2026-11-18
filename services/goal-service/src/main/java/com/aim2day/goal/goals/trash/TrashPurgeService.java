@@ -2,6 +2,7 @@ package com.aim2day.goal.goals.trash;
 
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.UtcTime;
+import com.aim2day.goal.common.tx.Tx;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.Clock;
@@ -14,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -53,10 +53,8 @@ public class TrashPurgeService {
 	public TrashPurgeService(UserRowLock userRowLock, Clock clock, PlatformTransactionManager txManager) {
 		this.userRowLock = userRowLock;
 		this.clock = clock;
-		this.tx = new TransactionTemplate(txManager);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		this.tx = Tx.write(txManager);
+		this.readTx = Tx.readOnlyRequiresNew(txManager);
 	}
 
 	/** root 하나의 처리 결과. 삭제·보존은 목표 행 수, deletedActions는 지운 미완료 행동 수다. */

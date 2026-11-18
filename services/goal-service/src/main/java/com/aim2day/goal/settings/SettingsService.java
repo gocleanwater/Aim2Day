@@ -6,7 +6,8 @@ import com.aim2day.goal.common.exception.FieldErrorDetail;
 import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.time.CalendarMath;
-import com.aim2day.goal.settings.dto.UpdateSettingsRequest;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.settings.dto.SettingsDtos.UpdateSettingsRequest;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -17,7 +18,6 @@ import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -39,10 +39,9 @@ public class SettingsService {
 	public SettingsService(UserSettingRepository repository, Clock clock, PlatformTransactionManager txManager) {
 		this.repository = repository;
 		this.clock = clock;
-		this.tx = new TransactionTemplate(txManager);
+		this.tx = Tx.write(txManager);
 		// 생성 시도는 항상 독립 트랜잭션에서 한다. 유니크 위반으로 롤백돼도 호출자 쪽에 영향이 없다.
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		this.newTx = Tx.requiresNew(txManager);
 	}
 
 	/**

@@ -101,23 +101,23 @@ class ActionListApiTests extends ActionTestBase {
 		assertThat(ids(ActionSorter.sort(items, ActionSort.URGENCY))).containsExactly(3L, 2L, 5L, 1L, 4L);
 	}
 
-	private static java.util.List<Long> ids(java.util.List<com.aim2day.goal.actions.dto.ActionResponse> sorted) {
-		return sorted.stream().map(com.aim2day.goal.actions.dto.ActionResponse::id).toList();
+	private static java.util.List<Long> ids(java.util.List<com.aim2day.goal.actions.dto.ActionDtos.ActionResponse> sorted) {
+		return sorted.stream().map(com.aim2day.goal.actions.dto.ActionDtos.ActionResponse::id).toList();
 	}
 
-	private static com.aim2day.goal.actions.dto.ActionResponse placed(long id, int x, int y) {
-		var coordinate = new com.aim2day.goal.actions.dto.ActionResponse.Coordinate(x, y);
-		return response(id, new com.aim2day.goal.actions.dto.ActionResponse.Placement("CONFIRMED", coordinate, null,
+	private static com.aim2day.goal.actions.dto.ActionDtos.ActionResponse placed(long id, int x, int y) {
+		var coordinate = new com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.Coordinate(x, y);
+		return response(id, new com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.Placement("CONFIRMED", coordinate, null,
 				coordinate));
 	}
 
-	private static com.aim2day.goal.actions.dto.ActionResponse unplaced(long id) {
-		return response(id, com.aim2day.goal.actions.dto.ActionResponse.Placement.unclassified());
+	private static com.aim2day.goal.actions.dto.ActionDtos.ActionResponse unplaced(long id) {
+		return response(id, com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.Placement.unclassified());
 	}
 
-	private static com.aim2day.goal.actions.dto.ActionResponse response(long id,
-			com.aim2day.goal.actions.dto.ActionResponse.Placement placement) {
-		return new com.aim2day.goal.actions.dto.ActionResponse(id, ActionType.GOAL, "t", TODAY, null, null, false,
+	private static com.aim2day.goal.actions.dto.ActionDtos.ActionResponse response(long id,
+			com.aim2day.goal.actions.dto.ActionDtos.ActionResponse.Placement placement) {
+		return new com.aim2day.goal.actions.dto.ActionDtos.ActionResponse(id, ActionType.GOAL, "t", TODAY, null, null, false,
 				null, null, null, null, null, "#3B82F6", placement, 0);
 	}
 

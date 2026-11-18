@@ -5,14 +5,15 @@ import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
 import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.GoalAssembler;
 import com.aim2day.goal.goals.GoalErrorCode;
 import com.aim2day.goal.goals.GoalFieldRules;
 import com.aim2day.goal.goals.GoalStatus;
-import com.aim2day.goal.goals.monthly.dto.CreateMonthlyGoalRequest;
-import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDetailResponse;
-import com.aim2day.goal.goals.monthly.dto.MonthlyGoalResponse;
-import com.aim2day.goal.goals.monthly.dto.UpdateMonthlyGoalRequest;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.CreateMonthlyGoalRequest;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.MonthlyGoalDetailResponse;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.MonthlyGoalResponse;
+import com.aim2day.goal.goals.monthly.dto.MonthlyGoalDtos.UpdateMonthlyGoalRequest;
 import com.aim2day.goal.goals.yearly.YearlyGoal;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
 import com.aim2day.goal.common.time.DateRange;
@@ -25,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -52,12 +52,9 @@ public class MonthlyGoalService {
 		this.yearlyRepository = yearlyRepository;
 		this.assembler = assembler;
 		this.settingsService = settingsService;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	/** 없음·타인 소유·삭제·조상 삭제를 모두 같은 404로 돌려 남의 목표가 존재하는지 알 수 없게 한다. */
@@ -157,32 +154,11 @@ public class MonthlyGoalService {
 
 			// 필드 없음(null)은 유지, JSON null(Optional.empty)은 지움이다. description·color만 지울 수 있다.
 			FieldErrors errors = new FieldErrors();
-			String title = goal.getTitle();
-			if (req.title() != null) {
-				if (req.title().isPresent()) {
-					title = GoalFieldRules.title(req.title().get(), errors);
-				} else {
-					errors.add("title", ValidationReason.REQUIRED);
-				}
-			}
-			String description = goal.getDescription();
-			if (req.description() != null) {
-				description = req.description().isPresent()
-						? GoalFieldRules.description(req.description().get(), errors) : null;
-			}
+			String title = GoalFieldRules.patchTitle(req.title(), goal.getTitle(), errors);
+			String description = GoalFieldRules.patchDescription(req.description(), goal.getDescription(), errors);
 			// color null은 "부모 색 상속으로 되돌림"이다.
-			String color = goal.getColor();
-			if (req.color() != null) {
-				color = req.color().isPresent() ? GoalFieldRules.color(req.color().get(), errors) : null;
-			}
-			GoalStatus newStatus = goal.getStatus();
-			if (req.status() != null) {
-				if (req.status().isPresent()) {
-					newStatus = req.status().get();
-				} else {
-					errors.add("status", ValidationReason.REQUIRED);
-				}
-			}
+			String color = GoalFieldRules.patchInheritableColor(req.color(), goal.getColor(), errors);
+			GoalStatus newStatus = GoalFieldRules.patchStatus(req.status(), goal.getStatus(), errors);
 			errors.throwIfAny();
 
 			VersionGuard.check(req.version(), goal.getVersion());
@@ -200,11 +176,8 @@ public class MonthlyGoalService {
 
 	/** 롤백이 끝난 뒤 새 트랜잭션에서 최신 version을 읽는다. 실패한 트랜잭션의 영속성 컨텍스트는 오염돼 있다. */
 	private long currentVersion(long monthlyGoalId) {
-		Long version = newTx.execute(status -> repository.findById(monthlyGoalId).map(MonthlyGoal::getVersion)
-				.orElse(null));
-		if (version == null) {
-			throw notFound(monthlyGoalId);
-		}
-		return version;
+		return VersionGuard.latestVersion(newTx,
+				() -> repository.findById(monthlyGoalId).map(MonthlyGoal::getVersion).orElse(null),
+				() -> notFound(monthlyGoalId));
 	}
 }

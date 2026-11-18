@@ -40,29 +40,29 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 	}
 
 	@Test
-	void firstPutCreatesWithVersionZeroAndGetReturnsIt() throws Exception {
+	void firstPutCreatesWithFirstVersionAndGetReturnsIt() throws Exception {
 		MvcResult created = api.put(DRAFT, 1L, put(2, SAMPLE, null));
 		api.expect(created, 200,
 				"$.data.currentStep", 2,
 				"$.data.draftData.yearlyGoals[0].tempId", "y1",
 				"$.data.draftData.yearlyGoals[0].title", "백엔드 개발자 취업 준비",
-				"$.data.version", v0());
+				"$.data.version", firstVersion());
 		assertThat((String) JsonPath.read(api.body(created), "$.data.updatedAt")).endsWith("Z");
 
 		api.expect(api.get(DRAFT, 1L), 200,
 				"$.data.currentStep", 2,
 				"$.data.draftData.yearlyGoals[0].title", "백엔드 개발자 취업 준비",
-				"$.data.version", v0());
+				"$.data.version", firstVersion());
 		assertThat(count("SELECT COUNT(*) FROM onboarding_drafts WHERE user_id = 1")).isEqualTo(1);
 	}
 
 	@Test
 	void putWithCurrentVersionOverwritesAndBumpsVersion() throws Exception {
-		api.expect(api.put(DRAFT, 1L, put(1, "{\"a\":1}", null)), 200, "$.data.version", v0());
-		MvcResult updated = api.put(DRAFT, 1L, put(3, "{\"a\":2}", v0()));
-		api.expect(updated, 200, "$.data.currentStep", 3, "$.data.draftData.a", 2, "$.data.version", v0() + 1);
+		api.expect(api.put(DRAFT, 1L, put(1, "{\"a\":1}", null)), 200, "$.data.version", firstVersion());
+		MvcResult updated = api.put(DRAFT, 1L, put(3, "{\"a\":2}", firstVersion()));
+		api.expect(updated, 200, "$.data.currentStep", 3, "$.data.draftData.a", 2, "$.data.version", firstVersion() + 1);
 		assertThat((String) JsonPath.read(api.body(updated), "$.data.updatedAt")).endsWith("Z");
-		api.expect(api.get(DRAFT, 1L), 200, "$.data.currentStep", 3, "$.data.draftData.a", 2, "$.data.version", v0() + 1);
+		api.expect(api.get(DRAFT, 1L), 200, "$.data.currentStep", 3, "$.data.draftData.a", 2, "$.data.version", firstVersion() + 1);
 		assertThat(count("SELECT COUNT(*) FROM onboarding_drafts")).isEqualTo(1);
 	}
 
@@ -86,7 +86,7 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 		api.expect(api.delete(DRAFT, 2L), 200);
 		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.owner", "one");
 		// 사용자 2의 첫 저장은 사용자 1의 version과 무관하게 새로 만든다.
-		api.expect(api.put(DRAFT, 2L, put(1, "{\"owner\":\"two\"}", null)), 200, "$.data.version", v0());
+		api.expect(api.put(DRAFT, 2L, put(1, "{\"owner\":\"two\"}", null)), 200, "$.data.version", firstVersion());
 		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.owner", "one");
 		assertThat(count("SELECT COUNT(*) FROM onboarding_drafts")).isEqualTo(2);
 	}
@@ -97,7 +97,7 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 	void putWithoutVersionWhenDraftExistsIs409WithCurrentVersion() throws Exception {
 		putDraft(1L, 1, "{\"a\":1}");
 		api.expect(api.put(DRAFT, 1L, put(2, "{\"a\":2}", null)), 409,
-				"$.code", "VERSION_CONFLICT", "$.details.currentVersion", v0());
+				"$.code", "VERSION_CONFLICT", "$.details.currentVersion", firstVersion());
 		// 덮어쓰이지 않았다.
 		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.a", 1, "$.data.currentStep", 1);
 	}
@@ -105,9 +105,9 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 	@Test
 	void putWithStaleVersionIs409WithCurrentVersion() throws Exception {
 		putDraft(1L, 1, "{\"a\":1}");
-		api.expect(api.put(DRAFT, 1L, put(2, "{\"a\":2}", v0())), 200, "$.data.version", v0() + 1);
-		api.expect(api.put(DRAFT, 1L, put(3, "{\"a\":3}", v0())), 409,
-				"$.code", "VERSION_CONFLICT", "$.details.currentVersion", v0() + 1);
+		api.expect(api.put(DRAFT, 1L, put(2, "{\"a\":2}", firstVersion())), 200, "$.data.version", firstVersion() + 1);
+		api.expect(api.put(DRAFT, 1L, put(3, "{\"a\":3}", firstVersion())), 409,
+				"$.code", "VERSION_CONFLICT", "$.details.currentVersion", firstVersion() + 1);
 		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData.a", 2);
 	}
 
@@ -116,7 +116,7 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 		// 다른 탭이 온보딩을 끝내 임시 저장을 지운 뒤, 오래된 탭이 같은 version으로 되살리지 못한다.
 		putDraft(1L, 1, "{\"a\":1}");
 		api.expect(api.delete(DRAFT, 1L), 200);
-		MvcResult result = api.put(DRAFT, 1L, put(2, "{\"a\":2}", v0()));
+		MvcResult result = api.put(DRAFT, 1L, put(2, "{\"a\":2}", firstVersion()));
 		api.expect(result, 409, "$.code", "VERSION_CONFLICT");
 		assertThat(api.body(result)).contains("\"currentVersion\":null");
 		assertThat(count("SELECT COUNT(*) FROM onboarding_drafts")).isZero();
@@ -152,12 +152,12 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 			api.expect(api.delete(DRAFT, 1L), 200);
 		}
 		// 다른 사용자의 카운터는 독립이다: 사용자 2의 첫 저장은 1에서 시작한다.
-		api.expect(api.put(DRAFT, 2L, put(1, "{\"a\":1}", null)), 200, "$.data.version", v0());
+		api.expect(api.put(DRAFT, 2L, put(1, "{\"a\":1}", null)), 200, "$.data.version", firstVersion());
 	}
 
 	@Test
 	void putWithoutVersionWhenNoDraftCreates() throws Exception {
-		api.expect(api.put(DRAFT, 1L, put(4, "{\"a\":1}", null)), 200, "$.data.version", v0(), "$.data.currentStep", 4);
+		api.expect(api.put(DRAFT, 1L, put(4, "{\"a\":1}", null)), 200, "$.data.version", firstVersion(), "$.data.currentStep", 4);
 	}
 
 	// ------------------------------------------------------------ 입력 검증
@@ -224,7 +224,7 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 	@Test
 	void updateKeepsObjectTypeInTheDatabase() throws Exception {
 		putDraft(1L, 1, "{\"a\":1}");
-		api.expect(api.put(DRAFT, 1L, put(2, "{\"a\":{\"b\":[1,2]}}", v0())), 200, "$.data.draftData.a.b[1]", 2);
+		api.expect(api.put(DRAFT, 1L, put(2, "{\"a\":{\"b\":[1,2]}}", firstVersion())), 200, "$.data.draftData.a.b[1]", 2);
 		assertThat(count("SELECT COUNT(*) FROM onboarding_drafts WHERE draft_data IS JSON OBJECT")).isEqualTo(1);
 	}
 
@@ -232,10 +232,10 @@ class OnboardingDraftApiTests extends OnboardingTestBase {
 	void anyNonNullJsonValueIsAccepted() throws Exception {
 		// 서버는 내용을 해석하지 않는다. 배열·문자열·숫자도 그대로 돌려준다.
 		api.expect(api.put(DRAFT, 1L, put(1, "[1,2,3]", null)), 200, "$.data.draftData[2]", 3);
-		api.expect(api.put(DRAFT, 1L, put(1, "\"문자열\"", v0())), 200, "$.data.draftData", "문자열");
+		api.expect(api.put(DRAFT, 1L, put(1, "\"문자열\"", firstVersion())), 200, "$.data.draftData", "문자열");
 		api.expect(api.get(DRAFT, 1L), 200, "$.data.draftData", "문자열");
 		assertThat(count("SELECT COUNT(*) FROM onboarding_drafts WHERE draft_data IS JSON SCALAR")).isEqualTo(1);
-		api.expect(api.put(DRAFT, 1L, put(1, "false", v0() + 1)), 200, "$.data.draftData", false);
+		api.expect(api.put(DRAFT, 1L, put(1, "false", firstVersion() + 1)), 200, "$.data.draftData", false);
 	}
 
 	// ------------------------------------------------------------ 64KB 경계 (Review Focus 5)

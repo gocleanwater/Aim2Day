@@ -1,10 +1,10 @@
 package com.aim2day.goal.calendar;
 
-import com.aim2day.goal.calendar.dto.CalendarCompletionRequest;
-import com.aim2day.goal.calendar.dto.CalendarDashboardResponse;
-import com.aim2day.goal.calendar.dto.CalendarItemResponse;
-import com.aim2day.goal.calendar.dto.CreateCalendarItemRequest;
-import com.aim2day.goal.calendar.dto.UpdateCalendarItemRequest;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarCompletionRequest;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarDashboardResponse;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CalendarItemResponse;
+import com.aim2day.goal.calendar.dto.CalendarDtos.CreateCalendarItemRequest;
+import com.aim2day.goal.calendar.dto.CalendarDtos.UpdateCalendarItemRequest;
 import com.aim2day.goal.common.response.ApiResponse;
 import java.time.LocalDate;
 import java.util.List;

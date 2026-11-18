@@ -1,22 +1,19 @@
 package com.aim2day.goal.reports;
 
 import com.aim2day.goal.common.exception.BusinessException;
-import com.aim2day.goal.common.exception.CommonErrorCode;
 import com.aim2day.goal.common.exception.FieldErrors;
-import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
-import com.aim2day.goal.reports.dto.PutReviewRequest;
-import com.aim2day.goal.reports.dto.ReviewResponse;
+import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.common.validation.TextRules;
+import com.aim2day.goal.reports.dto.ReportDtos.PutReviewRequest;
+import com.aim2day.goal.reports.dto.ReportDtos.ReviewResponse;
 import com.aim2day.goal.settings.SettingsService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -54,17 +51,16 @@ public class PeriodReviewService {
 		this.repository = repository;
 		this.userRowLock = userRowLock;
 		this.settingsService = settingsService;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
 	}
 
 	public ReviewResponse put(long userId, String periodType, String period, PutReviewRequest req) {
 		// 검사 순서: 형식 400(경로, 본문) -> 미래 기간 422 -> (잠금 안) version 409.
 		ReportPeriod p = ReportPeriod.parse(periodType, period);
 		FieldErrors errors = new FieldErrors();
-		checkLength("improvements", req.improvements(), errors);
-		checkLength("nextFocus", req.nextFocus(), errors);
+		TextRules.maxLength(req.improvements(), "improvements", MAX_LENGTH, errors);
+		TextRules.maxLength(req.nextFocus(), "nextFocus", MAX_LENGTH, errors);
 		errors.throwIfAny();
 		// 오늘(계정 시간대)은 SettingsService가 자기 트랜잭션을 쓰므로 트랜잭션 밖에서 구한다.
 		LocalDate today = settingsService.userTime(userId).today();
@@ -78,11 +74,11 @@ public class PeriodReviewService {
 			userRowLock.lock(userId);
 			PeriodReview review = repository.findByUserIdAndPeriodTypeAndPeriodValue(userId, type, p.value())
 					.orElse(null);
-			if (review == null) {
-				if (req.version() != null) {
-					// 행이 없는데 version을 보냈다. 있지도 않은 회고를 이어 쓰려는 화면이므로 거부한다.
-					throw conflict(null);
-				}
+			// 행이 없는데 version을 보냈으면 있지도 않은 회고를 이어 쓰려는 화면이라 409 currentVersion null이다.
+			// 있는데 생략하거나 다르면 어느 쪽이든 오래된 화면의 저장이다. 첫 저장만 생략이 정상이라, 개별 수정 API의
+			// "version 필수 400"과 달리 생략도 409로 알려 최신 version을 준다.
+			if (VersionGuard.checkUpsert(review == null ? null : review.getVersion(),
+					req.version()) == VersionGuard.UpsertAction.CREATE) {
 				PeriodReview created = repository.saveAndFlush(
 						new PeriodReview(userId, p.type(), p.value(), req.improvements(), req.nextFocus()));
 				// @Version 엔티티는 시작값을 직접 줄 수 없어 0으로 INSERT한 뒤 같은 트랜잭션(users 잠금 안)에서 1로 맞추고 refresh한다.
@@ -90,11 +86,6 @@ public class PeriodReviewService {
 						.setParameter("v", FIRST_VERSION).setParameter("id", created.getId()).executeUpdate();
 				em.refresh(created);
 				return ReviewResponse.of(created);
-			}
-			// 있는데 생략하거나 다르면 어느 쪽이든 오래된 화면의 저장이다. 첫 저장만 생략이 정상이라, 개별 수정 API의
-			// "version 필수 400"과 달리 생략도 409로 알려 최신 version을 준다.
-			if (req.version() == null || !review.getVersion().equals(req.version())) {
-				throw conflict(review.getVersion());
 			}
 			review.change(req.improvements(), req.nextFocus());
 			repository.saveAndFlush(review);
@@ -104,26 +95,11 @@ public class PeriodReviewService {
 		}), () -> currentVersionOrConflict(userId, type, p.value()));
 	}
 
-	private static void checkLength(String field, String value, FieldErrors errors) {
-		if (value != null && value.codePointCount(0, value.length()) > MAX_LENGTH) {
-			errors.add(field, ValidationReason.TOO_LONG);
-		}
-	}
-
 	/** 롤백이 끝난 뒤 새 트랜잭션에서 최신 version을 읽는다. 회고는 지우지 않지만 방어적으로 없으면 null 충돌이다. */
 	private long currentVersionOrConflict(long userId, String type, String value) {
-		Long version = newTx.execute(status -> repository.findByUserIdAndPeriodTypeAndPeriodValue(userId, type, value)
-				.map(PeriodReview::getVersion).orElse(null));
-		if (version == null) {
-			throw conflict(null);
-		}
-		return version;
-	}
-
-	private static BusinessException conflict(Long currentVersion) {
-		// Map.of는 null 값을 받지 않는다. 명세는 currentVersion: null을 "회고 없음"으로 쓴다.
-		Map<String, Object> details = new HashMap<>();
-		details.put("currentVersion", currentVersion);
-		return new BusinessException(CommonErrorCode.VERSION_CONFLICT, details);
+		return VersionGuard.latestVersion(newTx,
+				() -> repository.findByUserIdAndPeriodTypeAndPeriodValue(userId, type, value)
+						.map(PeriodReview::getVersion).orElse(null),
+				() -> VersionGuard.conflict(null));
 	}
 }

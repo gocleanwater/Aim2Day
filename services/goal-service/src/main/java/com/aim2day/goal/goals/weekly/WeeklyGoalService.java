@@ -9,6 +9,7 @@ import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.exception.VersionGuard;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.DateRange;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.DecimalRules;
 import com.aim2day.goal.goals.GoalAssembler;
 import com.aim2day.goal.goals.GoalErrorCode;
@@ -16,10 +17,10 @@ import com.aim2day.goal.goals.GoalFieldRules;
 import com.aim2day.goal.goals.GoalStatus;
 import com.aim2day.goal.goals.monthly.MonthlyGoal;
 import com.aim2day.goal.goals.monthly.MonthlyGoalRepository;
-import com.aim2day.goal.goals.weekly.dto.CreateWeeklyGoalRequest;
-import com.aim2day.goal.goals.weekly.dto.UpdateWeeklyGoalRequest;
-import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDetailResponse;
-import com.aim2day.goal.goals.weekly.dto.WeeklyGoalResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.CreateWeeklyGoalRequest;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.UpdateWeeklyGoalRequest;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.WeeklyGoalDetailResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.WeeklyGoalResponse;
 import com.aim2day.goal.progress.ProgressEngine;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
@@ -29,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -71,12 +71,9 @@ public class WeeklyGoalService {
 		this.engine = engine;
 		this.settingsService = settingsService;
 		this.userRowLock = userRowLock;
-		this.tx = new TransactionTemplate(txManager);
-		this.newTx = new TransactionTemplate(txManager);
-		this.newTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.tx = Tx.write(txManager);
+		this.newTx = Tx.requiresNew(txManager);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	/** 없음·타인 소유·삭제·조상 삭제를 모두 같은 404로 돌려 남의 목표가 존재하는지 알 수 없게 한다. */
@@ -194,32 +191,11 @@ public class WeeklyGoalService {
 					.orElseThrow(() -> notFound(weeklyGoalId));
 
 			FieldErrors errors = new FieldErrors();
-			String title = goal.getTitle();
-			if (req.title() != null) {
-				if (req.title().isPresent()) {
-					title = GoalFieldRules.title(req.title().get(), errors);
-				} else {
-					errors.add("title", ValidationReason.REQUIRED);
-				}
-			}
-			String description = goal.getDescription();
-			if (req.description() != null) {
-				description = req.description().isPresent()
-						? GoalFieldRules.description(req.description().get(), errors) : null;
-			}
+			String title = GoalFieldRules.patchTitle(req.title(), goal.getTitle(), errors);
+			String description = GoalFieldRules.patchDescription(req.description(), goal.getDescription(), errors);
 			// color null은 "부모 색 상속으로 되돌림"이다.
-			String color = goal.getColor();
-			if (req.color() != null) {
-				color = req.color().isPresent() ? GoalFieldRules.color(req.color().get(), errors) : null;
-			}
-			GoalStatus newStatus = goal.getStatus();
-			if (req.status() != null) {
-				if (req.status().isPresent()) {
-					newStatus = req.status().get();
-				} else {
-					errors.add("status", ValidationReason.REQUIRED);
-				}
-			}
+			String color = GoalFieldRules.patchInheritableColor(req.color(), goal.getColor(), errors);
+			GoalStatus newStatus = GoalFieldRules.patchStatus(req.status(), goal.getStatus(), errors);
 			BigDecimal weight = goal.getWeight();
 			if (req.weight() != null) {
 				if (req.weight().isPresent()) {
@@ -323,11 +299,8 @@ public class WeeklyGoalService {
 
 	/** 롤백이 끝난 뒤 새 트랜잭션에서 최신 version을 읽는다. 실패한 트랜잭션의 영속성 컨텍스트는 오염돼 있다. */
 	private long currentVersion(long weeklyGoalId) {
-		Long version = newTx.execute(status -> repository.findById(weeklyGoalId).map(WeeklyGoal::getVersion)
-				.orElse(null));
-		if (version == null) {
-			throw notFound(weeklyGoalId);
-		}
-		return version;
+		return VersionGuard.latestVersion(newTx,
+				() -> repository.findById(weeklyGoalId).map(WeeklyGoal::getVersion).orElse(null),
+				() -> notFound(weeklyGoalId));
 	}
 }

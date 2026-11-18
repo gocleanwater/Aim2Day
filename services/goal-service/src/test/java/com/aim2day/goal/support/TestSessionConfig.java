@@ -5,7 +5,6 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.session.MapSession;
 import org.springframework.session.MapSessionRepository;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.session.data.redis.config.ConfigureRedisAction;

@@ -1,13 +1,13 @@
 package com.aim2day.goal.onboarding;
 
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.yearly.YearlyGoalRepository;
 import com.aim2day.goal.goals.yearly.YearlyGoalService;
-import com.aim2day.goal.onboarding.dto.StatusResponse;
+import com.aim2day.goal.onboarding.dto.OnboardingDtos.StatusResponse;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** 온보딩 필요 여부(API 명세 §4.2 GET status). 읽기 전용이라 잠금 없이 한 스냅샷으로 읽는다. */
@@ -27,9 +27,7 @@ public class OnboardingStatusService {
 		this.yearlyRepository = yearlyRepository;
 		this.draftRepository = draftRepository;
 		this.settingsService = settingsService;
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	public StatusResponse status(long userId) {

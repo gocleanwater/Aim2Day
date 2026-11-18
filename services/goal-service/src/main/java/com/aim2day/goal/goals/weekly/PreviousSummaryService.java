@@ -2,10 +2,11 @@ package com.aim2day.goal.goals.weekly;
 
 import com.aim2day.goal.actions.Action;
 import com.aim2day.goal.actions.ActionRepository;
+import com.aim2day.goal.common.tx.Tx;
 import com.aim2day.goal.goals.GoalAssembler;
 import com.aim2day.goal.goals.GoalRef;
-import com.aim2day.goal.goals.weekly.dto.PreviousSummaryResponse;
-import com.aim2day.goal.goals.weekly.dto.WeeklyGoalResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.PreviousSummaryResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.WeeklyGoalResponse;
 import com.aim2day.goal.settings.SettingsService;
 import com.aim2day.goal.settings.UserTime;
 import java.time.LocalDate;
@@ -15,7 +16,6 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -38,9 +38,7 @@ public class PreviousSummaryService {
 		this.actions = actions;
 		this.assembler = assembler;
 		this.settingsService = settingsService;
-		this.readTx = new TransactionTemplate(txManager);
-		this.readTx.setReadOnly(true);
-		this.readTx.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+		this.readTx = Tx.readOnly(txManager);
 	}
 
 	public PreviousSummaryResponse summary(long userId) {

@@ -3,8 +3,8 @@ package com.aim2day.goal.goals.weekly.record;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aim2day.goal.goals.weekly.WeeklyGoalService;
-import com.aim2day.goal.goals.weekly.dto.CreateWeeklyGoalRequest;
-import com.aim2day.goal.goals.weekly.record.dto.CreateNumericRecordRequest;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.CreateWeeklyGoalRequest;
+import com.aim2day.goal.goals.weekly.record.dto.NumericRecordDtos.CreateNumericRecordRequest;
 import com.aim2day.goal.support.GoalTestSupport;
 import com.aim2day.goal.support.MutableClock;
 import com.aim2day.goal.support.TestClockConfig;

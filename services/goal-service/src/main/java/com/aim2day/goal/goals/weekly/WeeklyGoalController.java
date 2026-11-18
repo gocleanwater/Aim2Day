@@ -1,11 +1,11 @@
 package com.aim2day.goal.goals.weekly;
 
 import com.aim2day.goal.common.response.ApiResponse;
-import com.aim2day.goal.goals.weekly.dto.CreateWeeklyGoalRequest;
-import com.aim2day.goal.goals.weekly.dto.PreviousSummaryResponse;
-import com.aim2day.goal.goals.weekly.dto.UpdateWeeklyGoalRequest;
-import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDetailResponse;
-import com.aim2day.goal.goals.weekly.dto.WeeklyGoalResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.CreateWeeklyGoalRequest;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.PreviousSummaryResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.UpdateWeeklyGoalRequest;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.WeeklyGoalDetailResponse;
+import com.aim2day.goal.goals.weekly.dto.WeeklyGoalDtos.WeeklyGoalResponse;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
