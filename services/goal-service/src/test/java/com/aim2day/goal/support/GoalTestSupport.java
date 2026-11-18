@@ -39,6 +39,7 @@ public final class GoalTestSupport {
 
 	/** 모든 테스트 클래스가 같은 H2를 쓰므로 자기 테이블을 FK 순서대로 비우고 사용자 1~3을 보장한다. */
 	public static void clean(JdbcTemplate jdbc) {
+		jdbc.update("DELETE FROM onboarding_drafts");
 		jdbc.update("DELETE FROM goal_progress_logs");
 		jdbc.update("DELETE FROM weekly_goal_numeric_records");
 		jdbc.update("DELETE FROM action_quadrant_placements");

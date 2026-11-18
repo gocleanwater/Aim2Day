@@ -99,9 +99,7 @@ public class YearlyGoalService {
 		int year = req.targetYear() != null ? req.targetYear() : thisYear;
 
 		FieldErrors errors = new FieldErrors();
-		String title = GoalFieldRules.title(req.title(), errors);
-		String description = GoalFieldRules.description(req.description(), errors);
-		String color = req.color() == null ? GoalFieldRules.DEFAULT_COLOR : GoalFieldRules.color(req.color(), errors);
+		NewGoal draft = validateNew(req.title(), req.description(), req.color(), errors);
 		// 현재 연도와 다음 연도만 허용한다(12월의 새해 계획용).
 		if (year < thisYear || year > thisYear + 1) {
 			errors.add("targetYear", ValidationReason.OUT_OF_RANGE);
@@ -111,19 +109,40 @@ public class YearlyGoalService {
 		YearlyGoal saved = tx.execute(status -> {
 			// 첫 쿼리로 사용자 행을 잠가 같은 사용자의 동시 생성을 직렬화한다. 이후 개수 확인은 앞선 요청의 커밋을 본다.
 			userRowLock.lock(userId);
-			long active = repository.countByUserIdAndTargetYearAndDeletedAtIsNull(userId, year);
-			if (active >= MAX_ACTIVE_PER_YEAR) {
-				throw new BusinessException(GoalErrorCode.GOAL_LIMIT_EXCEEDED,
-						year + "년 목표는 최대 " + MAX_ACTIVE_PER_YEAR
-								+ "개까지 만들 수 있습니다. 기존 목표를 삭제한 뒤 다시 시도해 주세요.",
-						Map.of("year", year, "current", active, "max", MAX_ACTIVE_PER_YEAR));
-			}
-			// 새 목표는 그해 목록의 마지막에 둔다. 삭제로 번호에 빈틈이 있어도 최댓값 + 1이면 항상 맨 뒤다.
-			Integer maxOrder = repository.findMaxDisplayOrder(userId, year);
-			int displayOrder = maxOrder == null ? 0 : maxOrder + 1;
-			return repository.saveAndFlush(new YearlyGoal(userId, year, title, description, color, displayOrder));
+			return insertInTx(userId, year, draft);
 		});
 		return YearlyGoalResponse.of(saved, CriteriaCalculator.summary(saved, List.of()), time.today());
+	}
+
+	/** 검증을 통과한 연간 목표 입력(제목은 공백 제거, 색은 대문자·기본값 적용). */
+	public record NewGoal(String title, String description, String color) {
+	}
+
+	/** 제목·설명·색 규칙. 개별 생성(POST /yearly)과 온보딩 일괄 저장이 같은 규칙을 쓰도록 한곳에 둔다. */
+	public static NewGoal validateNew(String title, String description, String color, FieldErrors errors) {
+		return new NewGoal(GoalFieldRules.title(title, errors), GoalFieldRules.description(description, errors),
+				color == null ? GoalFieldRules.DEFAULT_COLOR : GoalFieldRules.color(color, errors));
+	}
+
+	/**
+	 * 한도 확인과 INSERT. 호출자가 이미 연 쓰기 트랜잭션 안에서, users 행 잠금(UserRowLock)을 건 뒤에 부른다.
+	 * 잠금 없이 부르면 두 인스턴스가 동시에 "활성 < 3"을 보고 둘 다 넣어 한도를 넘을 수 있다.
+	 * 온보딩은 같은 트랜잭션에서 이 메서드를 여러 번 부르며, 앞서 넣은 행(saveAndFlush)도 개수에 포함돼
+	 * "기존 활성 + 새 연간 수 > 3"이 그대로 409가 된다.
+	 */
+	public YearlyGoal insertInTx(long userId, int year, NewGoal goal) {
+		long active = repository.countByUserIdAndTargetYearAndDeletedAtIsNull(userId, year);
+		if (active >= MAX_ACTIVE_PER_YEAR) {
+			throw new BusinessException(GoalErrorCode.GOAL_LIMIT_EXCEEDED,
+					year + "년 목표는 최대 " + MAX_ACTIVE_PER_YEAR
+							+ "개까지 만들 수 있습니다. 기존 목표를 삭제한 뒤 다시 시도해 주세요.",
+					Map.of("year", year, "current", active, "max", MAX_ACTIVE_PER_YEAR));
+		}
+		// 새 목표는 그해 목록의 마지막에 둔다. 삭제로 번호에 빈틈이 있어도 최댓값 + 1이면 항상 맨 뒤다.
+		Integer maxOrder = repository.findMaxDisplayOrder(userId, year);
+		int displayOrder = maxOrder == null ? 0 : maxOrder + 1;
+		return repository.saveAndFlush(new YearlyGoal(userId, year, goal.title(), goal.description(), goal.color(),
+				displayOrder));
 	}
 
 	public YearlyGoalListResponse list(long userId, Integer requestedYear) {

@@ -70,6 +70,7 @@ erDiagram
         varchar week_start_day "주 시작 요일 (기본 SUNDAY)"
         varchar timezone "시간대 (기본 Asia/Seoul)"
         date last_quadrant_confirmed_date "마지막 사분면 분류 확정일"
+        bigint last_onboarding_draft_version "마지막 온보딩 임시 저장 version"
         datetime created_at "생성 일시"
         bigint version "낙관적 잠금 버전 (PROG-008)"
         datetime updated_at "수정 일시"
@@ -289,6 +290,7 @@ erDiagram
 | `week_start_day` | 주 시작 요일 | VARCHAR(10) | N | 'SUNDAY' | SUNDAY, MONDAY, ..., SATURDAY 중 하나 |
 | `timezone` | 계정 시간대 | VARCHAR(50) | N | 'Asia/Seoul' | IANA Timezone 명칭 |
 | `last_quadrant_confirmed_date` | 마지막 사분면 분류 확정일 | DATE | Y | NULL | 계정 시간대 기준으로 `[오늘 분류 확정]`을 마지막으로 누른 날. 확정할 변경이 0건이어도 기록한다. 행동 목록의 `classification.confirmedToday`(이 값 = 오늘)에 쓴다. 설정 수정이 아니므로 `version`을 올리지 않는다(직접 UPDATE) |
+| `last_onboarding_draft_version` | 마지막 온보딩 임시 저장 version | BIGINT | N | 0 | 임시 저장을 만들거나 고칠 때마다 결과 `version`을 기록한다. 임시 저장을 지워도 남아서, 새 임시 저장은 이 값 + 1부터 시작한다. 지웠다 다시 만든 임시 저장을 예전 탭이 덮어쓰지 못하게 한다. 설정 수정이 아니므로 `version`을 올리지 않는다(직접 UPDATE) |
 | `created_at` | 생성 일시 | DATETIME | N | CURRENT_TIMESTAMP | 생성 시각 |
 | `version` | 낙관적 잠금 버전 | BIGINT | N | 0 | JPA `@Version`. 수정 요청의 값과 다르면 거부(결정 15) |
 | `updated_at` | 수정 일시 | DATETIME | N | CURRENT_TIMESTAMP ON UPDATE | 변경 시각 |

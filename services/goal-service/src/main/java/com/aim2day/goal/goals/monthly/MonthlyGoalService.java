@@ -78,30 +78,43 @@ public class MonthlyGoalService {
 		if (req.yearlyGoalId() == null) {
 			errors.add("yearlyGoalId", ValidationReason.REQUIRED);
 		}
-		String title = GoalFieldRules.title(req.title(), errors);
-		String description = GoalFieldRules.description(req.description(), errors);
-		// color가 null이면 저장도 null이다. 부모 색을 복사해 두면 부모 색이 바뀌어도 따라가지 못한다(GOAL-011).
-		String color = req.color() == null ? null : GoalFieldRules.color(req.color(), errors);
+		NewGoal draft = validateNew(req.title(), req.description(), req.color(), errors);
 		errors.throwIfAny();
 
 		long yearlyGoalId = req.yearlyGoalId();
-		DateRange month = time.currentMonthRange();
-		Long id = tx.execute(status -> {
-			// 부모가 없음·타인 소유·삭제는 구분하지 않는다. 존재 여부를 드러내지 않기 위해서다.
-			YearlyGoal parent = yearlyRepository.findByIdAndUserIdAndDeletedAtIsNull(yearlyGoalId, userId)
-					.orElseThrow(() -> new BusinessException(GoalErrorCode.GOAL_PARENT_UNAVAILABLE,
-							Map.of("parentLevel", "YEARLY", "parentId", yearlyGoalId)));
-			// 월간 목표는 현재 달로 만들므로 부모 연간 목표가 올해여야 기간이 겹친다.
-			if (parent.getTargetYear() != time.currentMonth().getYear()) {
-				throw new BusinessException(GoalErrorCode.GOAL_PARENT_PERIOD_MISMATCH,
-						Map.of("parentStartDate", LocalDate.of(parent.getTargetYear(), 1, 1).toString(),
-								"parentEndDate", LocalDate.of(parent.getTargetYear(), 12, 31).toString()));
-			}
-			return repository.saveAndFlush(
-					new MonthlyGoal(yearlyGoalId, month.startDate(), month.endDate(), title, description, color))
-					.getId();
-		});
+		Long id = tx.execute(status -> insertInTx(userId, yearlyGoalId, time, draft));
 		return viewOf(userId, id, time.today());
+	}
+
+	/** 검증을 통과한 월간 목표 입력. color가 null이면 저장도 null이다(부모 색 상속). */
+	public record NewGoal(String title, String description, String color) {
+	}
+
+	/** 제목·설명·색 규칙. 개별 생성과 온보딩 일괄 저장이 같은 규칙을 쓴다. */
+	public static NewGoal validateNew(String title, String description, String color, FieldErrors errors) {
+		// color가 null이면 저장도 null이다. 부모 색을 복사해 두면 부모 색이 바뀌어도 따라가지 못한다(GOAL-011).
+		return new NewGoal(GoalFieldRules.title(title, errors), GoalFieldRules.description(description, errors),
+				color == null ? null : GoalFieldRules.color(color, errors));
+	}
+
+	/**
+	 * 부모 확인과 INSERT(현재 달). 호출자가 연 쓰기 트랜잭션 안에서 부른다. 온보딩은 같은 트랜잭션에서
+	 * 방금 만든 연간 목표(flush됨)도 이 메서드로 부모 확인을 거친다. 새 월간 목표의 id를 돌려준다.
+	 */
+	public long insertInTx(long userId, long yearlyGoalId, UserTime time, NewGoal goal) {
+		DateRange month = time.currentMonthRange();
+		// 부모가 없음·타인 소유·삭제는 구분하지 않는다. 존재 여부를 드러내지 않기 위해서다.
+		YearlyGoal parent = yearlyRepository.findByIdAndUserIdAndDeletedAtIsNull(yearlyGoalId, userId)
+				.orElseThrow(() -> new BusinessException(GoalErrorCode.GOAL_PARENT_UNAVAILABLE,
+						Map.of("parentLevel", "YEARLY", "parentId", yearlyGoalId)));
+		// 월간 목표는 현재 달로 만들므로 부모 연간 목표가 올해여야 기간이 겹친다.
+		if (parent.getTargetYear() != time.currentMonth().getYear()) {
+			throw new BusinessException(GoalErrorCode.GOAL_PARENT_PERIOD_MISMATCH,
+					Map.of("parentStartDate", LocalDate.of(parent.getTargetYear(), 1, 1).toString(),
+							"parentEndDate", LocalDate.of(parent.getTargetYear(), 12, 31).toString()));
+		}
+		return repository.saveAndFlush(new MonthlyGoal(yearlyGoalId, month.startDate(), month.endDate(),
+				goal.title(), goal.description(), goal.color())).getId();
 	}
 
 	public List<MonthlyGoalResponse> list(long userId, String monthParam, Long yearlyGoalId) {

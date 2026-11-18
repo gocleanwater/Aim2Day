@@ -117,78 +117,115 @@ public class ActionService {
 
 		// 1. 입력 검증(400)
 		FieldErrors errors = new FieldErrors();
-		if (req.type() == null) {
-			errors.add("type", ValidationReason.REQUIRED);
+		List<String> presentLinks = new ArrayList<>();
+		if (req.monthlyGoalIdPresent()) {
+			presentLinks.add("monthlyGoalId");
 		}
-		String title = title(req.title(), errors);
-		BigDecimal contribution = null;
-		if (req.contributionValue() != null) {
-			contribution = DecimalRules.positive(req.contributionValue(), DecimalRules.MAX_VALUE,
-					"contributionValue", errors);
+		if (req.weeklyGoalIdPresent()) {
+			presentLinks.add("weeklyGoalId");
 		}
-		if (req.type() == ActionType.MAINTENANCE) {
-			// 그 밖의 할 일은 목표 연결·기여량을 가질 수 없다. 보내는 것 자체가 잘못이다.
-			// 키가 있으면 값이 null이어도 400이다(명시적 null도 "보낸 것"이다).
-			if (req.monthlyGoalIdPresent()) {
-				errors.add("monthlyGoalId", ValidationReason.INVALID_FORMAT);
-			}
-			if (req.weeklyGoalIdPresent()) {
-				errors.add("weeklyGoalId", ValidationReason.INVALID_FORMAT);
-			}
-			if (req.contributionValuePresent()) {
-				errors.add("contributionValue", ValidationReason.INVALID_FORMAT);
-			}
-		} else if (req.type() == ActionType.GOAL && req.monthlyGoalId() == null && req.weeklyGoalId() == null) {
-			// 목표 없는 핵심 행동은 만들 수 없다(FOCUS-009).
-			errors.add("weeklyGoalId", ValidationReason.REQUIRED);
-		}
+		NewAction draft = validateNew(req.type(), req.title(), req.contributionValue(), req.contributionValuePresent(),
+				presentLinks, req.monthlyGoalId() != null || req.weeklyGoalId() != null, "weeklyGoalId",
+				req.monthlyGoalId(), req.weeklyGoalId(), req.performedDate(), req.dueDate(), time, errors);
 		errors.throwIfAny();
 
-		boolean goal = req.type() == ActionType.GOAL;
-		LocalDate performedDate = req.performedDate() != null ? req.performedDate() : time.today();
 		// 2. 현재 주 이후 날짜는 연결할 주간 목표가 있을 수 없다(주간 목표는 현재 주로만 만든다, 결정 5·17).
-		if (goal && performedDate.isAfter(time.currentWeek().endDate())) {
-			throw outOfRange(time.currentWeek().endDate(), performedDate);
-		}
+		requireWithinCurrentWeek(draft, time);
 
-		BigDecimal finalContribution = contribution;
 		return tx.execute(status -> {
 			// 첫 쿼리는 users 행 잠금이다(클래스 설명).
 			userRowLock.lock(userId);
-			Long weeklyGoalId = null;
-			boolean checklist = false;
-			if (goal) {
-				// 3~4. 연결 대상 결정과 부모 확인. 찾은 주간 목표는 행 잠금까지 잡아서 돌려준다.
-				WeeklyGoal weekly = resolveWeekly(userId, req, performedDate);
-				checklist = weekly.getMeasurementType() != MeasurementType.NUMERIC;
-				// 5. 기여량은 수치형에만 줄 수 있다.
-				if (checklist && finalContribution != null) {
-					throw new BusinessException(GoalErrorCode.GOAL_NOT_NUMERIC);
-				}
-				weeklyGoalId = weekly.getId();
-			}
-			Long actionId = actions.saveAndFlush(new Action(userId, weeklyGoalId, title, performedDate,
-					req.dueDate(), finalContribution)).getId();
-			if (checklist) {
-				// 체크형은 연결 행동 수가 분모라 새 행동이 0%로 들어가 주간·월간 진행률이 바뀐다.
-				engine.recalcWeekly(userId, weeklyGoalId, time.today(), "행동 추가: " + title);
-			}
+			long actionId = insertInTx(userId, time, draft, "monthlyGoalId");
 			return freshView(actionId, time.today());
 		});
+	}
+
+	/** 검증을 통과한 행동 생성 입력. performedDate는 생략 시 오늘로 채워져 있고, title은 공백이 제거돼 있다. */
+	public record NewAction(ActionType type, Long monthlyGoalId, Long weeklyGoalId, String title,
+			LocalDate performedDate, LocalDate dueDate, BigDecimal contribution) {
+	}
+
+	/**
+	 * 행동 생성 입력 규칙(§4.9 POST). 개별 생성과 온보딩 일괄 저장이 같은 규칙을 쓰도록 한곳에 둔다.
+	 * 연결 대상을 가리키는 필드 이름이 요청 형식마다 다르므로(온보딩은 ...TempId도 쓴다) 호출자가 "보낸 연결 필드 이름"
+	 * 목록과 "연결 대상이 하나라도 있는지"를 넘긴다. 보낸 것 자체가 잘못이다(MAINTENANCE)인 경우에 키가 있으면
+	 * 값이 null이어도 보낸 것으로 센다(명시적 null도 "보낸 것"이다).
+	 */
+	public static NewAction validateNew(ActionType type, String rawTitle, BigDecimal rawContribution,
+			boolean contributionPresent, List<String> presentLinkFields, boolean hasLink, String requiredLinkField,
+			Long monthlyGoalId, Long weeklyGoalId, LocalDate performedDate, LocalDate dueDate, UserTime time,
+			FieldErrors errors) {
+		if (type == null) {
+			errors.add("type", ValidationReason.REQUIRED);
+		}
+		String title = title(rawTitle, errors);
+		BigDecimal contribution = null;
+		if (rawContribution != null) {
+			contribution = DecimalRules.positive(rawContribution, DecimalRules.MAX_VALUE, "contributionValue", errors);
+		}
+		if (type == ActionType.MAINTENANCE) {
+			// 그 밖의 할 일은 목표 연결·기여량을 가질 수 없다. 보내는 것 자체가 잘못이다.
+			for (String field : presentLinkFields) {
+				errors.add(field, ValidationReason.INVALID_FORMAT);
+			}
+			if (contributionPresent) {
+				errors.add("contributionValue", ValidationReason.INVALID_FORMAT);
+			}
+		} else if (type == ActionType.GOAL && !hasLink) {
+			// 목표 없는 핵심 행동은 만들 수 없다(FOCUS-009).
+			errors.add(requiredLinkField, ValidationReason.REQUIRED);
+		}
+		return new NewAction(type, monthlyGoalId, weeklyGoalId, title,
+				performedDate != null ? performedDate : time.today(), dueDate, contribution);
+	}
+
+	/** 현재 주 이후 날짜의 GOAL 행동은 만들 수 없다(422). DB를 읽지 않으므로 트랜잭션 밖에서 불러도 된다. */
+	public static void requireWithinCurrentWeek(NewAction action, UserTime time) {
+		if (action.type() == ActionType.GOAL && action.performedDate().isAfter(time.currentWeek().endDate())) {
+			throw outOfRange(time.currentWeek().endDate(), action.performedDate());
+		}
+	}
+
+	/**
+	 * 연결 대상 결정·부모 확인·INSERT·체크형 진행률 재계산. 호출자가 연 쓰기 트랜잭션 안에서, users 행 잠금을 건 뒤에
+	 * 부른다. 새 행동의 id를 돌려준다. monthlyGoalField는 월간·주간 불일치 400의 필드 경로다.
+	 */
+	public long insertInTx(long userId, UserTime time, NewAction action, String monthlyGoalField) {
+		boolean goal = action.type() == ActionType.GOAL;
+		Long weeklyGoalId = null;
+		boolean checklist = false;
+		if (goal) {
+			// 3~4. 연결 대상 결정과 부모 확인. 찾은 주간 목표는 행 잠금까지 잡아서 돌려준다.
+			WeeklyGoal weekly = resolveWeekly(userId, action, monthlyGoalField);
+			checklist = weekly.getMeasurementType() != MeasurementType.NUMERIC;
+			// 5. 기여량은 수치형에만 줄 수 있다.
+			if (checklist && action.contribution() != null) {
+				throw new BusinessException(GoalErrorCode.GOAL_NOT_NUMERIC);
+			}
+			weeklyGoalId = weekly.getId();
+		}
+		Long actionId = actions.saveAndFlush(new Action(userId, weeklyGoalId, action.title(),
+				action.performedDate(), action.dueDate(), action.contribution())).getId();
+		if (checklist) {
+			// 체크형은 연결 행동 수가 분모라 새 행동이 0%로 들어가 주간·월간 진행률이 바뀐다.
+			engine.recalcWeekly(userId, weeklyGoalId, time.today(), "행동 추가: " + action.title());
+		}
+		return actionId;
 	}
 
 	/**
 	 * GOAL 행동의 연결 주간 목표를 정하고 행 잠금까지 잡는다(규칙은 API 명세 §4.9 POST).
 	 * 주간 목표를 직접 지정하면 기간 포함은 묻지 않는다. monthlyGoalId만 오면 수행일을 포함하는 활성 주간 목표를 찾는다.
 	 */
-	private WeeklyGoal resolveWeekly(long userId, CreateActionRequest req, LocalDate performedDate) {
+	private WeeklyGoal resolveWeekly(long userId, NewAction req, String monthlyGoalField) {
+		LocalDate performedDate = req.performedDate();
 		if (req.weeklyGoalId() != null) {
 			// 가시성 확인과 행 잠금을 한 번에 한다(INSERT의 FK 확인이 공유 잠금을 걸기 전에 배타 잠금을 먼저 잡는다).
 			WeeklyGoal weekly = weeklies.findVisibleForUpdate(req.weeklyGoalId(), userId)
 					.orElseThrow(() -> parentUnavailable("WEEKLY", req.weeklyGoalId()));
 			if (req.monthlyGoalId() != null && !req.monthlyGoalId().equals(weekly.getMonthlyGoalId())) {
 				// 함께 보낸 월간 목표가 그 주간 목표의 부모가 아니다. 요청이 서로 모순이므로 400이다.
-				throw new FieldErrors().add("monthlyGoalId", ValidationReason.INVALID_FORMAT).toException();
+				throw new FieldErrors().add(monthlyGoalField, ValidationReason.INVALID_FORMAT).toException();
 			}
 			return weekly;
 		}

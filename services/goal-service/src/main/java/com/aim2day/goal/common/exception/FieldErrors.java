@@ -10,10 +10,29 @@ import java.util.Map;
  */
 public final class FieldErrors {
 
-	private final List<FieldErrorDetail> errors = new ArrayList<>();
+	private final List<FieldErrorDetail> errors;
+	/** 필드 경로 앞에 붙일 접두사. 온보딩 일괄 저장에서 {@code yearlyGoals[0].title}처럼 쓴다. */
+	private final String prefix;
+
+	public FieldErrors() {
+		this(new ArrayList<>(), "");
+	}
+
+	private FieldErrors(List<FieldErrorDetail> errors, String prefix) {
+		this.errors = errors;
+		this.prefix = prefix;
+	}
+
+	/**
+	 * 같은 오류 목록에 쌓되 필드 이름 앞에 접두사를 붙이는 뷰. 개별 생성 API의 검증 메서드를 그대로 재사용하면서
+	 * 일괄 요청 안의 위치(배열 인덱스)를 오류 경로에 남긴다. 뷰와 원본은 목록을 공유하므로 원본의 throwIfAny가 모두 본다.
+	 */
+	public FieldErrors scoped(String scopePrefix) {
+		return new FieldErrors(errors, prefix + scopePrefix);
+	}
 
 	public FieldErrors add(String field, ValidationReason reason) {
-		errors.add(new FieldErrorDetail(field, reason.name()));
+		errors.add(new FieldErrorDetail(prefix + field, reason.name()));
 		return this;
 	}
 

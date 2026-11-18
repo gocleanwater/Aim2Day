@@ -761,13 +761,15 @@
   - 행이 없고 `version` 생략 → 새로 만든다.
   - 행이 있는데 `version` 생략, 또는 `version`이 다름 → 409 `VERSION_CONFLICT`(`currentVersion`).
   - 행이 없는데 `version`을 보냄 → 409 `VERSION_CONFLICT`(`currentVersion: null`). 다른 탭이 온보딩을 끝내 임시 저장을 지운 뒤 오래된 탭이 되살리지 못하게 한다(가정).
+  - 새 임시 저장의 시작 version은 `user_settings.last_onboarding_draft_version + 1`(2026-11-18 사용자 결정, V7에 열 추가). 임시 저장을 만들거나 고칠 때마다 결과 version을 이 열에 기록하고, 삭제·완료 때는 건드리지 않는다. 지웠다 다시 만든 임시 저장의 version이 예전 탭의 값과 겹쳐 덮어쓰는 것을 확실히 막는다(처음 시도한 epoch 밀리초 방식은 같은 밀리초·시계 역행에서 겹칠 수 있어 Codex 2회차 뒤 바꿨다).
   - 응답은 임시 저장 객체 `{currentStep, draftData, version, updatedAt}`.
+- **JSON 숫자 정밀도(2026-11-18 사용자 결정):** MySQL JSON은 정수와 DOUBLE을 구분해 저장하므로 아주 긴 소수는 정밀도가 잘린다. API가 보장하는 보존 범위를 정수 ±2^53, 소수 유효숫자 15자리로 명세에 적는다(입력 제한이 아니라 보존 보장 범위).
 - **DELETE:** users 잠금 뒤 삭제, 없어도 200 `data: null`.
 - **상태:** `needsOnboarding = 올해 활성 연간 목표 0개 || 임시 저장 있음`. 활성은 소프트 삭제되지 않은 것(상태 무관). `firstQuestion`은 계정 시간대 기준 1월/그 외 문구. 읽기 전용 REPEATABLE_READ.
 - **완료(`POST .../complete`):** 한 트랜잭션.
   1. 400 구조 검증을 먼저 전부 한다: `tempId` 비어 있음·단계 안 중복, 부모 지정은 `...TempId`와 `...Id` 중 정확히 하나, 없는 `tempId` 참조, 각 항목의 필드 규칙(개별 생성 API와 같은 검증). 필드 경로는 `yearlyGoals[0].title`처럼 쓴다.
   2. users 행 잠금 → 올해 활성 연간 수 + 새 연간 수 > 3이면 409 `GOAL_LIMIT_EXCEEDED`.
-  3. 기존 `...Id` 부모는 본인 소유·보이는 목표여야 하고(422 `GOAL_PARENT_UNAVAILABLE`), 기간이 맞아야 한다(연간=올해, 월간=이번 달, 422 `GOAL_PARENT_PERIOD_MISMATCH`).
+  3. 기존 `...Id` 부모는 본인 소유·보이는 목표여야 하고(422 `GOAL_PARENT_UNAVAILABLE`), 기간이 맞아야 한다(연간=올해, 월간=§4.6대로 이번 주와 하루라도 겹침, 422 `GOAL_PARENT_PERIOD_MISMATCH`). 2026-11-18 Codex 리뷰 뒤 API 명세에 맞춰 고침.
   4. 연간 → 월간 → 주간 → 행동 순서로 만든다. 연간은 올해, 월간은 이번 달, 주간은 이번 주. 행동은 §4.9 규칙(연결 대상 결정·`contributionValue`·날짜 범위)을 그대로 따르고, `weeklyGoalTempId`·`monthlyGoalTempId`도 받는다. 진행률은 개별 생성과 같이 엔진으로 계산한다.
   5. 임시 저장을 지운다. 201 `{yearlyGoals: {tempId: id}, monthlyGoals, weeklyGoals, actions: [id...]}`(행동은 요청 순서).
   - 기존 생성 서비스의 검증·생성 로직을 "트랜잭션 안에서 부르는" 메서드로 나눠 재사용한다. 규칙을 복사하지 않는다.

@@ -97,39 +97,59 @@ public class WeeklyGoalService {
 		if (req.monthlyGoalId() == null) {
 			errors.add("monthlyGoalId", ValidationReason.REQUIRED);
 		}
-		String title = GoalFieldRules.title(req.title(), errors);
-		String description = GoalFieldRules.description(req.description(), errors);
-		String color = req.color() == null ? null : GoalFieldRules.color(req.color(), errors);
-		MeasurementType type = req.measurementType() == null ? MeasurementType.CHECKLIST : req.measurementType();
-		BigDecimal weight = req.weight() == null ? DEFAULT_WEIGHT
-				: DecimalRules.positive(req.weight(), DecimalRules.MAX_WEIGHT, "weight", errors);
-		BigDecimal target = null;
-		if (type == MeasurementType.NUMERIC) {
-			target = DecimalRules.positive(req.targetValue(), DecimalRules.MAX_VALUE, "targetValue", errors);
-		} else if (req.targetValue() != null) {
-			// 체크형에는 목표값이 없다.
-			errors.add("targetValue", ValidationReason.INVALID_FORMAT);
-		}
+		NewGoal draft = validateNew(req.title(), req.description(), req.color(), req.measurementType(), req.weight(),
+				req.targetValue(), errors);
 		errors.throwIfAny();
 
 		long monthlyGoalId = req.monthlyGoalId();
-		DateRange week = time.currentWeek();
-		BigDecimal finalTarget = target;
 		Long id = tx.execute(status -> {
 			// 첫 쿼리는 users 행 잠금이다(위 클래스 설명).
 			userRowLock.lock(userId);
-			// 부모 월간 목표 확인과 행 잠금을 한 번에 한다. INSERT의 FK 확인이 월간 행에 공유 잠금을 걸기 전에
-			// 배타 잠금을 먼저 잡아야, 뒤이은 월간 재계산이 공유 -> 배타 승격을 기다리다 교착하지 않는다.
-			MonthlyGoal parent = monthlyRepository.findVisibleForUpdate(monthlyGoalId, userId)
-					.orElseThrow(() -> parentUnavailable(monthlyGoalId));
-			requireOverlap(parent, week.startDate(), week.endDate());
-			Long weeklyId = repository.saveAndFlush(new WeeklyGoal(monthlyGoalId, week.startDate(), week.endDate(),
-					title, description, color, type, finalTarget, weight)).getId();
-			// 새 주간 목표는 0%로 분모에 들어가므로 월간 진행률을 다시 계산한다.
-			engine.recalcMonthly(userId, monthlyGoalId, time.today(), "주간 목표 추가: " + title);
-			return weeklyId;
+			return insertInTx(userId, monthlyGoalId, time, draft);
 		});
 		return viewOf(userId, id, time.today());
+	}
+
+	/** 검증을 통과한 주간 목표 입력. type은 기본 CHECKLIST, weight는 기본 1.00, target은 수치형일 때만 있다. */
+	public record NewGoal(String title, String description, String color, MeasurementType type, BigDecimal weight,
+			BigDecimal target) {
+	}
+
+	/** 제목·설명·색·측정 방식·가중치·목표값 규칙. 개별 생성과 온보딩 일괄 저장이 같은 규칙을 쓴다. */
+	public static NewGoal validateNew(String title, String description, String color, MeasurementType measurementType,
+			BigDecimal rawWeight, BigDecimal rawTarget, FieldErrors errors) {
+		String checkedTitle = GoalFieldRules.title(title, errors);
+		String checkedDescription = GoalFieldRules.description(description, errors);
+		String checkedColor = color == null ? null : GoalFieldRules.color(color, errors);
+		MeasurementType type = measurementType == null ? MeasurementType.CHECKLIST : measurementType;
+		BigDecimal weight = rawWeight == null ? DEFAULT_WEIGHT
+				: DecimalRules.positive(rawWeight, DecimalRules.MAX_WEIGHT, "weight", errors);
+		BigDecimal target = null;
+		if (type == MeasurementType.NUMERIC) {
+			target = DecimalRules.positive(rawTarget, DecimalRules.MAX_VALUE, "targetValue", errors);
+		} else if (rawTarget != null) {
+			// 체크형에는 목표값이 없다.
+			errors.add("targetValue", ValidationReason.INVALID_FORMAT);
+		}
+		return new NewGoal(checkedTitle, checkedDescription, checkedColor, type, weight, target);
+	}
+
+	/**
+	 * 부모 확인과 INSERT(이번 주)와 월간 재계산. 호출자가 연 쓰기 트랜잭션 안에서, users 행 잠금을 건 뒤에 부른다.
+	 * 새 주간 목표의 id를 돌려준다.
+	 */
+	public long insertInTx(long userId, long monthlyGoalId, UserTime time, NewGoal goal) {
+		DateRange week = time.currentWeek();
+		// 부모 월간 목표 확인과 행 잠금을 한 번에 한다. INSERT의 FK 확인이 월간 행에 공유 잠금을 걸기 전에
+		// 배타 잠금을 먼저 잡아야, 뒤이은 월간 재계산이 공유 -> 배타 승격을 기다리다 교착하지 않는다.
+		MonthlyGoal parent = monthlyRepository.findVisibleForUpdate(monthlyGoalId, userId)
+				.orElseThrow(() -> parentUnavailable(monthlyGoalId));
+		requireOverlap(parent, week.startDate(), week.endDate());
+		Long weeklyId = repository.saveAndFlush(new WeeklyGoal(monthlyGoalId, week.startDate(), week.endDate(),
+				goal.title(), goal.description(), goal.color(), goal.type(), goal.target(), goal.weight())).getId();
+		// 새 주간 목표는 0%로 분모에 들어가므로 월간 진행률을 다시 계산한다.
+		engine.recalcMonthly(userId, monthlyGoalId, time.today(), "주간 목표 추가: " + goal.title());
+		return weeklyId;
 	}
 
 	public List<WeeklyGoalResponse> list(long userId, LocalDate date, Long monthlyGoalId) {
