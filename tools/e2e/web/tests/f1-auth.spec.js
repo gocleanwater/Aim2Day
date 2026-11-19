@@ -24,6 +24,10 @@ test('signup, login, settings, logout, reset password', async ({ page, baseURL }
     await page.getByTestId('signup-password').fill(PASSWORD);
     await page.getByTestId('signup-confirm').fill(PASSWORD);
     await page.getByTestId('signup-submit').click();
+    // 가입하면 바로 로그인된다. 새 계정이라 온보딩으로 간다. 로그인 시험을 위해 로그아웃한다.
+    await expect(page).toHaveURL(/#\/onboarding/);
+    await expect(page.getByTestId('member-name')).toContainText('화면시험');
+    await page.getByTestId('logout').click();
     await expect(page).toHaveURL(/#\/login/);
   });
 

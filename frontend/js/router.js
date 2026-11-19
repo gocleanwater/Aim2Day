@@ -74,7 +74,7 @@ async function dispatch() {
       const user = await ensureUser({ redirectOn401: false });
       if (!isActive()) return;
       if (user) {
-        await routeAfterLogin();
+        await routeAfterLogin(isActive); // 늦은 응답이 이미 떠난 뒤 이동을 강제하지 않게 활성 여부를 넘긴다
         return;
       }
     }

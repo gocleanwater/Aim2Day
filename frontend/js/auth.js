@@ -72,10 +72,13 @@ export function clearOnboardingDeferred() {
  * 로그인 직후(또는 이미 로그인된 채 로그인 화면을 열었을 때) 갈 곳을 정한다.
  * 온보딩이 필요하면 항상 온보딩이 먼저다. 아니면 401 전에 보던 화면, 없으면 대시보드다.
  */
-export async function routeAfterLogin() {
+export async function routeAfterLogin(isActive = () => true, { redirectOn401 = true } = {}) {
   // 새로 로그인한 사람은 "나중에 하기"를 눌렀던 이전 선택과 무관하게 온보딩부터 안내한다.
   clearOnboardingDeferred();
-  const status = await api.get("/api/goals/onboarding/status");
+  const status = await api.get("/api/goals/onboarding/status", { redirectOn401 });
+  // 응답을 기다리는 사이 사용자가 다른 화면으로 갔다면, 늦게 온 응답이 이동을 강제하거나
+  // 돌아갈 곳 기록(returnTo)을 소비·삭제하지 않게 여기서 끝낸다.
+  if (!isActive()) return;
   if (status.needsOnboarding) {
     // 온보딩을 끝내기 전에는 예전 화면으로 돌아가지 않는다.
     clearReturnTo();

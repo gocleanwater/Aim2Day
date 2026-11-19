@@ -1,9 +1,10 @@
 // 회원가입 (#/signup). 한 화면에서 단계가 열리는 방식(화면 흐름 문서 "회원가입").
 //   1) 이메일 입력 → [인증번호 받기]      POST /api/auth/email-codes
 //   2) 인증번호 입력 → [확인]              POST /api/auth/email-codes/verify  → 가입권(signupToken) 보관
-//   3) 사용자명·비밀번호 → [가입하기]      POST /api/auth/signup              → 성공하면 로그인 화면으로
+//   3) 사용자명·비밀번호 → [가입하기]      POST /api/auth/signup              → 성공하면 자동 로그인 후 온보딩/대시보드로
 // 앞 단계를 마치기 전에는 다음 단계 입력칸이 비활성이다.
-import { api } from "../api.js";
+import { api, ApiError } from "../api.js";
+import { clearUser, routeAfterLogin, setUser } from "../auth.js";
 import { navigate } from "../navigation.js";
 import { attachPasswordChecklist } from "../passwordPolicy.js";
 import {
@@ -91,6 +92,7 @@ export function render(container) {
   // signupToken: 인증 성공 때 받은 가입권. 화면 메모리에만 두고 저장소에는 넣지 않는다.
   let sentEmail = null;
   let signupToken = null;
+  let signupDone = false; // POST 201 이후 true. 이후에는 제출 버튼을 다시 열지 않는다
   let passwordOk = false;
   let stopCountdown = null;
   let alive = true; // 화면을 떠난 뒤 늦게 온 응답이 토스트·이동을 일으키지 않게 한다
@@ -336,7 +338,7 @@ export function render(container) {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!signupToken) return;
+    if (!signupToken || signupDone) return; // 가입이 끝난 뒤에는 재제출 불가(가입권 소비됨)
     clearFormErrors(form);
     const username = usernameInput.value.trim();
     const password = passwordInput.value;
@@ -356,11 +358,9 @@ export function render(container) {
 
     setBusy(submitButton, true, "가입 중…");
     try {
+      // 가입 성공(201)은 가입 완료를 뜻한다. 이후 단계의 실패는 가입 실패가 아니므로
+      // 이 try/catch(가입 요청 전용) 밖에서 따로 처리한다. 가입권은 이미 소비돼 다시 제출할 수 없다.
       await api.post("/api/auth/signup", { body: { signupToken, username, password, passwordConfirm } });
-      if (!alive) return;
-      // 가입 직후 자동 로그인하지 않는다. 토스트는 화면이 바뀌어도 유지되므로 로그인 화면에서 읽힌다.
-      toast("가입이 완료됐어요. 로그인해 주세요.");
-      navigate("#/login");
     } catch (error) {
       if (!alive) return;
       setBusy(submitButton, false);
@@ -375,8 +375,58 @@ export function render(container) {
       } else {
         handleApiError(error, { form });
       }
+      return;
     }
+
+    // ---- 가입 이후 단계: 폼은 잠근 채(버튼은 '가입 중' 상태 유지) 세션 확인과 화면 이동만 한다 ----
+    signupDone = true;
+    await finishAfterSignup();
   });
+
+  // 가입(201) 뒤 처리. 화면을 떠났어도 로그인 표시(헤더)는 확인 결과에 맞춰 반영하고, 이동·토스트만 alive일 때 한다.
+  async function finishAfterSignup() {
+    const notice = form.querySelector("[data-testid='signup-continue-notice']");
+    if (notice) notice.remove();
+    try {
+      // 201에 세션이 없을 수도 있으므로 응답만 믿고 setUser하지 않고 GET /api/users/me로 확인한다.
+      // 이 호출의 401은 공통 로그인 리다이렉트를 쓰지 않고 직접 처리한다.
+      const me = await api.get("/api/users/me", { redirectOn401: false });
+      setUser(me);
+      // 로그인 성공과 같은 경로. 새 계정은 온보딩이 필요하므로 보통 #/onboarding으로 간다.
+      // 응답을 기다리는 사이 다른 화면으로 갔다면 그 화면을 덮어쓰지 않는다(isActive).
+      await routeAfterLogin(() => alive, { redirectOn401: false });
+      if (alive) toast("가입을 마쳤어요. 환영해요!");
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "UNAUTHENTICATED") {
+        // 계정은 만들어졌지만 로그인 세션이 없다: 로그인 상태를 지우고 로그인 화면으로 안내한다.
+        clearUser();
+        if (alive) {
+          toast("가입을 마쳤어요. 로그인해 주세요.");
+          navigate("#/login");
+        }
+        return;
+      }
+      if (!alive) return;
+      // 네트워크·5xx: 가입은 끝났으니 가입하기는 다시 열지 않고, 이후 단계만 다시 시도하게 한다.
+      const box = document.createElement("div");
+      box.className = "form-error";
+      box.setAttribute("role", "alert");
+      box.dataset.testid = "signup-continue-notice";
+      const text = document.createElement("p");
+      text.textContent = "가입은 완료됐어요. 화면을 불러오지 못했어요.";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "btn";
+      retry.dataset.testid = "signup-continue";
+      retry.textContent = "다시 시도";
+      retry.addEventListener("click", () => {
+        retry.disabled = true;
+        finishAfterSignup();
+      });
+      box.append(text, retry);
+      form.append(box);
+    }
+  }
 
   emailInput.focus();
   return () => {

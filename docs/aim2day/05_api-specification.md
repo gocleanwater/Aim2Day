@@ -301,17 +301,14 @@ CSRF 토큰 쿠키 `XSRF-TOKEN`을 내려준다. 인증이 필요 없고, 로그
 }
 ```
 
-201 응답:
-
-```json
-{ "userId": 7, "email": "user@example.com" }
-```
+201 응답: `{ "id": 7, "email": "user@example.com", "username": "정수" }` 와 `Set-Cookie: SESSION=...` (로그인 응답과 같은 모양)
 
 - 입력 검증(사용자명, 비밀번호 규칙, 확인 일치)을 가입권 소비보다 먼저 한다. 비밀번호가 규칙에 맞지 않으면 가입권을 소비하지 않고 400 `VALIDATION_FAILED`를 반환해 사용자가 같은 가입권으로 다시 제출할 수 있다.
 - 가입권은 `GETDEL`로 한 번만 소비한다. 없거나 만료됐거나 이미 사용했으면 400 `AUTH_INVALID_TOKEN`을 반환하며, 사용자는 인증번호부터 다시 받아야 한다.
 - 인증을 마친 뒤 가입 전에 같은 이메일로 가입이 끝났다면 409 `AUTH_EMAIL_EXISTS`를 반환한다.
 - 비밀번호는 BCrypt로 해시해 저장한다. 계정은 이미 인증된 이메일로만 만들어지므로 인증 여부 컬럼이 없다(ERD 결정 10).
-- 가입 직후 자동 로그인하지 않는다. 프론트엔드는 로그인 화면으로 이동한다.
+- 가입에 성공하면 로그인과 같은 방식으로 자동 로그인한다. 세션 ID를 새로 발급하고(세션 고정 방지) 세션에 `userId`와 `PRINCIPAL_NAME_INDEX_NAME`을 저장한다(§2.2). 계정 생성이 커밋된 뒤 세션을 만든다. 프론트엔드는 로그인 성공 때와 같이 `GET /api/goals/onboarding/status`로 이동할 곳을 정한다(새 계정이므로 온보딩). (사용자 결정, 2026-11-19)
+- 자동 로그인도 로그인과 같이 세션 저장 뒤 DB의 비밀번호 해시를 다시 확인한다(계정 커밋 직후 비밀번호 재설정이 끝났을 수 있다, 결정 14). 계정은 만들었지만 세션을 만들지 못하면(재확인 불일치, 세션 저장 실패) 세션 없이 같은 201 응답을 준다. 프론트엔드는 로그인되지 않은 것을 확인하면 "가입을 마쳤어요. 로그인해 주세요."와 함께 로그인 화면으로 보낸다.
 - 오류: 400 `VALIDATION_FAILED`(`PASSWORD_POLICY`, `PASSWORD_MISMATCH` 포함), 400 `AUTH_INVALID_TOKEN`, 403 `CSRF_TOKEN_INVALID`, 409 `AUTH_EMAIL_EXISTS`
 
 #### POST `/api/auth/login`
@@ -1286,7 +1283,7 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 |---|---|---|
 | 공통 상단 내비게이션 | `GET /api/users/me` | 로그아웃 `POST /api/auth/logout` |
 | 로그인 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `POST /api/auth/login` |
-| 회원가입 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `[인증번호 받기]` → `POST /api/auth/email-codes`, `[확인]` → `POST /api/auth/email-codes/verify`, `[가입하기]` → `POST /api/auth/signup`. 가입 성공 뒤 로그인 화면으로 이동 |
+| 회원가입 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `[인증번호 받기]` → `POST /api/auth/email-codes`, `[확인]` → `POST /api/auth/email-codes/verify`, `[가입하기]` → `POST /api/auth/signup`. 가입 성공 뒤 자동 로그인되어 로그인 성공과 같이 이동(새 계정은 온보딩) |
 | 비밀번호 재설정 | `GET /api/auth/csrf`(`XSRF-TOKEN` 쿠키가 없을 때) | `POST /api/auth/password-reset-requests`, `POST /api/auth/password-reset` |
 | 온보딩 | `GET /api/goals/onboarding/status`, `GET /api/goals/onboarding/draft`, `GET /api/settings`, `GET /api/goals/yearly` | 단계 이동마다 `PUT .../draft`, 완료 `POST .../complete` |
 | 대시보드 | `GET /api/settings`, `GET /api/actions`, `GET /api/calendar/dashboard`, `GET /api/goals/weekly`, `GET /api/goals/monthly`, `GET /api/goals/progress-logs` | 행동 완료, 달력 항목 완료, 날짜 이동 시 `GET /api/actions?date=` 재호출 |

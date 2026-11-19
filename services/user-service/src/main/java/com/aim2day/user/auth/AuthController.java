@@ -7,11 +7,9 @@ import com.aim2day.user.auth.dto.AuthDtos.EmailCodeVerifyResponse;
 import com.aim2day.user.auth.dto.AuthDtos.PasswordResetLinkRequest;
 import com.aim2day.user.auth.dto.AuthDtos.PasswordResetRequest;
 import com.aim2day.user.auth.dto.AuthDtos.SignupRequest;
-import com.aim2day.user.auth.dto.AuthDtos.SignupResponse;
 import com.aim2day.user.auth.dto.AuthDtos.LoginRequest;
 import com.aim2day.user.auth.dto.AuthDtos.LoginResponse;
 import com.aim2day.user.common.response.ApiResponse;
-import com.aim2day.user.common.security.SessionUserIdAuthenticationFilter;
 import com.aim2day.user.user.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -30,14 +28,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
 
+	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthController.class);
+
 	private final EmailCodeService emailCodeService;
 	private final SignupService signupService;
 	private final LoginService loginService;
 	private final CookieSerializer cookieSerializer;
 	private final PasswordResetService passwordResetService;
+	private final LoginSessionStarter loginSessionStarter;
 
 	public AuthController(EmailCodeService emailCodeService, SignupService signupService, LoginService loginService,
-			CookieSerializer cookieSerializer, PasswordResetService passwordResetService) {
+			CookieSerializer cookieSerializer, PasswordResetService passwordResetService,
+			LoginSessionStarter loginSessionStarter) {
+		this.loginSessionStarter = loginSessionStarter;
 		this.passwordResetService = passwordResetService;
 		this.cookieSerializer = cookieSerializer;
 		this.emailCodeService = emailCodeService;
@@ -57,8 +60,22 @@ public class AuthController {
 
 	@PostMapping("/signup")
 	@ResponseStatus(HttpStatus.CREATED)
-	public ApiResponse<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
-		return ApiResponse.success(signupService.signup(request));
+	public ApiResponse<LoginResponse> signup(@Valid @RequestBody SignupRequest body, HttpServletRequest request) {
+		// 계정 생성은 서비스 안에서 자체 트랜잭션으로 커밋까지 끝나고 돌아온다. 세션은 그 뒤에 만들므로
+		// 커밋되지 않은(롤백될) 계정의 세션이 생기지 않는다. 실패(토큰·검증·이메일 중복)는 예외로 여기 오기 전에 끝나 세션을 만들지 않는다.
+		User user = signupService.signup(body);
+		// 계정 커밋 뒤 세션 저장 전에 비밀번호 재설정이 끝날 수 있다(재설정 링크는 가입 전에도 받을 수 있다). 그러면 재설정 시점
+		// 이전에 만든 세션이 남게 되므로, 로그인과 똑같이 세션 저장 뒤 DB 해시를 다시 읽어 확인한다(불일치 시 세션 폐기).
+		try {
+			loginSessionStarter.start(request, user, () -> loginService.ensurePasswordUnchanged(user));
+		}
+		catch (RuntimeException e) {
+			// 정책: 계정은 이미 커밋됐으므로 가입 자체는 성공(201)으로 응답하고 세션만 없이 내보낸다(SESSION 쿠키 없음, 사용자는 로그인하면 된다).
+			// 세션 폐기는 LoginSessionStarter가 이미 했다. 사용자 ID만 남기고 예외 메시지·이메일·비밀값은 로그에 넣지 않는다.
+			log.warn("가입 직후 자동 로그인 세션을 만들지 못해 세션 없이 응답한다. userId={}, cause={}", user.getId(),
+					e.getClass().getSimpleName());
+		}
+		return ApiResponse.success(new LoginResponse(user.getId(), user.getEmail(), user.getUsername()));
 	}
 
 	/** 재설정 링크 요청. 가입 여부와 관계없이 200 data:null이다(가입된 계정에만 메일을 보낸다). */
@@ -102,40 +119,9 @@ public class AuthController {
 	@PostMapping("/login")
 	public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest body, HttpServletRequest request) {
 		User user = loginService.authenticate(body.email(), body.password());
-
-		// changeSessionId()는 ID만 바꾸고 이전 세션의 속성을 그대로 넘긴다. 로그인 전에 공격자가 심은 속성이
-		// 로그인 뒤 세션에 남지 않도록, 기존 세션은 폐기(저장소에서 삭제)하고 완전히 새 세션을 만든다.
-		// 새 ID가 발급되므로 세션 고정 방어는 그대로 유지된다.
-		HttpSession existing = request.getSession(false);
-		if (existing != null) {
-			existing.invalidate();
-		}
-		HttpSession session = request.getSession(true);
-		// 순서가 중요하다. flushMode=IMMEDIATE(SessionConfig)라 각 setAttribute가 곧바로 Redis에 저장된다.
-		// 인덱스 속성을 먼저 넣는 이유: 이 세션이 "그 사용자의 세션"으로 조회돼야 겹친 재설정이 삭제 대상에 넣을 수 있다.
-		// 아직 userId 속성이 없는 중간 상태의 세션은 인증을 통과시키지 못하므로 노출돼도 안전하다.
-		// 두 setAttribute도 try 안에 둔다. IMMEDIATE라 각 호출이 Redis에 쓰므로, userId 저장이 반영된 직후(또는 저장
-		// 도중) 예외가 나면 이미 인증 가능한 세션이 저장소에 남을 수 있다. 어느 지점에서 실패해도 아래 catch가 폐기한다.
-		try {
-			session.setAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME,
-					String.valueOf(user.getId()));
-			session.setAttribute(SessionUserIdAuthenticationFilter.USER_ID_ATTRIBUTE, user.getId());
-			// 세션이 Redis에 저장된 뒤 DB 해시를 다시 읽는다(LoginService 설명 참고). 비밀번호 확인과 세션 저장 사이에
-			// 재설정이 끝났다면 여기서 걸러 이전 비밀번호로 만든 세션이 남지 않게 한다.
-			loginService.ensurePasswordUnchanged(user);
-		}
-		catch (RuntimeException | Error e) {
-			// 불일치뿐 아니라 저장소·DB 오류 등 어떤 실패에서도 방금 저장한 세션을 폐기(Redis 삭제)한다. 확인되지 않은 세션을
-			// 남기지 않는다. invalidate 뒤에는 Spring Session이 새 쿠키를 내리지 않고 만료 쿠키만 내려 로그인 쿠키가 발급되지 않는다.
-			// 정리 자체가 실패해도(예: 저장소 장애) 원래 예외가 응답·로그에 남아야 하므로 suppressed로 붙이고 원래 예외를 던진다.
-			try {
-				session.invalidate();
-			}
-			catch (RuntimeException cleanupFailure) {
-				e.addSuppressed(cleanupFailure);
-			}
-			throw e;
-		}
+		// 세션 ID 재발급·속성 저장·실패 시 폐기는 가입 자동 로그인과 공용인 LoginSessionStarter가 한다.
+		// 세션이 저장된 뒤 DB 해시를 다시 읽어(LoginService 설명 참고) 비밀번호 확인과 세션 저장 사이에 끝난 재설정을 걸러 낸다.
+		loginSessionStarter.start(request, user, () -> loginService.ensurePasswordUnchanged(user));
 		return ApiResponse.success(new LoginResponse(user.getId(), user.getEmail(), user.getUsername()));
 	}
 

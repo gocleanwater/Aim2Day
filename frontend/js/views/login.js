@@ -57,7 +57,7 @@ export function render(container, route) {
       const user = await api.post("/api/auth/login", { body: { email, password } });
       setUser(user); // 서버 세션은 이미 만들어졌으므로 로그인 표시는 화면과 무관하게 반영한다(헤더에 사용자명 표시)
       // 응답을 기다리는 사이 사용자가 다른 화면으로 갔다면 그 화면을 원래 목적지로 덮어 이동시키지 않는다.
-      if (route.isActive()) await routeAfterLogin();
+      if (route.isActive()) await routeAfterLogin(route.isActive);
     } catch (error) {
       if (!route.isActive()) return; // 떠난 화면에 오류를 그리지 않는다
       // AUTH_INVALID_CREDENTIALS 등은 서버 message를 폼 위에 그대로 보여 준다.

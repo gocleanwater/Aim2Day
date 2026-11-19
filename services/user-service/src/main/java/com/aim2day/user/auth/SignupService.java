@@ -1,7 +1,6 @@
 package com.aim2day.user.auth;
 
 import com.aim2day.user.auth.dto.AuthDtos.SignupRequest;
-import com.aim2day.user.auth.dto.AuthDtos.SignupResponse;
 import com.aim2day.user.auth.token.AuthTokenStore;
 import com.aim2day.user.common.response.BusinessException;
 import com.aim2day.user.common.response.ErrorCode;
@@ -38,7 +37,8 @@ public class SignupService {
 		this.tokenStore = tokenStore;
 	}
 
-	public SignupResponse signup(SignupRequest request) {
+	/** 계정을 만들고(INSERT 커밋 완료) 저장된 사용자를 돌려준다. 자동 로그인 세션은 컨트롤러가 이 커밋 뒤에 만든다. */
+	public User signup(SignupRequest request) {
 		// 가입권은 GETDEL로 한 번만 소비된다. 없음·만료·이미 사용·변조를 구분하지 않고 같은 오류로 답한다.
 		String email = tokenStore.consumeTicket(request.signupToken())
 				.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_TOKEN));
@@ -63,7 +63,7 @@ public class SignupService {
 			}
 			throw e;
 		}
-		return new SignupResponse(user.getId(), user.getEmail());
+		return user;
 	}
 
 	/** MySQL 8: "Duplicate entry '...' for key 'users.idx_users_email'"(5.7은 접두사 없음). 키 이름을 정확히 일치시킨다. */

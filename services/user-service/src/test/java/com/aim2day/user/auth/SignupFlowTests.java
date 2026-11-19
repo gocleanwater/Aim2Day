@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,6 +37,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.MapSession;
+import org.springframework.session.MapSessionRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -57,6 +61,8 @@ class SignupFlowTests {
 	MockMvc mockMvc;
 	@MockitoSpyBean
 	UserRepository userRepository;
+	@MockitoSpyBean
+	LoginService loginService;
 	@Autowired
 	PasswordEncoder passwordEncoder;
 	@Autowired
@@ -64,8 +70,41 @@ class SignupFlowTests {
 	@Autowired
 	RecordingMailSender mailSender;
 
+	@Autowired
+	MapSessionRepository sessionRepository;
+
+	@SuppressWarnings("unchecked")
+	private java.util.Map<String, Object> sessionStore() {
+		return (java.util.Map<String, Object>) org.springframework.test.util.ReflectionTestUtils
+				.getField(sessionRepository, "sessions");
+	}
+
+	private static String setCookieLine(org.springframework.mock.web.MockHttpServletResponse response, String name) {
+		return response.getHeaders(org.springframework.http.HttpHeaders.SET_COOKIE).stream()
+				.filter(h -> h.startsWith(name + "=")).findFirst().orElse(null);
+	}
+
+	private static String cookieValue(org.springframework.mock.web.MockHttpServletResponse response, String name) {
+		String line = setCookieLine(response, name);
+		return line == null ? null : line.substring(name.length() + 1).split(";", 2)[0];
+	}
+
+	/** SESSION 쿠키 값은 세션 ID의 Base64다(DefaultCookieSerializer 기본). */
+	private static String sessionIdOf(String cookie) {
+		return new String(java.util.Base64.getDecoder().decode(cookie), java.nio.charset.StandardCharsets.UTF_8);
+	}
+
+	private ResultActions postJson(String path, String body, String sessionId) throws Exception {
+		return mockMvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body)
+				.cookie(new jakarta.servlet.http.Cookie("XSRF-TOKEN", "t0ken"))
+				.cookie(new jakarta.servlet.http.Cookie("SESSION", java.util.Base64.getEncoder()
+						.encodeToString(sessionId.getBytes(java.nio.charset.StandardCharsets.UTF_8))))
+				.header("X-XSRF-TOKEN", "t0ken"));
+	}
+
 	@BeforeEach
 	void reset() {
+		sessionStore().clear();
 		userRepository.deleteAll();
 		tokenStore.clear();
 		mailSender.clear();
@@ -395,20 +434,100 @@ class SignupFlowTests {
 	// ---- POST /api/auth/signup ----
 
 	@Test
-	void signupCreatesUserWithBcryptPasswordAndNoAutoLogin() throws Exception {
+	void signupCreatesUserWithBcryptPasswordAndLogsIn() throws Exception {
 		String ticket = obtainTicket("  User@Example.com ");
 
-		signup(ticket, PASSWORD, PASSWORD)
+		MvcResult result = signup(ticket, PASSWORD, PASSWORD)
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.code").value("SUCCESS"))
-				.andExpect(jsonPath("$.data.userId").isNumber())
+				.andExpect(jsonPath("$.data.id").isNumber())
 				.andExpect(jsonPath("$.data.email").value(EMAIL))
-				.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie().doesNotExist("SESSION"));
+				.andExpect(jsonPath("$.data.username").value("정수"))
+				.andExpect(jsonPath("$.data.password").doesNotExist())
+				.andExpect(jsonPath("$.data.passwordHash").doesNotExist())
+				.andReturn();
 
+		// 자동 로그인: SESSION 쿠키가 내려오고, 그 세션에 userId와 principal 인덱스가 로그인과 같은 형태로 들어 있다.
+		String line = setCookieLine(result.getResponse(), "SESSION");
+		assertThat(line).isNotNull().contains("HttpOnly").contains("SameSite=Lax").contains("Path=/");
 		User user = userRepository.findByEmail(EMAIL).orElseThrow();
+		MapSession session = sessionRepository.findById(sessionIdOf(cookieValue(result.getResponse(), "SESSION")));
+		assertThat(session).isNotNull();
+		assertThat(session.<Object>getAttribute("userId")).isInstanceOf(Long.class).isEqualTo(user.getId());
+		assertThat(session.<String>getAttribute(FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME))
+				.isEqualTo(String.valueOf(user.getId()));
+		assertThat(session.getAttributeNames())
+				.containsExactlyInAnyOrder("userId", FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME);
+
 		assertThat(user.getUsername()).isEqualTo("정수");
 		assertThat(user.getPasswordHash()).isNotEqualTo(PASSWORD).startsWith("$2");
 		assertThat(passwordEncoder.matches(PASSWORD, user.getPasswordHash())).isTrue();
+	}
+
+	@Test
+	void signupStillReturns201WithoutSessionWhenPasswordRecheckFails() throws Exception {
+		String ticket = obtainTicket(EMAIL);
+		// 계정 커밋 뒤 세션 저장 전에 비밀번호 재설정이 끝난 상황: 재확인이 불일치로 실패한다.
+		doThrow(new com.aim2day.user.common.response.BusinessException(
+				com.aim2day.user.common.response.ErrorCode.AUTH_INVALID_CREDENTIALS))
+				.when(loginService).ensurePasswordUnchanged(any());
+
+		MvcResult result = signup(ticket, PASSWORD, PASSWORD)
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.data.id").isNumber())
+				.andExpect(jsonPath("$.data.email").value(EMAIL))
+				.andExpect(jsonPath("$.data.username").value("정수"))
+				.andReturn();
+
+		String line = setCookieLine(result.getResponse(), "SESSION");
+		assertThat(line == null || line.contains("Max-Age=0")).isTrue();
+		assertThat(sessionStore()).isEmpty();
+		assertThat(userRepository.findByEmail(EMAIL)).isPresent();
+	}
+
+	@Test
+	void sessionFromSignupAuthenticatesMeEndpoint()throws Exception {
+		String ticket = obtainTicket(EMAIL);
+		MvcResult result = signup(ticket, PASSWORD, PASSWORD).andExpect(status().isCreated()).andReturn();
+		String cookie = cookieValue(result.getResponse(), "SESSION");
+
+		mockMvc.perform(get("/api/users/me").cookie(new jakarta.servlet.http.Cookie("SESSION", cookie)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.email").value(EMAIL))
+				.andExpect(jsonPath("$.data.username").value("정수"));
+	}
+
+	@Test
+	void signupReissuesSessionIdAndDropsPreSignupAttributes() throws Exception {
+		String ticket = obtainTicket(EMAIL);
+		// 가입 전에 공격자가 심어 둔 세션(고정 공격 가정). 가입 뒤 ID가 달라지고 속성도 넘어오지 않아야 한다.
+		MapSession planted = sessionRepository.createSession();
+		planted.setAttribute("evil", "x");
+		sessionRepository.save(planted);
+
+		MvcResult result = postJson("/api/auth/signup", "{\"signupToken\":\"" + ticket
+				+ "\",\"username\":\"정수\",\"password\":\"" + PASSWORD + "\",\"passwordConfirm\":\"" + PASSWORD + "\"}",
+				planted.getId()).andExpect(status().isCreated()).andReturn();
+
+		String newId = sessionIdOf(cookieValue(result.getResponse(), "SESSION"));
+		assertThat(newId).isNotEqualTo(planted.getId());
+		assertThat(sessionRepository.findById(planted.getId())).isNull();
+		assertThat(sessionRepository.findById(newId).getAttributeNames()).doesNotContain("evil");
+	}
+
+	@Test
+	void failedSignupsCreateNoSession() throws Exception {
+		// 잘못된 가입권
+		signup("no-such-ticket", PASSWORD, PASSWORD).andExpect(status().isBadRequest());
+		// 검증 실패
+		String ticket = obtainTicket(EMAIL);
+		signup(ticket, "short1!", "short1!").andExpect(status().isBadRequest());
+		signup(ticket, PASSWORD, PASSWORD + "x").andExpect(status().isBadRequest());
+		// 이메일 중복
+		userRepository.save(new User(EMAIL, "먼저", passwordEncoder.encode(PASSWORD)));
+		MvcResult conflict = signup(ticket, PASSWORD, PASSWORD).andExpect(status().isConflict()).andReturn();
+		assertThat(setCookieLine(conflict.getResponse(), "SESSION")).isNull();
+		assertThat(sessionStore()).isEmpty();
 	}
 
 	@Test
