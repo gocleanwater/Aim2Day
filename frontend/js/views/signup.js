@@ -210,8 +210,20 @@ export function render(container) {
     const seq = ++requestSeq;
     const lock = acquireLock(); // 중복 클릭 방지, 이메일·인증번호 입력 잠금
     const stale = () => !alive || seq !== requestSeq || normalizeEmail() !== email;
+    // 메일 발송은 몇 초 걸린다. 버튼 문구·스피너와 안내 문구로 "보내는 중"임을 보여 준다(버튼만 흐려지면 멈춘 것처럼 보인다).
+    const idleLabel = sendButton.textContent;
+    const idleHint = emailHint.textContent;
+    sendButton.textContent = "보내는 중…";
+    sendButton.setAttribute("aria-busy", "true");
+    emailHint.textContent = "메일을 보내고 있어요. 몇 초 걸릴 수 있어요.";
+    const endSending = () => {
+      sendButton.removeAttribute("aria-busy");
+      if (sendButton.textContent === "보내는 중…") sendButton.textContent = idleLabel; // 카운트다운이 문구를 바꿨으면 그대로 둔다
+      emailHint.textContent = idleHint;
+    };
     try {
       await api.post("/api/auth/email-codes", { body: { email } });
+      if (alive) endSending();
       if (!alive) return;
       if (stale()) return void refreshSendButton(); // 그 사이 상태가 바뀌었다면 이 응답은 버린다
       sentEmail = email;
@@ -241,6 +253,7 @@ export function render(container) {
         refreshSendButton();
       }
     } finally {
+      if (alive) endSending();
       releaseLock(lock);
     }
   });

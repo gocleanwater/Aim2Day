@@ -433,10 +433,40 @@ select[aria-invalid="true"] {
   background: var(--primary-hover);
 }
 
-.btn:disabled,
-.btn[aria-busy="true"] {
+.btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* 요청을 처리하는 중인 버튼: "금지"가 아니라 "기다리는 중"으로 보이게 덜 흐리게, 로딩 커서와 회전 표시를 쓴다. */
+.btn[aria-busy="true"] {
+  opacity: 0.8;
+  cursor: progress;
+}
+
+.btn[aria-busy="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.4em;
+  vertical-align: -0.12em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn[aria-busy="true"]::before {
+    animation: none;
+  }
 }
 
 .btn-block {
