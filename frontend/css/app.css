@@ -567,12 +567,6 @@ dialog.modal p {
   font-size: 14px;
 }
 
-.placeholder {
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--muted);
-}
-
 .info-list {
   display: grid;
   grid-template-columns: max-content 1fr;
