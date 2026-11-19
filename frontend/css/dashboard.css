@@ -1,0 +1,527 @@
+/* 대시보드(#/dashboard) 전용 스타일. 시안의 사분면·행동 목록 모양을 순수 CSS로 옮겼다. */
+
+.dash {
+  display: grid;
+  gap: 20px;
+}
+
+.dash > section {
+  margin: 0;
+}
+
+.dash h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.dash h3 {
+  margin: 16px 0 6px;
+  font-size: 15px;
+}
+
+.dash-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.date-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.date-nav input[type="date"] {
+  width: auto;
+  min-height: 38px;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+
+.pill {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--primary-soft);
+}
+
+.pill.alt {
+  background: #f4f0e9;
+}
+
+.pill-row select {
+  width: auto;
+  min-height: 36px;
+  margin-left: auto;
+}
+
+.list-plain {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list-plain > li {
+  border-top: 1px solid #eef0f3;
+}
+
+.list-plain > li:first-child {
+  border-top: 0;
+}
+
+.action-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 8px;
+  border-left: 4px solid transparent;
+}
+
+.action-row.selected {
+  background: #edf5ff;
+}
+
+.action-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  flex: none;
+}
+
+.action-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.action-title {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.action-title.done {
+  color: var(--muted);
+  text-decoration: line-through;
+  font-weight: 500;
+}
+
+.action-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  background: #eef4fa;
+  color: #526781;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.badge.other {
+  background: #f4f0e9;
+}
+
+.badge.warn {
+  background: #fff4e0;
+  color: #8a5a12;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.action-buttons .link-button {
+  font-size: 13px;
+}
+
+.add-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+.add-form .field {
+  margin-bottom: 0;
+}
+
+.add-form label {
+  font-size: 12px;
+}
+
+.hint-warn {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #8a5a12;
+}
+
+.two-col {
+  display: grid;
+  gap: 24px;
+}
+
+@media (min-width: 768px) {
+  .two-col {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+}
+
+details.fold {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+details.fold > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.cal-row.done .cal-text {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.cal-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+.plan-card {
+  padding: 14px 0;
+  border-top: 1px solid #e6eaf0;
+}
+
+.plan-card:first-child {
+  border-top: 0;
+}
+
+.plan-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.bar {
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 9999px;
+  background: #d2e2f1;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: #3177b9;
+}
+
+.week-card {
+  border-color: #eaf2fa;
+  background: #eaf2fa;
+}
+
+.log-row {
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------- 사분면 ---------- */
+.priority-plot {
+  position: relative;
+  margin: 18px 0 26px;
+  padding: 24px 0;
+}
+
+.quadrants {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, 1fr);
+  height: clamp(280px, 40vw, 420px);
+  background: linear-gradient(to right, #fafcfe, #eaf2fa);
+}
+
+.quadrants::before,
+.quadrants::after {
+  content: "";
+  position: absolute;
+  background: #8194a6;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.quadrants::before {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.quadrants::after {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.quad-cell {
+  border: 0;
+  background: transparent;
+  padding: 8px;
+  font-size: 11px;
+  color: #6b7f93;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+}
+
+.quad-cell:hover:not([aria-disabled="true"]) {
+  background: rgba(36, 105, 201, 0.07);
+}
+
+.quad-cell[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.axis {
+  position: absolute;
+  z-index: 1;
+  background: #fff;
+  color: #44586a;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.axis-top,
+.axis-bottom {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.axis-top {
+  top: 2px;
+}
+
+.axis-bottom {
+  bottom: 2px;
+}
+
+.axis-left,
+.axis-right {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.axis-left {
+  left: 0;
+}
+
+.axis-right {
+  right: 0;
+}
+
+.plot-point {
+  position: absolute;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.plot-point:hover,
+.plot-point:focus {
+  z-index: 4;
+}
+
+.plot-point::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  background: #2469c9;
+}
+
+.plot-point::after {
+  content: attr(data-number);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plot-point.selected::before {
+  outline: 3px solid #9dc5ff;
+  outline-offset: 2px;
+}
+
+.plot-point.unclassified::before {
+  background: #64748b;
+  outline: 2px dashed #94a3b8;
+  outline-offset: 3px;
+}
+
+.plot-point.pending::before {
+  outline: 2px dashed #a96b13;
+  outline-offset: 3px;
+}
+
+.plot-point.done::before {
+  opacity: 0.45;
+}
+
+.plot-ghost {
+  position: absolute;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  border: 2px dashed #94a3b8;
+  border-radius: 50%;
+  background: #e2e8f0aa;
+  pointer-events: none;
+}
+
+.point-label {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(38vw, 220px);
+  padding: 5px 7px;
+  border: 1px solid #d8e2ee;
+  border-radius: 6px;
+  background: #fff;
+  color: #213547;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-align: left;
+  box-shadow: 0 2px 8px #15344a22;
+}
+
+.plot-point:hover .point-label,
+.plot-point:focus-visible .point-label,
+.plot-point.selected .point-label,
+.plot-point.dragging .point-label {
+  display: block;
+}
+
+.unclassified-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 62px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 8px;
+  background: #f8fafc;
+}
+
+.unclassified-tray:empty::before {
+  content: "점을 이곳으로 끌어 놓으면 트레이로 돌아가요";
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.unclassified-tray.drop-target {
+  border-color: #2469c9;
+  background: #edf5ff;
+}
+
+.unclassified-tray .plot-point:not(.dragging) {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  flex: none;
+}
+
+.plot-point.dragging {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.point-detail {
+  min-height: 48px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 14px;
+}
+
+/* ---------- 목표 화면 ---------- */
+.goal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.goal-grid .goal-card + .goal-card {
+  margin-top: 0;
+}
+
+.dash > .card + .card {
+  margin-top: 0;
+}

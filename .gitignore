@@ -13,3 +13,10 @@ Thumbs.db
 .idea/
 .vscode/
 *.iml
+
+# 화면 E2E(Playwright) 의존성
+tools/e2e/web/node_modules/
+tools/e2e/web/test-results/
+tools/e2e/web/playwright-report/
+.created-emails
+tools/e2e/web/screenshots/

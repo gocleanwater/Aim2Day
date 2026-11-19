@@ -1,11 +1,51 @@
 <!doctype html>
-<html>
+<html lang="ko">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aim2Day</title>
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/dashboard.css" />
+    <link rel="stylesheet" href="css/calendar.css" />
+    <link rel="stylesheet" href="css/reports.css" />
   </head>
   <body>
-    <h1>Aim2Day frontend OK</h1>
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <a href="#/dashboard" class="brand" aria-label="Aim2Day 대시보드" data-testid="brand">
+            <span class="brand-mark" aria-hidden="true">🎯</span>Aim2Day
+          </a>
+          <!-- 로그인 전에는 주요 메뉴를 숨긴다(사용자 정보 로드 뒤 main.js가 hidden을 바꾼다). -->
+          <nav class="main-nav" aria-label="주요 메뉴" id="main-nav" hidden>
+            <a href="#/dashboard" data-nav="dashboard" data-testid="nav-dashboard">대시보드</a>
+            <a href="#/calendar" data-nav="calendar" data-testid="nav-calendar">달력</a>
+            <a href="#/goals" data-nav="goals" data-testid="nav-goals">연간 목표</a>
+            <a href="#/reports" data-nav="reports" data-testid="nav-reports">리포트</a>
+          </nav>
+        </div>
+        <div class="auth-area" id="auth-area">
+          <div id="member-actions" class="auth-area" hidden>
+            <span id="member-name" class="member-name" data-testid="member-name"></span>
+            <button id="logout-button" type="button" class="link-button" data-testid="logout">로그아웃</button>
+            <a href="#/settings" class="link-button" data-nav="settings" data-testid="nav-settings">설정</a>
+          </div>
+          <div id="guest-actions" class="auth-area">
+            <a href="#/login" class="link-button" data-testid="nav-login">로그인</a>
+            <a href="#/signup" class="btn btn-signup" data-testid="nav-signup">회원가입</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 화면은 라우터가 이 영역을 통째로 바꿔 그린다. -->
+    <main id="view" class="app-main" tabindex="-1">
+      <noscript>이 앱은 JavaScript가 필요합니다.</noscript>
+    </main>
+
+    <!-- aria-live 영역은 처음부터 DOM에 있어야 스크린리더가 내용 변경을 읽는다. -->
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden data-testid="toast"></div>
+
+    <script type="module" src="js/main.js"></script>
   </body>
 </html>

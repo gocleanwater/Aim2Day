@@ -3,7 +3,7 @@
 # 사용: review_up.sh [reset]   reset이면 aim2day_review의 goal-service 테이블과 Flyway 이력을 비운다(시험용 DB만)
 set -e
 MODE=${1:-}
-docker rm -f aim2day-user-service-review aim2day-goal-service-review-1 aim2day-goal-service-review-2 aim2day-redis-review >/dev/null 2>&1 || true
+docker rm -f aim2day-proxy-review aim2day-user-service-review aim2day-goal-service-review-1 aim2day-goal-service-review-2 aim2day-redis-review >/dev/null 2>&1 || true
 # 세션도 운영과 분리한다. 운영 Redis를 같이 쓰면 시험용 DB의 사용자 ID가 운영 사용자 ID와 겹칠 때
 # 시험용 세션으로 운영 API에 그 ID로 인증된다(세션에는 userId만 있다).
 docker run -d --name aim2day-redis-review --network aim2day-net redis:8-alpine >/dev/null
@@ -15,13 +15,16 @@ if [ "$MODE" = reset ]; then
   fi
 fi
 rm -rf /tmp/gs-review && mkdir -p /tmp/gs-review && tar -xzf /tmp/gs.tgz -C /tmp/gs-review
-docker build -q -t aim2day-goal-service:review /tmp/gs-review/goal-service >/dev/null 2>&1
+# 빌드가 실패하면 오류를 보여 주고 멈춘다(예전 이미지로 시험이 이어지지 않게).
+build_or_die() { local out; if ! out=$(docker build -q -t "$1" "$2" 2>&1); then echo "$out" >&2; echo "build failed: $1" >&2; exit 1; fi; }
+build_or_die aim2day-goal-service:review /tmp/gs-review/goal-service
 DB="-e SPRING_DATASOURCE_URL=jdbc:mysql://aim2day-mysql:3306/aim2day_review -e SPRING_DATASOURCE_USERNAME=aim2day_app -e SPRING_DATASOURCE_PASSWORD=aim2daypass! -e SPRING_DATA_REDIS_HOST=aim2day-redis-review"
 # 업로드한 user-service 소스(/tmp/us.tgz)가 있으면 그것으로 시험용 이미지를 만들고, 없으면 운영 이미지를 쓴다.
 USER_IMAGE=aim2day-user-service
 if [ -f /tmp/us.tgz ]; then
   rm -rf /tmp/us-review && mkdir -p /tmp/us-review && tar -xzf /tmp/us.tgz -C /tmp/us-review
-  docker build -q -t aim2day-user-service:review /tmp/us-review/user-service >/dev/null 2>&1 && USER_IMAGE=aim2day-user-service:review
+  build_or_die aim2day-user-service:review /tmp/us-review/user-service
+  USER_IMAGE=aim2day-user-service:review
   echo "user-service image: $USER_IMAGE"
 fi
 docker run -d --name aim2day-user-service-review --hostname aim2day-user-service-review --network aim2day-net $DB -e APP_BASE_URL=http://192.168.136.128 $USER_IMAGE >/dev/null
@@ -35,3 +38,9 @@ for i in 1 2; do
   echo "goal-review-$i: $(docker logs aim2day-goal-service-review-$i 2>&1 | grep -oE 'Started GoalServiceApplication in [0-9.]+ seconds|APPLICATION FAILED TO START|Application run failed' | head -1)"
 done
 docker logs aim2day-goal-service-review-1 2>&1 | grep -E "Migrating schema|Successfully applied|up to date" | sed -E 's/^.*(Migrating|Successfully|Schema)/\1/'
+# 업로드한 frontend(/tmp/fe.tgz)가 있으면 시험용 프록시를 호스트 8081에 띄운다(화면 E2E용).
+if [ -f /tmp/fe.tgz ]; then
+  rm -rf /tmp/fe-review && mkdir -p /tmp/fe-review && tar -xzf /tmp/fe.tgz -C /tmp/fe-review
+  docker run -d --name aim2day-proxy-review --network aim2day-net -p 8081:80     -v /tmp/e2e/review-proxy.conf:/etc/nginx/conf.d/default.conf:ro -v /tmp/fe-review/frontend:/usr/share/nginx/html:ro nginx:alpine >/dev/null
+  echo "review proxy: http://192.168.136.128:8081"
+fi

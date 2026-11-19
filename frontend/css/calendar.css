@@ -1,0 +1,230 @@
+/* 달력(#/calendar) 전용 스타일. 시안의 월 격자·칩 모양을 순수 CSS로 옮겼다. */
+
+.cal-page {
+  display: grid;
+  gap: 20px;
+}
+
+.cal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-toolbar h1 {
+  margin: 0 12px 0 0;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.cal-month-label {
+  min-width: 120px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.cal-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 16px 0;
+  padding: 0;
+  border: 0;
+  font-size: 14px;
+}
+
+.cal-filters legend {
+  float: left;
+  margin-right: 12px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.cal-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cal-weekdays,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.cal-weekdays {
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted-strong);
+}
+
+.cal-weekdays > div {
+  padding: 6px 0;
+}
+
+.cal-grid {
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.cal-cell {
+  min-height: 96px;
+  min-width: 0;
+  padding: 4px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.cal-cell.outside {
+  background: #fafbfc;
+  color: var(--muted);
+}
+
+.cal-cell.selected {
+  background: var(--primary-soft);
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.cal-daynum {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cal-cell.today .cal-daynum {
+  background: var(--primary);
+  color: #fff;
+}
+
+.cal-chips {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.cal-chip {
+  display: block;
+  overflow: hidden;
+  padding: 1px 6px;
+  border-left: 4px solid var(--chip, #94a3b8);
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 완료한 항목은 옅게 하고 왼쪽 색 막대를 없앤다(화면 흐름 문서). */
+.cal-chip.done {
+  border-left-color: transparent;
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.cal-more {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.day-panel h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.day-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.day-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.day-item.done .action-title {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.item-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.item-form h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.item-form .field {
+  margin-bottom: 0;
+}
+
+.radio-inline {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.radio-inline label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+textarea.text-area {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 14px;
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  resize: vertical;
+}
+
+textarea.text-area[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.item-form-dates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+dialog.modal.wide {
+  width: min(92vw, 520px);
+}
+
+@media (max-width: 640px) {
+  .cal-cell {
+    min-height: 72px;
+  }
+}
