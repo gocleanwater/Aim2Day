@@ -14,6 +14,10 @@ public final class QuadrantDtos {
 	public record ConfirmResponse(LocalDate date, int confirmedCount, int unclassifiedCount) {
 	}
 
+	/** DELETE placements/pending 응답(API 명세 §4.10). */
+	public record CancelAllResponse(LocalDate date, int cancelledCount) {
+	}
+
 	/**
 	 * PUT placement 본문. 두 필드는 항상 함께 보내야 하고, 필드가 빠진 것과 명시적 null(트레이로 되돌리기)이 다른 뜻이라
 	 * 세터가 불렸는지를 플래그로 구분한다. 값은 Object로 받아 서비스가 정수 여부·범위를 직접 검사한다

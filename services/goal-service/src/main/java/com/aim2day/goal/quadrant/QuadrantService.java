@@ -10,6 +10,7 @@ import com.aim2day.goal.common.exception.ValidationReason;
 import com.aim2day.goal.common.lock.UserRowLock;
 import com.aim2day.goal.common.time.UtcTime;
 import com.aim2day.goal.common.tx.Tx;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.CancelAllResponse;
 import com.aim2day.goal.quadrant.dto.QuadrantDtos.ConfirmResponse;
 import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementRequest;
 import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementResponse;
@@ -164,6 +165,36 @@ public class QuadrantService {
 			em.flush();
 			confirmedDates.write(userId, today);
 			return new ConfirmResponse(today, confirmed, unclassified);
+		});
+	}
+
+	// ---------------------------------------------------------------- DELETE placements/pending
+
+	/**
+	 * 오늘의 확정하지 않은 변경을 모두 취소한다(결정 23). 대상 집합은 확정과 같은 findConfirmable이고,
+	 * 잠금도 확정과 같이 users 행 하나만 잡는다. users 잠금 아래에서는 같은 사용자의 PUT·확정·행동별 취소가
+	 * 직렬화되므로 행 단위 잠금이 따로 필요 없다. 확정 기록(confirmedToday)은 건드리지 않는다.
+	 */
+	public CancelAllResponse cancelAllPending(long userId) {
+		UserTime time = settingsService.userTime(userId);
+		LocalDate today = time.today();
+		return tx.execute(status -> {
+			userRowLock.lock(userId);
+			int cancelled = 0;
+			for (QuadrantPlacement row : placements.findConfirmable(userId, today)) {
+				if (row.hasPending() || row.isPendingUnclassify()) {
+					if (row.hasConfirmed()) {
+						// 확정 좌표가 있으면 미확정 좌표·되돌리기 대기만 지워 확정 상태로 돌아간다.
+						row.clearPending();
+					} else {
+						// 확정 좌표가 없던 행동은 행을 지워 미분류가 된다.
+						placements.delete(row);
+					}
+					cancelled++;
+				}
+			}
+			em.flush();
+			return new CancelAllResponse(today, cancelled);
 		});
 	}
 

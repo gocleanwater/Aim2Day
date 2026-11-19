@@ -1,6 +1,7 @@
 package com.aim2day.goal.quadrant;
 
 import com.aim2day.goal.common.response.ApiResponse;
+import com.aim2day.goal.quadrant.dto.QuadrantDtos.CancelAllResponse;
 import com.aim2day.goal.quadrant.dto.QuadrantDtos.ConfirmResponse;
 import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementRequest;
 import com.aim2day.goal.quadrant.dto.QuadrantDtos.PlacementResponse;
@@ -34,6 +35,12 @@ public class QuadrantController {
 	public ApiResponse<PlacementResponse> cancelPending(@AuthenticationPrincipal Long userId,
 			@PathVariable long id) {
 		return ApiResponse.success(service.cancelPending(userId, id));
+	}
+
+	// 리터럴 경로(/placements/pending)와 /{id}/placement/pending은 세그먼트 구성이 달라 겹치지 않는다.
+	@DeleteMapping("/placements/pending")
+	public ApiResponse<CancelAllResponse> cancelAllPending(@AuthenticationPrincipal Long userId) {
+		return ApiResponse.success(service.cancelAllPending(userId));
 	}
 
 	@PostMapping("/placements/confirm")

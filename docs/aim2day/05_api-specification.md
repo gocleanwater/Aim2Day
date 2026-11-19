@@ -64,6 +64,7 @@
 | PUT | `/api/actions/{id}/completion` | 행동 완료·완료 취소 | FN-ACT-02 |
 | PUT | `/api/actions/{id}/placement` | 사분면에 점 놓기·옮기기·트레이로 되돌리기(미확정, 결정 19) | FN-QUAD-01 |
 | DELETE | `/api/actions/{id}/placement/pending` | 확정하지 않은 변경 취소 | FN-QUAD-02 |
+| DELETE | `/api/actions/placements/pending` | 오늘 확정하지 않은 변경 전체 취소(`[변경 취소]`, 결정 23) | FN-QUAD-02 |
 | POST | `/api/actions/placements/confirm` | 오늘 분류 확정 | FN-QUAD-02 |
 | GET | `/api/calendar/items` | 기간별 달력 항목 | FN-CAL-01 |
 | POST | `/api/calendar/items` | 달력 항목 생성 | FN-CAL-02 |
@@ -1089,6 +1090,17 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 - 응답: PUT과 같다. `{ "actionId": 101, "placement": { /* §4.9 placement */ } }`
 - 오류: 404 `RESOURCE_NOT_FOUND`, 422 `QUADRANT_DATE_INVALID`
 
+#### DELETE `/api/actions/placements/pending`
+
+오늘 날짜의 확정하지 않은 변경을 한 트랜잭션에서 모두 취소한다. 사분면의 `[변경 취소]` 버튼이 쓴다. (`FN-QUAD-02`, 결정 23)
+
+- 미확정 좌표가 있는 행: 확정 좌표가 있으면 미확정 좌표만 지워 확정 상태로 돌아가고, 없으면 행을 지워 미분류로 만든다.
+- 되돌리기 대기 행: 대기 표시만 지워 확정 상태로 돌아간다.
+- 대상은 확정 API와 같다. 오늘 목록에 보이는 행동의 변경이며, 지난 날짜의 확정하지 않은 변경은 건드리지 않는다(결정 18).
+- 확정 기록(`classification.confirmedToday`)은 바꾸지 않는다.
+- 응답: `{ "date": "2026-11-12", "cancelledCount": 3 }`
+- 취소할 변경이 없어도 200이며 `cancelledCount`는 0이다.
+
 #### POST `/api/actions/placements/confirm`
 
 오늘 날짜의 확정하지 않은 변경을 한 트랜잭션에서 모두 확정한다. (`FN-QUAD-02`)
@@ -1395,3 +1407,8 @@ Redis 세션을 즉시 지우고 쿠키를 만료시킨다. 세션이 없어도 
 **결정.** 인증을 가입보다 먼저 한다. (1) `POST /api/auth/email-codes`가 6자리 인증번호를 메일로 보내고(10분 유효, 재요청 60초), (2) `POST /api/auth/email-codes/verify`가 번호를 확인해 1회용 가입권을 주고(30분 유효), (3) `POST /api/auth/signup`이 가입권을 소비하며 계정을 만든다. 인증하지 않은 이메일로는 계정이 생기지 않으므로 `users.is_verified`, 로그인의 미인증 분기, 인증 메일 재발송 API, 인증 링크 페이지가 모두 필요 없다. 가입권을 따로 주는 이유는, 이메일 기준으로만 "인증됨"을 기억하면 인증을 마친 직후 다른 사람이 그 이메일로 먼저 가입할 수 있기 때문이다. 인증번호는 5번까지만 시도할 수 있어 6자리(100만 가지)를 무차별 대입하기 어렵다. 이메일은 가입 전에 인증한 값이므로 가입 때 입력받지 않고 가입권에서 꺼낸다. 인증번호 요청 API의 메일 실패 노출은 결정 15를 따른다.
 
 **버린 대안.** (1) 기존 "가입 후 링크 인증": 미인증 계정이 남고, 재발송 API와 재발송 응답 시간 차이 문제가 생긴다. (2) 이메일 기준으로만 인증 상태를 기억하고 가입 때 이메일을 다시 받는 방법: 인증과 가입 사이에 다른 사람이 같은 이메일로 먼저 가입할 수 있고, 가입 요청의 이메일을 인증한 이메일과 맞추는 검사도 필요하다. (3) 가입은 먼저 하고 인증 전에는 로그인만 막는 방법: 기존 방식과 같은 문제가 남는다.
+
+### 결정 23 — 사분면 `[변경 취소]`는 오늘 변경 전체를 한 번에 취소하는 API를 쓴다 (`FN-QUAD-02`)
+**문제.** 행동별 `DELETE /api/actions/{id}/placement/pending`만 있으면 화면이 점마다 요청을 보내야 한다. 점 10개를 옮겼다면 요청 10번이고, 중간에 하나가 실패하면 일부만 취소된 채 남는다.
+
+**결정.** `DELETE /api/actions/placements/pending`을 두어 오늘의 확정하지 않은 변경을 한 트랜잭션에서 모두 취소한다. 확정 API(`POST .../placements/confirm`)와 대상·범위를 같게 한다. 행동별 취소 API는 한 점만 되돌릴 때를 위해 유지한다.
