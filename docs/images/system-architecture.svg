@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" font-family="'Segoe UI','Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .box{stroke-width:1.5;rx:8}
+      .t{font-size:15px;font-weight:600;fill:#0f172a;text-anchor:middle}
+      .s{font-size:12px;fill:#475569;text-anchor:middle}
+      .l{font-size:12px;fill:#334155}
+      .ln{stroke:#475569;stroke-width:1.5;fill:none;marker-end:url(#arr)}
+    </style>
+  </defs>
+  <rect width="960" height="700" fill="#ffffff"/>
+
+  <!-- 브라우저 -->
+  <rect class="box" x="380" y="20" width="200" height="50" fill="#f1f5f9" stroke="#64748b"/>
+  <text class="t" x="480" y="51">브라우저</text>
+  <text class="l" x="490" y="100">HTTP :80 (호스트 포트)</text>
+
+  <!-- 네트워크 -->
+  <rect x="20" y="120" width="920" height="470" rx="14" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="8 6" stroke-width="1.5"/>
+  <text x="36" y="144" font-size="13" font-weight="600" fill="#64748b">Docker 네트워크: aim2day-net (bridge)</text>
+
+  <!-- 프록시 -->
+  <rect class="box" x="330" y="150" width="300" height="60" fill="#ede9fe" stroke="#7c3aed"/>
+  <text class="t" x="480" y="176">aim2day-proxy</text>
+  <text class="s" x="480" y="196">Nginx 역방향 프록시 · -p 80:80</text>
+
+  <line class="ln" x1="480" y1="70" x2="480" y2="148"/>
+
+  <!-- 프론트엔드 -->
+  <rect class="box" x="50" y="300" width="220" height="80" fill="#e0f2fe" stroke="#0284c7"/>
+  <text class="t" x="160" y="330">aim2day-frontend</text>
+  <text class="s" x="160" y="350">Nginx · HTML/CSS/JS</text>
+  <text class="s" x="160" y="368">:80</text>
+  <path class="ln" d="M390,210 L160,298"/>
+  <text class="l" x="262" y="244">/</text>
+
+  <!-- user-service -->
+  <rect class="box" x="350" y="300" width="220" height="80" fill="#dcfce7" stroke="#16a34a"/>
+  <text class="t" x="460" y="330">aim2day-user-service</text>
+  <text class="s" x="460" y="350">Spring Boot · 인증·계정</text>
+  <text class="s" x="460" y="368">:8080</text>
+  <line class="ln" x1="460" y1="210" x2="460" y2="298"/>
+  <text class="l" x="350" y="246">/api/auth/**</text>
+  <text class="l" x="350" y="262">/api/users/**</text>
+  <text class="l" x="350" y="278">/docs/user/</text>
+
+  <!-- goal-service 3대 -->
+  <rect x="630" y="262" width="290" height="168" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-dasharray="5 4" stroke-width="1.5"/>
+  <text x="775" y="284" font-size="12" font-weight="600" fill="#9a3412" text-anchor="middle">별칭 goal-services · 라운드 로빈</text>
+  <rect class="box" x="650" y="294" width="250" height="34" fill="#ffedd5" stroke="#ea580c"/>
+  <text class="t" x="775" y="316" style="font-size:14px">aim2day-goal-service-1 :8080</text>
+  <rect class="box" x="650" y="338" width="250" height="34" fill="#ffedd5" stroke="#ea580c"/>
+  <text class="t" x="775" y="360" style="font-size:14px">aim2day-goal-service-2 :8080</text>
+  <rect class="box" x="650" y="382" width="250" height="34" fill="#ffedd5" stroke="#ea580c"/>
+  <text class="t" x="775" y="404" style="font-size:14px">aim2day-goal-service-3 :8080</text>
+  <path class="ln" d="M570,210 L740,260"/>
+  <text class="l" x="660" y="222">/api/** (그 외)</text>
+  <text class="l" x="660" y="238">/docs/goal/</text>
+
+  <!-- Redis -->
+  <rect class="box" x="250" y="490" width="220" height="70" fill="#fee2e2" stroke="#dc2626"/>
+  <text class="t" x="360" y="519">aim2day-redis</text>
+  <text class="s" x="360" y="540">세션 공유 · :6379</text>
+
+  <!-- MySQL -->
+  <rect class="box" x="580" y="490" width="220" height="70" fill="#dbeafe" stroke="#2563eb"/>
+  <text class="t" x="690" y="519">aim2day-mysql</text>
+  <text class="s" x="690" y="540">MySQL 8.4 · :3306</text>
+
+  <!-- 서비스 → 저장소 -->
+  <line class="ln" x1="420" y1="380" x2="380" y2="488"/>
+  <text class="l" x="318" y="440">세션 쓰기</text>
+  <line class="ln" x1="510" y1="380" x2="640" y2="488"/>
+  <text class="l" x="545" y="425">JDBC</text>
+  <line class="ln" x1="680" y1="430" x2="450" y2="488"/>
+  <text class="l" x="500" y="462">세션 읽기</text>
+  <line class="ln" x1="800" y1="430" x2="760" y2="488"/>
+  <text class="l" x="790" y="465">JDBC</text>
+
+  <!-- 볼륨 -->
+  <rect class="box" x="580" y="620" width="220" height="50" fill="#f1f5f9" stroke="#64748b"/>
+  <text class="t" x="690" y="642" style="font-size:14px">볼륨 aim2day-mysql-data</text>
+  <text class="s" x="690" y="660">/var/lib/mysql</text>
+  <line x1="690" y1="560" x2="690" y2="620" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3"/>
+</svg>

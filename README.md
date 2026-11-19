@@ -19,26 +19,7 @@
 
 컨테이너 8개가 사용자 정의 브리지 네트워크 `aim2day-net` 하나에 연결됩니다. 호스트에 포트를 여는 것은 역방향 프록시(80)뿐입니다.
 
-```text
-                           브라우저
-                              │  :80
-                    ┌─────────▼─────────┐
-                    │   aim2day-proxy   │  Nginx 역방향 프록시
-                    └──┬──────┬──────┬──┘
-           /           │      │      │ /api/** (그 외)
-      ┌────────────────┘      │      └────────────────────┐
-      ▼                       ▼ /api/auth/**, /api/users/**▼  별칭 goal-services, 라운드 로빈
-┌──────────────┐   ┌──────────────────────┐   ┌──────────────────────────┐
-│aim2day-      │   │ aim2day-user-service │   │ aim2day-goal-service-1~3 │
-│frontend      │   │ (인증·계정)          │   │ (목표·행동·달력·리포트)  │
-│Nginx + 정적  │   └───┬──────────────┬───┘   └───┬──────────────┬───────┘
-│HTML/CSS/JS   │       │ 세션 쓰기    │ JDBC      │ 세션 읽기    │ JDBC
-└──────────────┘       ▼              ▼           ▼              ▼
-                 ┌──────────────┐  ┌───────────────────────────────────┐
-                 │aim2day-redis │  │ aim2day-mysql                     │
-                 │(세션 공유)   │  │ 볼륨 aim2day-mysql-data           │
-                 └──────────────┘  └───────────────────────────────────┘
-```
+![Aim2Day 시스템 구성도](docs/images/system-architecture.svg)
 
 | 컨테이너 | 이미지 | 역할 |
 |---|---|---|
@@ -67,17 +48,52 @@
 | 인프라 | Docker(Compose 없이 `docker run`), Nginx |
 | 테스트 | JUnit 5, Python 서버 E2E 스크립트, Playwright 화면 E2E |
 
-## 폴더 구조
+## 디렉토리 구조
 
 ```text
-frontend/                 화면(HTML·CSS·JS)과 Dockerfile
-services/user-service/    인증·계정 서비스(Spring Boot)
-services/goal-service/    목표 서비스(Spring Boot)
-infra/nginx/              역방향 프록시 설정과 Dockerfile
-infra/scripts/            이미지 빌드·컨테이너 실행 스크립트(07 문서와 같은 명령)
-docs/aim2day/             요구사항·화면 흐름·기능·ERD·API 명세, 공유 계약, 컨테이너 명령어
-design/                   화면 시안
-tools/e2e/                시험용 DB 대상 서버 E2E와 화면 E2E
+Aim2Day/
+├── README.md
+├── frontend/                        # 프론트엔드 컨테이너 (nginx:alpine)
+│   ├── Dockerfile
+│   ├── index.html                   # 단일 페이지, 해시 라우팅(#/dashboard 등)
+│   ├── reset-password.html          # 비밀번호 재설정 메일 링크 진입점
+│   ├── css/
+│   └── js/
+│       ├── main.js                  # 시작점
+│       ├── router.js                # 해시 라우터
+│       ├── api.js                   # fetch 래퍼(CSRF 헤더, 401 처리)
+│       ├── auth.js                  # 로그인 상태
+│       └── views/                   # 화면별 모듈(dashboard, calendar, goals, plan, reports …)
+├── services/
+│   ├── user-service/                # 인증·계정 서비스 (Spring Boot)
+│   │   ├── Dockerfile
+│   │   ├── build.gradle
+│   │   └── src/
+│   │       ├── main/                # 코드, 설정, Flyway 마이그레이션
+│   │       └── test/
+│   └── goal-service/                # 목표 서비스 (Spring Boot, 컨테이너 3개)
+│       ├── Dockerfile
+│       ├── build.gradle
+│       └── src/
+│           ├── main/
+│           └── test/
+├── infra/
+│   ├── nginx/                       # 역방향 프록시 컨테이너
+│   │   ├── Dockerfile
+│   │   └── default.conf             # 경로별 라우팅, goal-services 라운드 로빈
+│   └── scripts/                     # 이미지 빌드·컨테이너 실행 스크립트
+│       ├── build-images.sh
+│       └── run-all.sh
+├── docs/
+│   ├── aim2day/                     # 요구사항·화면 흐름·기능·ERD·API 명세, 공유 계약, 컨테이너 명령어
+│   ├── images/                      # README 그림
+│   ├── conventions.md               # 파일명·커밋 규칙
+│   ├── project-grading-criteria.md  # 과제 기준
+│   └── progress.md                  # 진행 현황과 결정 기록
+├── design/
+│   └── aim2day-prototype.html       # 화면 시안
+└── tools/
+    └── e2e/                         # 서버 E2E(Python), 화면 E2E(web/, Playwright)
 ```
 
 ## 설치 및 실행
