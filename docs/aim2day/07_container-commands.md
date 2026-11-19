@@ -71,14 +71,14 @@ docker run -d --name aim2day-user-service --hostname aim2day-user-service \
   -e SPRING_DATASOURCE_USERNAME=aim2day_app \
   -e SPRING_DATASOURCE_PASSWORD='aim2daypass!' \
   -e SPRING_DATA_REDIS_HOST=aim2day-redis \
-  -e APP_BASE_URL=http://192.168.136.128 \
+  -e APP_BASE_URL=http://aim2day.com \
   --env-file /opt/aim2day/env/mail.env \
   aim2day-user-service
 ```
 
 - `users` 테이블을 이 서비스가 만들고 goal 테이블이 참조하므로 goal보다 먼저 띄운다.
 - `--env-file /opt/aim2day/env/mail.env`: Gmail SMTP 자격 증명. 저장소에 없는 파일이다(공유 계약 §2). **이 줄을 빼고 실행하면** 메일 대신 로그에 인증번호 또는 재설정 링크가 찍힌다(받는 주소는 마스킹). SMTP 키 없이 재현할 때는 이 줄을 지우고 `docker logs aim2day-user-service | grep MAIL`로 확인한다.
-- `APP_BASE_URL`: 메일 링크의 주소 앞부분. 브라우저로 접속하는 서버 주소와 같아야 한다.
+- `APP_BASE_URL`: 메일 링크의 주소 앞부분. 브라우저로 접속하는 주소와 같아야 한다. 접속 PC의 hosts 파일에 `<서버 IP> aim2day.com`을 등록해 이 이름으로 접속한다(README의 "접속 준비").
 - **다음 단계 전에** 로그에 `Started UserServiceApplication`이 보일 때까지 기다린다.
 
 ```bash

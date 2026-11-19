@@ -142,7 +142,7 @@ docker run -d --name aim2day-user-service --hostname aim2day-user-service --rest
   -e SPRING_DATASOURCE_URL=jdbc:mysql://aim2day-mysql:3306/aim2day \
   -e SPRING_DATASOURCE_USERNAME=aim2day_app -e SPRING_DATASOURCE_PASSWORD='aim2daypass!' \
   -e SPRING_DATA_REDIS_HOST=aim2day-redis \
-  -e APP_BASE_URL=http://<서버 주소> \
+  -e APP_BASE_URL=http://aim2day.com \
   --env-file /opt/aim2day/env/mail.env \
   aim2day-user-service
 
@@ -167,11 +167,30 @@ docker run -d --name aim2day-proxy --hostname aim2day-proxy --restart unless-sto
 
 ### 5. 접속
 
+#### 접속 준비: hosts 파일 등록 (Windows)
+
+서비스는 `aim2day.com`이라는 이름으로 접속합니다. 실제 도메인이 아니므로, 접속할 PC에서 이 이름이 서버 IP를 가리키도록 등록합니다.
+
+1. 메모장을 **관리자 권한으로 실행**합니다(시작 메뉴에서 메모장 우클릭 → 관리자 권한으로 실행).
+2. `C:\Windows\System32\drivers\etc\hosts` 파일을 엽니다. 파일 형식을 "모든 파일"로 바꿔야 보입니다.
+3. 맨 아래에 서버 IP와 `aim2day.com`을 한 줄로 적고 저장합니다.
+
+   ```text
+   192.168.136.128 aim2day.com
+   ```
+
+   `192.168.136.128`은 예시입니다. 앱을 실행한 VM(서버)의 IP로 바꿔 적습니다. 서버에서 `hostname -I`로 확인할 수 있습니다.
+4. 명령 프롬프트에서 `ping aim2day.com`을 실행해 서버 IP가 나오면 됩니다.
+
+> 비밀번호 재설정 메일의 링크도 `http://aim2day.com`으로 만들어지므로(`APP_BASE_URL`), 메일 링크를 누를 PC에도 같은 등록이 필요합니다.
+
+#### 접속 주소
+
 | 주소 | 내용 |
 |---|---|
-| `http://<서버 주소>/` | 웹 화면 |
-| `http://<서버 주소>/docs/user/swagger-ui.html` | user-service API 문서 |
-| `http://<서버 주소>/docs/goal/swagger-ui.html` | goal-service API 문서 |
+| `http://aim2day.com/` | 웹 화면 |
+| `http://aim2day.com/docs/user/swagger-ui.html` | user-service API 문서 |
+| `http://aim2day.com/docs/goal/swagger-ui.html` | goal-service API 문서 |
 
 ### 6. 동작 확인
 

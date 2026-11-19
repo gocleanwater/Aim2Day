@@ -39,7 +39,7 @@ API 경로·응답 형식·오류 코드·세션 정책 자체는 [API 명세서
 
 | 환경 변수 | 설정 키 | 값 |
 |---|---|---|
-| `APP_BASE_URL` | `app.base-url` | 메일 링크의 앞부분. 서버에서는 `http://192.168.136.128`, 기본값 `http://localhost` |
+| `APP_BASE_URL` | `app.base-url` | 메일 링크의 앞부분. 서버에서는 `http://aim2day.com`(접속 PC의 hosts 파일로 서버 IP에 연결), 기본값 `http://localhost` |
 | `SPRING_MAIL_HOST` | `spring.mail.host` | `smtp.gmail.com` |
 | `SPRING_MAIL_PORT` | `spring.mail.port` | `587` |
 | `SPRING_MAIL_USERNAME` | `spring.mail.username` | 보내는 Gmail 주소 |
