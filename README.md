@@ -78,12 +78,9 @@ Aim2Day/
 │           ├── main/
 │           └── test/
 ├── infra/
-│   ├── nginx/                       # 역방향 프록시 컨테이너
-│   │   ├── Dockerfile
-│   │   └── default.conf             # 경로별 라우팅, goal-services 라운드 로빈
-│   └── scripts/                     # 이미지 빌드·컨테이너 실행 스크립트
-│       ├── build-images.sh
-│       └── run-all.sh
+│   └── nginx/                       # 역방향 프록시 컨테이너
+│       ├── Dockerfile
+│       └── default.conf             # 경로별 라우팅, goal-services 라운드 로빈
 ├── docs/
 │   ├── aim2day/                     # 요구사항·화면 흐름·기능·ERD·API 명세, 공유 계약, 컨테이너 명령어
 │   ├── images/                      # README 그림
@@ -107,9 +104,9 @@ git clone https://github.com/gocleanwater/Aim2Day.git /opt/aim2day/app
 cd /opt/aim2day/app
 ```
 
-### 2. 이미지 빌드
+### 2. 이미지 받기
 
-직접 빌드하지 않고 Docker Hub의 이미지를 받아 써도 됩니다(amd64, 태그 `1.0`). 이 경우 아래 `docker run`의 이미지 이름을 `jungsooko/aim2day-...:1.0`으로 바꿉니다.
+실행에는 Docker Hub에 올린 이미지(amd64)를 씁니다. MySQL·Redis는 공식 이미지를 그대로 씁니다.
 
 | 저장소 | 태그 |
 |---|---|
@@ -125,14 +122,7 @@ docker pull jungsooko/aim2day-frontend:1.0
 docker pull jungsooko/aim2day-proxy:1.0
 ```
 
-직접 빌드할 때:
-
-```bash
-docker build --platform linux/amd64 -t aim2day-user-service services/user-service
-docker build --platform linux/amd64 -t aim2day-goal-service services/goal-service
-docker build --platform linux/amd64 -t aim2day-frontend     frontend
-docker build --platform linux/amd64 -t aim2day-proxy        infra/nginx
-```
+이미지를 소스에서 직접 만드는 명령(`docker build`·`tag`·`push`)은 07 문서 §1에 있습니다.
 
 ### 3. 네트워크·볼륨 생성
 
@@ -162,7 +152,7 @@ docker run -d --name aim2day-user-service --hostname aim2day-user-service --rest
   -e SPRING_DATA_REDIS_HOST=aim2day-redis \
   -e APP_BASE_URL=http://aim2day.com \
   --env-file /opt/aim2day/env/mail.env \
-  aim2day-user-service
+  jungsooko/aim2day-user-service:1.0
 
 for i in 1 2 3; do
   docker run -d --name aim2day-goal-service-$i --hostname aim2day-goal-service-$i --restart unless-stopped \
@@ -170,14 +160,14 @@ for i in 1 2 3; do
     -e SPRING_DATASOURCE_URL=jdbc:mysql://aim2day-mysql:3306/aim2day \
     -e SPRING_DATASOURCE_USERNAME=aim2day_app -e SPRING_DATASOURCE_PASSWORD='aim2daypass!' \
     -e SPRING_DATA_REDIS_HOST=aim2day-redis \
-    aim2day-goal-service
+    jungsooko/aim2day-goal-service:1.0
 done
 
 docker run -d --name aim2day-frontend --hostname aim2day-frontend --restart unless-stopped \
-  --network aim2day-net aim2day-frontend
+  --network aim2day-net jungsooko/aim2day-frontend:1.0
 
 docker run -d --name aim2day-proxy --hostname aim2day-proxy --restart unless-stopped \
-  --network aim2day-net -p 80:80 aim2day-proxy
+  --network aim2day-net -p 80:80 jungsooko/aim2day-proxy:1.0
 ```
 
 - `mail.env`는 Gmail SMTP 자격 증명 파일로, 저장소에 포함하지 않습니다. 이 줄을 빼면 인증번호와 재설정 링크가 메일 대신 `docker logs aim2day-user-service`에 출력됩니다.

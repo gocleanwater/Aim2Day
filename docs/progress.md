@@ -15,8 +15,8 @@
 | 실행 환경 | 사용자 | ✅ | 리눅스 서버 `/opt/aim2day/app`(git pull로 배포), 비밀값은 `/opt/aim2day/env/*.env`(저장소 밖, 600) |
 | 컨테이너 8개 기동 | 사용자 + 오케스트레이터 | ✅ | 2026-11-15 전부 Up. 프록시 경유 `/` 200, `/api/**` 401(Spring Security 기본, API 미구현), 별칭 `goal-services` → IP 3개 |
 | Nginx 프록시·프론트 이미지 | 사용자(학습) | ✅ | `infra/nginx/`, `frontend/` Dockerfile. 호스트 포트 80 |
-| 실행 스크립트 `infra/scripts/` | 사용자 + infra-dev | 🔶 | Docker Compose 금지 |
-| 검증 명령 (같은 문서의 확인 절) | 사용자 + 오케스트레이터 | ⬜ | 세션 공유·RR·영속성을 `curl`·`docker` 명령으로 확인 |
+| 실행 스크립트 `infra/scripts/` | 사용자 + infra-dev | ✅ 삭제 | 2026-11-21 사용자 결정으로 삭제. 07 문서와 내용이 어긋나 혼동을 막으려고 명령 원본은 07 문서 한 곳만 둔다 |
+| 검증 명령 (같은 문서의 확인 절) | 사용자 + 오케스트레이터 | ✅ | 2026-11-21 07 문서 §5(세션 공유·RR·영속성). 실행 이미지는 Docker Hub `jungsooko/aim2day-*:1.0`(사용자 결정) 세션 공유·RR·영속성을 `curl`·`docker` 명령으로 확인 |
 
 ## 2. 서비스 공통 기반
 
