@@ -238,8 +238,8 @@ MySQL 컨테이너를 완전히 지우고 §4.1 명령으로 다시 만든 뒤 �
 # 1) 볼륨 마운트 확인
 docker inspect aim2day-mysql --format '{{range .Mounts}}{{.Type}}: {{.Name}} -> {{.Destination}}{{println}}{{end}}'
 
-# 2) 지우기 전 데이터
-docker exec aim2day-mysql mysql -uaim2day_app -p'aim2daypass!' aim2day \
+# 2) 지우기 전 데이터(--default-character-set: 한글 제목이 ???로 깨지지 않게 클라이언트 문자셋을 맞춘다)
+docker exec aim2day-mysql mysql -uaim2day_app -p'aim2daypass!' --default-character-set=utf8mb4 aim2day \
   -e "SELECT id, title, created_at FROM yearly_goals WHERE deleted_at IS NULL;"
 
 # 3) 컨테이너 삭제(볼륨은 남는다)
@@ -252,7 +252,7 @@ docker volume ls --filter "name=aim2day-mysql-data"
 docker exec aim2day-mysql mysqladmin ping -h 127.0.0.1 --silent && echo "mysqld is alive"
 
 # 5) 같은 데이터가 남아 있다
-docker exec aim2day-mysql mysql -uaim2day_app -p'aim2daypass!' aim2day \
+docker exec aim2day-mysql mysql -uaim2day_app -p'aim2daypass!' --default-character-set=utf8mb4 aim2day \
   -e "SELECT id, title, created_at FROM yearly_goals WHERE deleted_at IS NULL;"
 ```
 
