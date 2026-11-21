@@ -64,7 +64,7 @@
 
 | 작업 | 상태 | 비고 |
 |---|---|---|
-| Docker Hub 업로드 (amd64) | ⬜ | |
+| Docker Hub 업로드 (amd64) | ✅ | 2026-11-21 `jungsooko/aim2day-{user-service,goal-service,frontend,proxy}:1.0`·`latest`(커밋 6937152 이미지). Dockerfile `COPY`로 코드를 넣은 이미지라 바인딩 마운트 없이 실행된다(수업 안내 https://hull.kr/cloud_native/20 과 같은 방식) |
 | 검증 자료 캡처 (`docker ps`, `network inspect`, `exec bash`, 세션 공유, 볼륨 영속성) | ⬜ | 채점 기준 §1.4 |
 | 보고서 (구성도, 통신 절차, 설치 가이드, 명령어 전체) | ⬜ | 채점 기준 §1.1·§3 |
 

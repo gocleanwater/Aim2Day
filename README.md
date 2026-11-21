@@ -109,6 +109,24 @@ cd /opt/aim2day/app
 
 ### 2. 이미지 빌드
 
+직접 빌드하지 않고 Docker Hub의 이미지를 받아 써도 됩니다(amd64, 태그 `1.0`). 이 경우 아래 `docker run`의 이미지 이름을 `jungsooko/aim2day-...:1.0`으로 바꿉니다.
+
+| 저장소 | 태그 |
+|---|---|
+| [jungsooko/aim2day-user-service](https://hub.docker.com/r/jungsooko/aim2day-user-service) | `1.0`, `latest` |
+| [jungsooko/aim2day-goal-service](https://hub.docker.com/r/jungsooko/aim2day-goal-service) | `1.0`, `latest` |
+| [jungsooko/aim2day-frontend](https://hub.docker.com/r/jungsooko/aim2day-frontend) | `1.0`, `latest` |
+| [jungsooko/aim2day-proxy](https://hub.docker.com/r/jungsooko/aim2day-proxy) | `1.0`, `latest` |
+
+```bash
+docker pull jungsooko/aim2day-user-service:1.0
+docker pull jungsooko/aim2day-goal-service:1.0
+docker pull jungsooko/aim2day-frontend:1.0
+docker pull jungsooko/aim2day-proxy:1.0
+```
+
+직접 빌드할 때:
+
 ```bash
 docker build --platform linux/amd64 -t aim2day-user-service services/user-service
 docker build --platform linux/amd64 -t aim2day-goal-service services/goal-service
