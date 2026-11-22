@@ -35,9 +35,11 @@ public class User {
 	@Column(name = "updated_at", insertable = false, updatable = false)
 	private LocalDateTime updatedAt;
 
+	/** JPA가 엔티티를 만들 때 쓰는 기본 생성자. 직접 호출하지 않는다. */
 	protected User() {
 	}
 
+	/** 신규 가입 계정을 만든다. email은 정규화된 값, passwordHash는 BCrypt 해시여야 한다. id·일시는 DB가 채운다. */
 	public User(String email, String username, String passwordHash) {
 		this.email = email;
 		this.username = username;

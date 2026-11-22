@@ -35,10 +35,12 @@ public enum ErrorCode {
 		this.message = message;
 	}
 
+	/** 이 오류에 대응하는 HTTP 상태. */
 	public HttpStatus status() {
 		return status;
 	}
 
+	/** 사용자에게 보여 줄 기본 안내 문구. 비밀값·내부 정보를 넣지 않는다. */
 	public String message() {
 		return message;
 	}

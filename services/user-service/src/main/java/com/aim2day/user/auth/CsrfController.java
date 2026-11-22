@@ -5,6 +5,10 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * CSRF 토큰 쿠키 발급 전용 컨트롤러. 프론트엔드는 상태 변경 요청(POST 등)을 보내기 전에 한 번 호출해
+ * XSRF-TOKEN 쿠키를 받아 두고, 그 값을 X-XSRF-TOKEN 헤더에 실어 보낸다. 인증 없이 호출할 수 있다.
+ */
 @RestController
 public class CsrfController {
 

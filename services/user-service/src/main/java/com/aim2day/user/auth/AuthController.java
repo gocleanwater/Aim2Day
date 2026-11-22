@@ -24,6 +24,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 인증 API 진입점(/api/auth/**). 프록시가 이 경로를 user-service로 보내고, 브라우저(프론트엔드)가 호출한다.
+ * 컨트롤러는 HTTP 입출력(요청 본문 검증, 세션·쿠키, 응답 래핑)만 맡고 업무 규칙은 서비스에 위임한다.
+ * 제공 API: 인증번호 요청·확인, 가입, 로그인, 로그아웃, 비밀번호 재설정 링크 요청·재설정(API 명세 §3.1).
+ * 성공 응답은 {code, message, data}(ApiResponse)이고, 실패는 BusinessException·검증 예외를 GlobalExceptionHandler가
+ * {code, message, details}로 바꾼다. 이 경로는 SecurityConfig에서 인증 없이 열려 있지만 CSRF 검사는 받는다.
+ */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -37,6 +44,7 @@ public class AuthController {
 	private final PasswordResetService passwordResetService;
 	private final LoginSessionStarter loginSessionStarter;
 
+	/** 협력 객체를 주입받는다. CookieSerializer는 로그아웃 때 죽은 세션 쿠키를 지우는 데 쓴다(SessionConfig의 빈). */
 	public AuthController(EmailCodeService emailCodeService, SignupService signupService, LoginService loginService,
 			CookieSerializer cookieSerializer, PasswordResetService passwordResetService,
 			LoginSessionStarter loginSessionStarter) {
@@ -48,16 +56,34 @@ public class AuthController {
 		this.loginService = loginService;
 	}
 
+	/**
+	 * POST /api/auth/email-codes. 가입용 이메일 인증번호를 발급해 메일로 보낸다(FN-AUTH-01).
+	 * 요청: {email}(정규화·형식 검증은 DTO와 @Valid). 응답 200: {expiresInSeconds}(번호 유효 시간, 600초).
+	 * 오류: 400 VALIDATION_FAILED, 409 AUTH_EMAIL_EXISTS(이미 가입), 429 TOO_MANY_REQUESTS(60초 재요청 제한,
+	 * details.retryAfterSeconds), 502 AUTH_MAIL_SEND_FAILED. 처리 순서와 경쟁 처리는 EmailCodeService에 있다.
+	 */
 	@PostMapping("/email-codes")
 	public ApiResponse<EmailCodeResponse> requestCode(@Valid @RequestBody EmailCodeRequest request) {
 		return ApiResponse.success(emailCodeService.requestCode(request.email()));
 	}
 
+	/**
+	 * POST /api/auth/email-codes/verify. 이메일과 6자리 인증번호를 확인하고 가입권(signupToken)을 발급한다.
+	 * 요청: {email, code}. 응답 200: {signupToken, expiresInSeconds}(가입권 유효 시간, 1800초).
+	 * 오류: 400 VALIDATION_FAILED, 400 AUTH_INVALID_CODE(오답, details.remainingAttempts), 400 AUTH_CODE_EXPIRED
+	 * (없음·만료·5회 실패). 가입권은 이 응답 본문으로만 전달되며 이후 /signup에서 한 번만 쓸 수 있다.
+	 */
 	@PostMapping("/email-codes/verify")
 	public ApiResponse<EmailCodeVerifyResponse> verifyCode(@Valid @RequestBody EmailCodeVerifyRequest request) {
 		return ApiResponse.success(emailCodeService.verifyCode(request.email(), request.code()));
 	}
 
+	/**
+	 * POST /api/auth/signup. 가입권으로 계정을 만들고 곧바로 로그인 상태(세션)로 만든다(FN-AUTH-02).
+	 * 요청: {signupToken, username, password, passwordConfirm}. 응답 201: {id, email, username}.
+	 * 오류: 400 VALIDATION_FAILED(비밀번호 규칙·확인 불일치 등), 400 AUTH_INVALID_TOKEN(가입권 없음·만료·사용됨),
+	 * 409 AUTH_EMAIL_EXISTS. 처리 흐름: 계정 생성(서비스, 커밋 완료) -> 세션 생성 순서이며, 세션 생성이 실패해도 가입은 성공으로 본다.
+	 */
 	@PostMapping("/signup")
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<LoginResponse> signup(@Valid @RequestBody SignupRequest body, HttpServletRequest request) {

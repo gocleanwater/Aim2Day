@@ -26,6 +26,7 @@ public class JsonSecurityErrorHandlers implements AuthenticationEntryPoint, Acce
 
 	private final JsonMapper jsonMapper;
 
+	/** 앱 공용 JsonMapper를 받아 다른 응답과 같은 직렬화 설정을 쓴다. */
 	public JsonSecurityErrorHandlers(JsonMapper jsonMapper) {
 		this.jsonMapper = jsonMapper;
 	}
@@ -57,6 +58,7 @@ public class JsonSecurityErrorHandlers implements AuthenticationEntryPoint, Acce
 		}
 	}
 
+	/** 상태 코드와 {code, message, details} JSON 본문을 UTF-8로 직접 쓴다(필터 단계라 컨트롤러 어드바이스를 거치지 않는다). */
 	private void write(HttpServletResponse response, ErrorCode code) throws IOException {
 		response.setStatus(code.status().value());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);

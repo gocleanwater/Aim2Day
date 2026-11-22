@@ -30,6 +30,7 @@ public @interface PasswordsMatch {
 
 	Class<? extends Payload>[] payload() default {};
 
+	/** 가입 요청(SignupRequest)용 검증기. password와 passwordConfirm을 비교한다. */
 	class Validator implements ConstraintValidator<PasswordsMatch, SignupRequest> {
 
 		@Override
@@ -38,6 +39,7 @@ public @interface PasswordsMatch {
 		}
 	}
 
+	/** 재설정 요청(PasswordResetRequest)용 검증기. newPassword와 newPasswordConfirm을 비교한다. */
 	class ResetValidator implements ConstraintValidator<PasswordsMatch, PasswordResetRequest> {
 
 		@Override
@@ -52,6 +54,7 @@ public @interface PasswordsMatch {
 		private Checker() {
 		}
 
+		/** 두 값이 같으면 true. 다르면 확인 입력칸 속성에 PASSWORD_MISMATCH 위반을 붙이고 false를 돌려준다. */
 		static boolean check(String password, String confirm, String confirmField,
 				ConstraintValidatorContext context) {
 			// 비어 있는 값은 각 필드의 @NotNull이 REQUIRED로 잡는다. 여기서 중복 보고하지 않는다.

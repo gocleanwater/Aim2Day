@@ -42,6 +42,7 @@ public class GlobalExceptionHandler {
 	private static final Set<String> KNOWN_REASONS = Set.of(
 			"REQUIRED", "INVALID_FORMAT", "TOO_LONG", "OUT_OF_RANGE", "PASSWORD_POLICY", "PASSWORD_MISMATCH");
 
+	/** 서비스 계층이 던진 업무 예외를 ErrorCode의 HTTP 상태와 details 그대로 응답한다. */
 	@ExceptionHandler(BusinessException.class)
 	ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
 		return respond(e.errorCode(), e.details());
@@ -94,11 +95,13 @@ public class GlobalExceptionHandler {
 		}
 	}
 
+	/** 필수 쿼리 파라미터 누락. 400 VALIDATION_FAILED, reason=REQUIRED. */
 	@ExceptionHandler(MissingServletRequestParameterException.class)
 	ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException e) {
 		return validationFailed(List.of(fieldError(e.getParameterName(), "REQUIRED")));
 	}
 
+	/** 파라미터 타입 변환 실패(예: 숫자 자리에 문자). 400 VALIDATION_FAILED, reason=INVALID_FORMAT. */
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
 	ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
 		return validationFailed(List.of(fieldError(e.getName(), "INVALID_FORMAT")));

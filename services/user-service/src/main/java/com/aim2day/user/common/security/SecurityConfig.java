@@ -10,6 +10,12 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import tools.jackson.databind.json.JsonMapper;
 
+/**
+ * Spring Security 설정. 이 서비스의 보안 정책(CSRF, 세션 기반 인증, 경로별 접근 규칙, JSON 오류 응답)을 한곳에서 정한다.
+ * goal-service와 같은 Redis 세션·CSRF 쿠키 규칙을 공유하므로(공유 계약 §4) 이름·방식을 임의로 바꾸지 않는다.
+ * 특히 sessionManagement 비활성화, RequestAttributeSecurityContextRepository, requestCache 비활성화 세 가지는
+ * 빠지면 요청마다 세션 ID가 바뀌거나 세션 없는 요청이 세션을 만들므로 유지해야 한다.
+ */
 @Configuration
 public class SecurityConfig {
 
@@ -17,6 +23,11 @@ public class SecurityConfig {
 	public static final String CSRF_COOKIE_NAME = "XSRF-TOKEN";
 	public static final String CSRF_HEADER_NAME = "X-XSRF-TOKEN";
 
+	/**
+	 * 필터 체인을 조립한다. 요청 흐름: CSRF 검사 -> (SessionUserIdAuthenticationFilter가 세션의 userId로 인증 생성)
+	 * -> 경로별 인가. 인증 실패는 401, CSRF 실패는 403을 공통 오류 JSON(JsonSecurityErrorHandlers)으로 응답한다.
+	 * 허용 경로: /api/auth/**, /docs/user/**, /error는 비로그인 허용이고 나머지 /api/**는 로그인 필요다.
+	 */
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JsonMapper jsonMapper) {
 		JsonSecurityErrorHandlers errorHandlers = new JsonSecurityErrorHandlers(jsonMapper);

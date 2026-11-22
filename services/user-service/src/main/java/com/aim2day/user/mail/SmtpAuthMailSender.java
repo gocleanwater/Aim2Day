@@ -14,11 +14,13 @@ public class SmtpAuthMailSender implements AuthMailSender {
 	private final JavaMailSender mailSender;
 	private final String from;
 
+	/** MailConfig가 spring.mail.host가 있을 때 만든다. from이 비어 있으면 발신 주소를 지정하지 않고 SMTP 서버 기본값에 맡긴다. */
 	public SmtpAuthMailSender(JavaMailSender mailSender, String from) {
 		this.mailSender = mailSender;
 		this.from = from;
 	}
 
+	/** 인증번호 안내 메일을 보낸다. 본문에 번호와 유효 시간(10분)을 적는다. 실패하면 MailDeliveryException. */
 	@Override
 	public void sendSignupCode(String to, String code) {
 		send(to, SIGNUP_CODE_SUBJECT, "Aim2Day 회원가입 인증번호입니다.\n\n"
@@ -27,6 +29,7 @@ public class SmtpAuthMailSender implements AuthMailSender {
 				+ "본인이 요청하지 않았다면 이 메일을 무시해 주세요.");
 	}
 
+	/** 재설정 링크 메일을 보낸다. 링크는 30분·1회용이며 새 링크를 요청하면 이전 것은 무효라는 안내를 넣는다. 실패하면 MailDeliveryException. */
 	@Override
 	public void sendPasswordResetLink(String to, String link) {
 		send(to, PASSWORD_RESET_SUBJECT, "Aim2Day 비밀번호 재설정 링크입니다.\n\n"
@@ -35,6 +38,7 @@ public class SmtpAuthMailSender implements AuthMailSender {
 				+ "본인이 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않습니다.");
 	}
 
+	/** 공통 전송. 실패한 JavaMail 예외는 수신 주소가 메시지에 섞일 수 있어 MailDeliveryException으로 감싸 던진다. */
 	private void send(String to, String subject, String text) {
 		SimpleMailMessage message = new SimpleMailMessage();
 		if (from != null && !from.isBlank()) {

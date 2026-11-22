@@ -16,6 +16,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 @Configuration
 public class MailConfig {
 
+	/** SMTP 발송기. spring.mail.host가 설정된 운영 환경에서만 등록되며, 발신 주소는 spring.mail.username이다. */
 	@Bean
 	@ConditionalOnProperty(prefix = "spring.mail", name = "host")
 	AuthMailSender smtpAuthMailSender(JavaMailSender javaMailSender,
@@ -23,6 +24,7 @@ public class MailConfig {
 		return new SmtpAuthMailSender(javaMailSender, from);
 	}
 
+	/** 대체 발송기. SMTP 발송기가 없을 때만 등록되어 메일 설정 없이도 서비스가 기동·재현된다. */
 	@Bean
 	@ConditionalOnMissingBean(AuthMailSender.class)
 	AuthMailSender logAuthMailSender() {

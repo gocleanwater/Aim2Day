@@ -28,6 +28,10 @@ public class SessionUserIdAuthenticationFilter extends OncePerRequestFilter {
 	private final SecurityContextHolderStrategy securityContextHolderStrategy =
 			SecurityContextHolder.getContextHolderStrategy();
 
+	/**
+	 * 세션에 userId(Long)가 있으면 인증된 SecurityContext를 요청에 올리고, 없으면 아무것도 하지 않고 다음 필터로 넘긴다.
+	 * 인증이 없는 요청의 401 응답은 이후 인가 단계가 AuthenticationEntryPoint로 처리한다.
+	 */
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {

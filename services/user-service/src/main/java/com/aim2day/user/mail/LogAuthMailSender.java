@@ -12,6 +12,7 @@ public class LogAuthMailSender implements AuthMailSender {
 
 	private static final Logger log = LoggerFactory.getLogger(LogAuthMailSender.class);
 
+	/** 메일 대신 마스킹한 주소와 인증번호를 로그로 남긴다. */
 	@Override
 	public void sendSignupCode(String to, String code) {
 		log.info("[MAIL] to={} purpose=signup-code code={}", MailAddressMasker.mask(to), code);

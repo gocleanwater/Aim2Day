@@ -6,10 +6,12 @@ package com.aim2day.user.common.response;
  */
 public record ErrorResponse(String code, String message, Object details) {
 
+	/** details 없이 오류 코드의 이름·기본 문구로 응답 본문을 만든다. */
 	public static ErrorResponse of(ErrorCode errorCode) {
 		return new ErrorResponse(errorCode.name(), errorCode.message(), null);
 	}
 
+	/** 부가 정보(검증 오류 목록, 남은 시도 횟수 등)를 details에 담아 응답 본문을 만든다. */
 	public static ErrorResponse of(ErrorCode errorCode, Object details) {
 		return new ErrorResponse(errorCode.name(), errorCode.message(), details);
 	}

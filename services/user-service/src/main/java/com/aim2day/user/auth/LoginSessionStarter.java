@@ -25,6 +25,10 @@ import org.springframework.stereotype.Component;
 public class LoginSessionStarter {
 
 	/**
+	 * 기존 세션을 폐기하고 새 세션에 사용자 정보를 저장한다. 세션 쿠키 발급은 Spring Session이 응답 시 처리한다.
+	 *
+	 * @param request 현재 HTTP 요청(세션 접근용)
+	 * @param user 인증이 끝난 사용자
 	 * @param afterStored 세션이 저장된 직후 실행하는 확인(없으면 null). 예외를 던지면 방금 만든 세션을 폐기하고 그 예외를 다시 던진다.
 	 */
 	public void start(HttpServletRequest request, User user, Runnable afterStored) {

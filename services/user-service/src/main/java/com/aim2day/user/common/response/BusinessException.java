@@ -9,10 +9,12 @@ public class BusinessException extends RuntimeException {
 	private final ErrorCode errorCode;
 	private final transient Object details;
 
+	/** 부가 정보 없이 던진다. 메시지는 오류 코드의 기본 문구다. */
 	public BusinessException(ErrorCode errorCode) {
 		this(errorCode, null);
 	}
 
+	/** details(예: 남은 시도 횟수, 재시도 대기 초)를 응답 본문에 함께 내려보낼 때 쓴다. */
 	public BusinessException(ErrorCode errorCode, Object details) {
 		super(errorCode.message());
 		this.errorCode = errorCode;

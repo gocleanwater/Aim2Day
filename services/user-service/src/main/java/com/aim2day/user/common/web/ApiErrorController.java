@@ -21,6 +21,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ApiErrorController implements ErrorController {
 
+	/**
+	 * /error 디스패치 처리. 4xx는 상태에 대응하는 코드(404는 RESOURCE_NOT_FOUND, 그 외는 MALFORMED_REQUEST)로,
+	 * 그 밖의 모든 상태는 500 INTERNAL_ERROR 고정 문구로 응답한다. 상태 속성이 없거나 알 수 없으면 500으로 본다.
+	 */
 	@RequestMapping("/error")
 	public ResponseEntity<ErrorResponse> error(HttpServletRequest request) {
 		Object attr = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);

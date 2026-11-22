@@ -4,5 +4,6 @@ package com.aim2day.user.auth.token;
 @FunctionalInterface
 public interface CodeGenerator {
 
+	/** 6자리 인증번호를 새로 만들어 돌려준다. 앞의 0을 유지해야 하므로 문자열이다. */
 	String newCode();
 }

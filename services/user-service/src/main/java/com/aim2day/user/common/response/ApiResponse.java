@@ -9,6 +9,7 @@ public record ApiResponse<T>(String code, String message, T data) {
 	public static final String SUCCESS_CODE = "SUCCESS";
 	public static final String SUCCESS_MESSAGE = "요청이 처리되었습니다.";
 
+	/** 데이터를 담은 성공 응답을 만든다. code=SUCCESS, message는 고정 문구다. */
 	public static <T> ApiResponse<T> success(T data) {
 		return new ApiResponse<>(SUCCESS_CODE, SUCCESS_MESSAGE, data);
 	}

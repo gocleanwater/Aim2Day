@@ -32,9 +32,11 @@ import org.springframework.session.data.redis.config.annotation.web.http.EnableR
 		flushMode = FlushMode.IMMEDIATE)
 public class SessionConfig {
 
+	/** Redis 키 접두사. goal-service와 같아야 서로의 세션을 읽는다. */
 	public static final String NAMESPACE = "spring:session";
 	/** 마지막 요청 후 30분 동안 쓰지 않으면 만료(NFR-004). */
 	public static final int MAX_INACTIVE_SECONDS = 30 * 60;
+	/** 세션 ID를 담는 쿠키 이름. goal-service와 같아야 한다. */
 	public static final String COOKIE_NAME = "SESSION";
 
 	/**
