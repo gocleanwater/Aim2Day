@@ -230,6 +230,19 @@ done
 curl -s -o /dev/null -w "without cookie: %{http_code}\n" http://localhost/api/goals/yearly
 ```
 
+**브라우저로 확인(시연 영상에서 쓴 방법).** 로그인한 상태에서 개발자 도구 콘솔에 붙여 넣는다. 같은 사이트 요청이라 브라우저가 `SESSION` 쿠키를 자동으로 붙인다. 6줄 모두 200이고 처리한 컨테이너가 goal-service-1·2·3으로 바뀌면 된다.
+
+```js
+{
+  const rows = [];
+  for (let i = 1; i <= 6; i++) {
+    const r = await fetch('/api/goals/yearly');
+    rows.push({ 요청: i, 상태: r.status, 처리한_컨테이너: r.headers.get('X-Instance-Id') });
+  }
+  console.table(rows);
+}
+```
+
 ### 5.4 DB 볼륨 마운트·데이터 영속성
 
 MySQL 컨테이너를 재시작한 뒤 데이터가 그대로인지 본다(시연 영상은 이 방법을 쓴다).
