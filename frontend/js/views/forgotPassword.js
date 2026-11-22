@@ -3,6 +3,7 @@
 import { api } from "../api.js";
 import { clearFormErrors, handleApiError, setBusy, setFieldError, startCountdown, toast } from "../ui.js";
 
+// 화면 진입점. 이메일 형식만 확인하고 POST한다. 성공 응답은 가입 여부와 무관하므로 중립 문구를 보이고, 재요청 카운트다운 정리 함수를 반환한다(라우터가 화면을 떠날 때 부른다).
 export function render(container, route) {
   container.innerHTML = `
     <section class="card auth-card">

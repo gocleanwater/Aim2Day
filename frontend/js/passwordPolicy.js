@@ -9,6 +9,11 @@ const RULES = [
   ["symbol", "기호"],
 ];
 
+/**
+ * 비밀번호가 각 조건을 만족하는지 계산한다(서버 규칙과 같은 기준, 서버가 최종 판정).
+ * 반환: {length, upper, lower, digit, symbol, illegal, ok}. illegal이 true면 금지 문자가 섞였다는 뜻이라
+ * 다섯 조건을 다 채워도 ok는 false다.
+ */
 export function evaluatePassword(password) {
   const result = {
     length: password.length >= 8 && password.length <= 64,

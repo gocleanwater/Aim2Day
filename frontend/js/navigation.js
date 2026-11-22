@@ -3,6 +3,7 @@
 // 로그인 없이 볼 수 있는 화면. 나머지는 모두 로그인이 필요하다.
 export const PUBLIC_PATHS = new Set(["/login", "/signup", "/forgot-password", "/reset-password"]);
 
+// 탭을 닫으면 사라지도록 localStorage가 아니라 sessionStorage에 둔다.
 const RETURN_KEY = "aim2day.returnTo";
 
 /**
@@ -47,6 +48,7 @@ export function takeReturnTo() {
   return hash;
 }
 
+/** 기억한 돌아올 곳을 버린다. 사용자가 직접 로그인 흐름을 시작했을 때 이전 401의 흔적이 남지 않게 한다. */
 export function clearReturnTo() {
   sessionStorage.removeItem(RETURN_KEY);
 }

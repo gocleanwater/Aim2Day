@@ -17,8 +17,12 @@ import {
 import { progressView, suffixOf } from "./dashboardSections.js";
 import { DEFAULT_COLOR, STATUS_LABELS, deleteGoalFlow, normalizeColor } from "./goalCommon.js";
 
+// 설명 입력 textarea의 인라인 스타일(공용 CSS에 textarea 규칙이 없어 이 화면에서 직접 지정한다).
 const textareaStyle = "width:100%;border:1px solid #dfe5eb;border-radius:12px;padding:10px 14px;font:inherit";
 
+// 화면 진입점. 데이터 흐름: load()가 목표·설정을 병렬로 받아 state에 담고 draw()가 통째로 다시 그린다.
+// 쓰기(생성·수정·삭제·수치 기록)는 성공하면 항상 load()로 서버 값을 다시 받는다(진행률·가중치 계산은 서버가 한다).
+// "이번 달·이번 주"는 클라이언트가 보내지 않고 서버가 계정 시간대로 정하므로, 화면은 settings.currentMonth·currentWeek만 표시한다.
 export function render(container, route) {
   renderLoading(container);
   const alive = () => route.isActive();
@@ -46,6 +50,7 @@ export function render(container, route) {
     return `${m.yearlyGoal?.title ?? ""} › ${m.title}${mixed && month ? ` (${Number(month.slice(5, 7))}월)` : ""}`;
   }
 
+  // 필요한 목록을 병렬로 받는다. 수치 기록 패널을 펼쳐 둔 주간 목표는 기록도 함께 새로 받아 다시 그려도 열린 상태가 유지된다.
   async function load() {
     try {
       const [yearly, monthly, weekly, previous, settings] = await Promise.all([
@@ -73,6 +78,7 @@ export function render(container, route) {
     draw();
   }
 
+  // 화면 전체: 월간 생성 폼, 주간 생성 폼, 직전 주 요약, 설정한 목표 목록.
   function draw() {
     container.replaceChildren(
       el("p", { class: "note" }, el("a", { href: "#/dashboard", text: "대시보드" }), " > 월간·주간 목표 설정"),
@@ -85,6 +91,7 @@ export function render(container, route) {
   }
 
   // ---------- 월간 생성 ----------
+  // 월간 목표 생성 폼. 대상 월은 서버가 이번 달로 정하므로 보내지 않는다. 색은 체크했을 때만 보내고 끄면 null(상위 연간 목표 색을 따른다).
   function monthlyForm() {
     const parent = el("select", { id: "monthly-parent", name: "yearlyGoalId", testid: "monthly-parent" }, [
       el("option", { value: "", text: "연간 목표 선택" }),
@@ -138,6 +145,7 @@ export function render(container, route) {
   }
 
   // ---------- 주간 생성 ----------
+  // 주간 목표 생성 폼. 부모는 이번 주와 기간이 겹치는 월간 목표(weekParents)에서 고른다. 수치형이면 목표 수치를 함께 받는다.
   function weeklyForm() {
     const mixed = new Set(state.weekParents.map((m) => m.month)).size > 1;
     const parent = el("select", { id: "weekly-parent", name: "monthlyGoalId", testid: "weekly-parent" }, [
@@ -201,6 +209,7 @@ export function render(container, route) {
   }
 
   // ---------- 직전 주 요약 ----------
+  // 직전 주 요약(GET /api/goals/weekly/previous-summary). 지난주 결과를 보고 이번 주 목표를 정하도록 돕는 읽기 전용 영역이다.
   function previousSummary() {
     const p = state.previous;
     const goals = p?.weeklyGoals ?? [];
@@ -226,6 +235,7 @@ export function render(container, route) {
   }
 
   // ---------- 설정한 목표 목록 ----------
+  // 이번 달 월간 목표와 그 아래 이번 주 주간 목표를 묶어 보여 준다. 부모 월간 목표가 목록에 없는 주간 목표(월 경계 주 등)는 따로 모아 마지막에 둔다.
   function goalList() {
     const weeklyByMonthly = new Map();
     for (const w of state.weekly) {
@@ -246,6 +256,7 @@ export function render(container, route) {
     );
   }
 
+  // 월간 목표 카드(수정·삭제 버튼, 진행률, 소속 주간 목표).
   function monthlyRow(m, weeklies) {
     return el(
       "div",
@@ -267,6 +278,7 @@ export function render(container, route) {
     );
   }
 
+  // 주간 목표 카드. 수치형이면 현재/목표 값과 [수치 기록] 패널 토글이 있고, 펼칠 때 기록 목록을 받아 온다.
   function weeklyRow(w) {
     const numeric = w.measurementType === "NUMERIC";
     const toggle = el("button", {
@@ -312,6 +324,7 @@ export function render(container, route) {
   }
 
   // ---------- 수치 기록 ----------
+  // 수치형 주간 목표의 직접 수치 기록 패널(목록, 추가 POST, 삭제 DELETE).
   function recordsPanel(w) {
     const list = records.get(w.id) ?? [];
     const amount = el("input", { id: `record-amount-${w.id}`, name: "amount", type: "number", min: "0", step: "any", inputmode: "decimal", testid: `record-amount-${w.id}` });
@@ -363,6 +376,7 @@ export function render(container, route) {
     );
   }
 
+  // 수치 기록 한 건 삭제. 진행률이 바뀌므로 전체를 다시 읽는다.
   async function deleteRecord(w, r) {
     try {
       await api.delete(`/api/goals/weekly/${w.id}/numeric-records/${r.id}`);
@@ -374,6 +388,7 @@ export function render(container, route) {
   }
 
   // ---------- 삭제 ----------
+  // 월간·주간 목표 삭제(level은 "monthly"|"weekly"). 하위 항목 확인 흐름은 deleteGoalFlow가 맡는다.
   async function remove(level, goal) {
     try {
       const done = await deleteGoalFlow(level, goal.id, goal.title, alive);
@@ -384,6 +399,8 @@ export function render(container, route) {
   }
 
   // ---------- 수정 ----------
+  // 수정 모달(월간·주간 공용). 열 때 값(g)과 비교해 바뀐 필드만 PATCH 본문에 담고(version은 항상 포함, 동시 수정 방지 API §2.4),
+  // 바뀐 것이 없으면 요청 없이 닫는다. 주간 목표는 부모 월간 목표 변경과 가중치·목표 수치도 고칠 수 있고, 측정 방식은 바꿀 수 없다.
   async function openEdit(level, g) {
     // 주간 목표의 부모 후보: 그 주와 기간이 겹치는 월간 목표 전부 + 지금 연결된 부모.
     // 월 경계 주의 부모가 지난달 목표인 경우, 이번 달 목록만 쓰면 현재 부모가 선택지에 없어 값이 비어 버린다.

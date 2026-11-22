@@ -25,15 +25,24 @@ import {
 import { progressView, suffixOf } from "./dashboardSections.js";
 import { DEFAULT_COLOR, STATUS_LABELS, deleteGoalFlow, formatInstantDate, loadAccountTimeZone, normalizeColor } from "./goalCommon.js";
 
+// 달성 기준 최대 개수(서버 규칙과 같다). 넘으면 [+ 기준 추가]를 막는다.
 const MAX_CRITERIA = 20;
 const TARGET_LABEL = { WEEKLY_GOAL: "주간", MONTHLY_GOAL: "월간", YEARLY_GOAL: "연간" };
 const CHANGE_LABEL = { CRITERIA_REVISION: "기준 개정", PROGRESS_UPDATE: "진행 변경" };
 
+// 화면 진입점. 달성 기준의 생명주기가 화면 모드(mode)를 정한다.
+//   edit    : 기준이 아직 확정되지 않았거나(초안), 확정 뒤 [기준 개정]을 눌렀을 때. 배점 합계를 입력과 동시에 보여 준다.
+//   confirm : 초안 저장에 성공한 뒤 "확정 때 이미 달성한 기준"을 고르는 단계. 고른 기준의 배점 합이 최초 기준선이다.
+//   view    : 확정된 기준. 항목별 달성 체크(PUT .../achievement)만 가능하다.
+// 동시 수정 방지: 기준 저장·확정은 목표의 goalVersion(state.criteria.goalVersion)을 함께 보낸다(API §2.4).
+// 쓰기가 끝나면 목표 version이 올라가므로 서버 값을 다시 읽는다(reload).
 export function render(container, route) {
   renderLoading(container);
   const alive = () => route.isActive();
   const goalId = Number(route.params.id);
 
+  // state: GET .../yearly/{id}(목표와 하위 월간·주간 트리), .../criteria(기준·달성률), /progress-logs(전체 목표의 최근 기록) 응답.
+  //   logs에서 이 목표(YEARLY_GOAL, targetId)의 기록만 화면에 쓴다.
   const state = { detail: null, criteria: null, logs: [] };
   let mode = "view";
   let draftItems = []; // 편집 중 기준 [{id?, text, weight}]
@@ -42,6 +51,7 @@ export function render(container, route) {
   const ui = {};
 
   // ---------- 불러오기 ----------
+  // 세 API를 병렬로 받아 모드를 정하고 화면을 새로 그린다. 확정 상태면 view, 아니면 편집(빈 초안이면 빈 행 하나)으로 시작한다.
   async function loadAll() {
     try {
       await loadAccountTimeZone(); // 확정·달성 날짜를 계정 시간대로 표시하려고 먼저 읽는다(실패해도 진행)
@@ -75,6 +85,7 @@ export function render(container, route) {
   /** 기준·기본 정보·진행 기록이 함께 바뀌는 쓰기 뒤에 쓴다(goal.version이 올라가므로 전부 새로 읽는다). */
   const reload = () => loadAll();
 
+  // 달성 체크 직후처럼 모드·초안 입력값은 그대로 두고 데이터와 각 영역만 다시 그릴 때 쓴다(loadAll은 모드를 초기화한다).
   async function reloadCriteriaOnly() {
     try {
       const [detail, criteria, logs] = await Promise.all([
@@ -96,6 +107,7 @@ export function render(container, route) {
   }
 
   // ---------- 골격 ----------
+  // 화면 골격을 만들고 영역별(헤더·기준·하위 목표·진행 기록)로 채운다.
   function draw() {
     ui.header = el("section", { class: "card", testid: "goal-header" });
     ui.criteria = el("section", { class: "card", testid: "criteria-card", "aria-labelledby": "criteria-heading" });
@@ -182,6 +194,7 @@ export function render(container, route) {
     );
   }
 
+  // 연간 목표 삭제. 하위 항목이 있으면 deleteGoalFlow가 확인 모달을 거쳐 재요청한다. 삭제되면 목록으로 이동한다.
   async function removeGoal() {
     const g = state.detail.goal;
     try {
@@ -193,8 +206,10 @@ export function render(container, route) {
   }
 
   // ---------- 달성 기준 ----------
+  // 배점 합계. 입력 중인 값은 문자열이므로 숫자가 아닌 값은 0으로 센다.
   const sumOf = (items) => items.reduce((sum, i) => sum + (Number.isFinite(Number(i.weight)) ? Number(i.weight) : 0), 0);
 
+  // 달성 기준 영역. 확정 여부에 따라 요약 문구가 다르고, 모드에 따라 편집기·확정 패널·읽기 화면 중 하나를 붙인다.
   function drawCriteria() {
     const c = state.criteria;
     const confirmed = c.state === "CONFIRMED";
@@ -248,6 +263,7 @@ export function render(container, route) {
     );
   }
 
+  // 항목 달성 체크 변경. 메모는 입력했을 때만 보낸다. 성공하면 달성률·진행 기록이 바뀌므로 다시 읽고, 실패하면 체크를 되돌린다.
   async function toggleAchievement(item, check, memoInput) {
     const wanted = check.checked;
     check.disabled = true;
@@ -264,6 +280,8 @@ export function render(container, route) {
   }
 
   // 편집 화면(초안 또는 개정)
+  // 편집기. 초안(confirmed=false)은 합계 검사 없이 저장·확정 가능, 개정(confirmed=true)은 합계 100이어야 저장되고 메모가 진행 기록에 남는다.
+  // 입력값은 draftItems에 즉시 반영하고(기존 항목은 id 유지) 제출 때 prepare()로 검증한 뒤 saveDraft()로 보낸다.
   function editor(confirmed) {
     const form = el("form", { novalidate: true, testid: "criteria-form", "aria-label": "달성 기준 편집" });
     const banner = el("p", { class: "form-error", "data-form-error": true, role: "alert", hidden: true });
@@ -372,6 +390,7 @@ export function render(container, route) {
     return saved;
   }
 
+  // 달성 기준 저장·확정 오류를 code로 처리한다. 합계 오류는 현재 합계를 붙이고, 이미 확정된 경우는 최신 상태로 다시 읽는다.
   function handleCriteriaError(error, form) {
     if (error.code === "CRITERIA_WEIGHT_SUM_INVALID") {
       const total = error.details?.totalWeight;
@@ -387,6 +406,7 @@ export function render(container, route) {
   }
 
   // 확정: 합계 100을 확인하고 초안을 먼저 저장(서버는 "저장된 초안"을 확정한다)한 뒤, 이미 달성한 기준을 고르게 한다.
+  // 확정 1단계: 검증 후 초안을 저장해 id를 받고 confirm 모드로 넘어간다.
   async function startConfirm(form) {
     if (!prepare(form, true)) return;
     const button = form.querySelector('[data-testid="criteria-confirm"]');
@@ -403,6 +423,7 @@ export function render(container, route) {
     }
   }
 
+  // 확정 2단계 패널. 이미 달성한 기준(baseline)을 고르고 POST .../criteria/confirm으로 확정한다. 확정하면 기준·배점은 개정으로만 바꿀 수 있다.
   function confirmPanel() {
     const c = state.criteria;
     const rate = el("p", { class: "note", role: "status", testid: "baseline-rate" });
@@ -452,6 +473,7 @@ export function render(container, route) {
   }
 
   // ---------- 하위 목표 트리 ----------
+  // 하위 월간·주간 목표 트리와 진행률. 각 목표에서 바로 삭제할 수 있다.
   function drawTree() {
     const months = state.detail.monthlyGoals;
     const parts = [
@@ -479,6 +501,7 @@ export function render(container, route) {
     ui.tree.replaceChildren(...parts);
   }
 
+  // 하위 목표 삭제(공통 흐름은 deleteGoalFlow). 성공하면 진행률이 바뀌므로 전체를 다시 읽는다.
   async function removeChild(level, goal) {
     try {
       const done = await deleteGoalFlow(level, goal.id, goal.title, alive);
@@ -489,6 +512,7 @@ export function render(container, route) {
   }
 
   // ---------- 진행 기록 ----------
+  // 이 목표의 진행 기록. 변경 유형(기준 개정·진행 변경)이 있으면 그 이름을, 없으면 대상 단계 이름을 앞에 보인다.
   function drawLogs() {
     const mine = state.logs.filter((l) => l.targetType === "YEARLY_GOAL" && l.targetId === goalId);
     ui.logs.replaceChildren(

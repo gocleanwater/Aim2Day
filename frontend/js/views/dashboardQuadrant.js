@@ -23,6 +23,7 @@ const UNCONFIRMED = new Set(["PENDING", "RECLASSIFYING", "PENDING_UNCLASSIFY"]);
 const SAVE_DELAY_MS = 350;
 const GOAL_LEFT_MESSAGE = "목표에 연결된 일은 중요 영역(오른쪽)에만 놓을 수 있어요.";
 
+// 좌표(0~100)가 속한 칸. 중요도 x>=50 이면 오른쪽, 긴급도 y>=50 이면 위쪽. Q1 중요·급함, Q2 덜 중요·급함, Q3 덜 중요·여유, Q4 중요·여유.
 export function cellOf(x, y) {
   return y >= 50 ? (x >= 50 ? "Q1" : "Q2") : x >= 50 ? "Q4" : "Q3";
 }
@@ -48,6 +49,7 @@ export function placementText(action) {
   }
 }
 
+// 목표 연결 행동의 소속 경로("연간 › 월간 › 주간")와 보류·중단 꼬리표. 그 밖의 할 일은 빈 문자열이다.
 export function pathText(action) {
   const g = action.goalPath;
   if (!g) return "";
@@ -134,11 +136,13 @@ export function createQuadrant({ host, state, reload, refreshList }) {
   const say = (text) => (status.textContent = text);
   const stateOf = (a) => a.placement?.state ?? "UNCLASSIFIED";
 
+  // 서버가 정한 "지금 화면에 표시할 위치"({x,y}). 트레이에 있으면 null. 서버는 importance/urgency로 주고 화면은 x/y로 다룬다.
   function displayed(a) {
     const d = a.placement?.displayed;
     return d ? { x: d.importance, y: d.urgency } : null;
   }
 
+  // 화면용 표시 위치를 바꾼다(서버 저장 전 즉시 반응용). 서버 응답이 오면 placement 전체로 덮어쓴다.
   function setDisplayed(a, pos) {
     a.placement.displayed = pos ? { importance: pos.x, urgency: pos.y } : null;
   }
@@ -159,10 +163,12 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     return `${index + 1}. ${a.title} · ${pathText(a) || "그 밖의 할 일"} · ${place} · ${placementText(a)}`;
   }
 
+  // 선택·호버한 점의 상세 문구를 아래 영역에 보여 준다.
   function showDetail(a, index) {
     detail.textContent = describe(a, index) + (displayed(a) ? "" : " · 점을 사분면으로 끌거나 Enter 키를 눌러 배치하세요.");
   }
 
+  // 상태별 개수와 버튼 활성 여부를 갱신한다. 목표 연결 행동을 선택했다면 왼쪽 칸에 aria-disabled를 건다.
   function updateCounts() {
     const list = items();
     const unclassified = list.filter((a) => stateOf(a) === "UNCLASSIFIED").length;
@@ -177,11 +183,13 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     });
   }
 
+  // 점을 좌표 평면에 놓는다. CSS의 top은 위가 0이므로 긴급도 y는 100-y로 뒤집는다.
   function positionPoint(node, pos) {
     node.style.left = `${pos.x}%`;
     node.style.top = `${100 - pos.y}%`;
   }
 
+  // 행동 하나의 점 버튼을 만든다. 미분류·미확정(확정 대기)·완료·선택 상태에 따라 CSS 클래스를 붙인다.
   function buildPoint(a, index) {
     const pos = displayed(a);
     const point = el(
@@ -206,6 +214,7 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     return point;
   }
 
+  // 트레이와 사분면을 통째로 다시 그린다. 다시 그리면 포커스가 사라지므로 직전에 포커스가 있던 점을 복원한다.
   function renderPlot() {
     const focusId = document.activeElement?.dataset?.id;
     tray.replaceChildren();
@@ -258,6 +267,7 @@ export function createQuadrant({ host, state, reload, refreshList }) {
   }
 
   /** 조작 시점에 잡아 둔 위치(pos: {x,y} 또는 null)를 서버에 저장한다. 같은 행동의 요청은 순서대로 보낸다. */
+  // 서버에 저장하고, 마지막 조작일 때만 화면을 응답으로 갱신한다(opNo 비교).
   function commit(a, opNo, pos) {
     clearTimeout(timers.get(a.id));
     timers.delete(a.id);
@@ -292,12 +302,14 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     );
   }
 
+  // 디바운스로 대기 중인 이동을 즉시 보내고 진행 중인 저장이 끝나길 기다린다(확정 직전에 호출).
   async function flushAll() {
     for (const a of items()) if (timers.has(a.id)) commit(a, opCounter.get(a.id), lastPos.get(a.id));
     await Promise.all([...saving.values()]);
   }
 
   // ---------- 동작 ----------
+  // 점을 좌표에 놓는다(드래그 종료·칸 클릭·키보드 공통). 좌표를 보정하고 즉시 화면에 반영한 뒤 저장한다. 확정은 별도 버튼이다.
   function placeAt(a, x, y) {
     const wasLeft = isGoal(a) && x < 50;
     const pos = clampPos(a, x, y);
@@ -307,6 +319,7 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     commit(a, recordMove(a, pos), pos);
   }
 
+  // 점을 트레이(미분류)로 돌려보낸다. 서버에는 importance·urgency를 null로 보낸다.
   function sendToTray(a) {
     setDisplayed(a, null);
     renderPlot();
@@ -314,6 +327,7 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     commit(a, recordMove(a, null), null);
   }
 
+  // 선택한 점을 칸의 중심에 놓는다. 목표 연결 행동은 왼쪽 칸(Q2·Q3)에 놓을 수 없다.
   function placeSelectedInCell(key) {
     const a = selected();
     if (!a) return say("먼저 점을 선택해 주세요.");
@@ -321,6 +335,7 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     placeAt(a, ...CELLS[key].center);
   }
 
+  // 점 선택 표시를 갱신한다(점·목록 행·상세 문구·개수).
   function select(a, index, point) {
     selectedId = a.id;
     host.querySelectorAll(".plot-point").forEach((p) => {
@@ -334,6 +349,7 @@ export function createQuadrant({ host, state, reload, refreshList }) {
     updateCounts();
   }
 
+  // [오늘 분류 확정]: 대기 중인 이동을 먼저 저장한 뒤 POST .../placements/confirm으로 미확정 위치를 확정 좌표로 바꾼다.
   async function confirmAll() {
     confirmButton.disabled = true;
     try {
@@ -372,11 +388,13 @@ export function createQuadrant({ host, state, reload, refreshList }) {
   }
 
   // ---------- 점 조작 ----------
+  // 포인터 좌표가 요소의 사각형 안인지. 드래그 놓는 곳이 트레이인지 판정하는 데 쓴다.
   function within(node, event) {
     const r = node.getBoundingClientRect();
     return event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
   }
 
+  // 점 한 개의 입력 처리를 연결한다: 포커스·호버 상세, 클릭 선택, 키보드 이동, 포인터 드래그.
   function wirePoint(point, a, index) {
     point.addEventListener("focus", () => showDetail(a, index));
     point.addEventListener("pointerenter", () => showDetail(a, index));

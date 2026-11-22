@@ -2,10 +2,12 @@
 import { api, ApiError } from "./api.js";
 import { navigate, takeReturnTo, clearReturnTo } from "./navigation.js";
 
-let currentUser = null;
-let loading = null;
+// 모듈 수준 상태: 화면과 헤더가 같은 값을 보도록 한 곳에만 둔다.
+let currentUser = null; // GET /api/users/me 응답(로그인 안 했으면 null)
+let loading = null; // 진행 중인 사용자 조회 Promise(동시 호출을 하나로 합치는 용도)
 const listeners = new Set();
 
+/** 지금 알고 있는 로그인 사용자. 서버 확인 전이면 null이므로, 확정이 필요하면 ensureUser()를 쓴다. */
 export function getUser() {
   return currentUser;
 }
@@ -15,11 +17,13 @@ export function onUserChange(listener) {
   listeners.add(listener);
 }
 
+/** 사용자 상태를 바꾸고 구독자(헤더 등)에게 알린다. 로그인 성공 직후와 ensureUser 성공 때 호출한다. */
 export function setUser(user) {
   currentUser = user;
   listeners.forEach((listener) => listener(user));
 }
 
+/** 로그인 표시만 지운다(서버 호출 없음). 로그아웃과 401 세션 만료 처리에서 쓴다. */
 export function clearUser() {
   setUser(null);
 }
@@ -56,14 +60,17 @@ export async function ensureUser({ redirectOn401 = true } = {}) {
 // 이 표시가 없으면(로그인 직후, 주소창으로 직접 진입 등) needsOnboarding인 사용자는 온보딩으로 보낸다.
 const DEFERRED_KEY = "aim2day.onboardingDeferred";
 
+/** "나중에 하기"를 눌렀음을 이 탭에 기록한다. */
 export function deferOnboarding() {
   sessionStorage.setItem(DEFERRED_KEY, "1");
 }
 
+/** 이 탭에서 온보딩을 미뤘는지. 대시보드가 온보딩으로 되돌려 보낼지 결정할 때 본다. */
 export function isOnboardingDeferred() {
   return sessionStorage.getItem(DEFERRED_KEY) === "1";
 }
 
+/** 미룸 표시를 지운다. 새 로그인·로그아웃, 온보딩을 다시 시작할 때 호출한다. */
 export function clearOnboardingDeferred() {
   sessionStorage.removeItem(DEFERRED_KEY);
 }

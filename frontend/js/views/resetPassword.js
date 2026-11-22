@@ -6,6 +6,7 @@ import { navigate } from "../navigation.js";
 import { attachPasswordChecklist } from "../passwordPolicy.js";
 import { clearFormErrors, handleApiError, setBusy, setFieldError, toast } from "../ui.js";
 
+// 화면 진입점. 메일 링크의 토큰(route.fragment)을 받아 새 비밀번호와 함께 POST /api/auth/password-reset으로 보낸다. 토큰이 없으면 안내만 보이고 새 링크를 요청하게 한다.
 export function render(container, route) {
   // 토큰은 메모리에만 들고 주소창에서는 지운다. 새로고침·뒤로가기 기록·화면 공유에 토큰이 남지 않게 하기 위해서다.
   // (서버는 제출 시점에 토큰을 소비하므로, 새로고침해서 토큰을 잃으면 새 링크를 요청해야 한다.)

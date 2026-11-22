@@ -1,6 +1,7 @@
 // 날짜 문자열(YYYY-MM-DD) 계산. 서버가 "오늘"을 계정 시간대로 정하므로(API §2.3) 브라우저 시계·시간대를 쓰지 않고,
 // 받은 날짜 문자열에 일 수만 더하고 뺀다. UTC로 계산해야 서머타임·로컬 시간대 때문에 하루가 밀리지 않는다.
 
+/** 실제로 있는 날짜인지 확인한다. 2월 30일처럼 형식은 맞아도 Date가 다른 날로 넘기는 값을 걸러 낸다(UTC로 만들었다가 다시 비교). */
 export function isValidIsoDate(text) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
   const [y, m, d] = text.split("-").map(Number);
@@ -8,6 +9,7 @@ export function isValidIsoDate(text) {
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
 }
 
+/** YYYY-MM-DD 문자열에 일 수(음수 가능)를 더해 같은 형식으로 돌려준다. 월·연 경계는 Date.UTC가 알아서 넘겨 준다. */
 export function addDays(iso, days) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);

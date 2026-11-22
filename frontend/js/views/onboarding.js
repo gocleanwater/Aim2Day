@@ -97,6 +97,7 @@ export function clearAllUnsavedDrafts(owner = currentOwner()) {
   }
 }
 
+// localStorage의 미저장 입력 사본을 읽는다. 저장소 키와 값 안의 owner를 모두 확인해 다른 사용자의 사본을 쓰지 않으며, 깨진 값은 없는 것으로 본다.
 function readUnsavedDraft(owner) {
   if (!owner) return null;
   try {
@@ -115,9 +116,11 @@ function clearUnsavedDraftIfRev(owner, expectedRev) {
   if (readUnsavedDraft(owner)?.rev === expectedRev) clearUnsavedDraft(owner);
 }
 
+// draft의 목록 이름 -> 그 목록을 입력하는 단계 번호. 서버 오류 경로(예: actions[0].title)를 이동할 단계로 바꾸는 데 쓴다.
 const LIST_STEP = { yearlyGoals: 1, monthlyGoals: 2, weeklyGoals: 3, actions: 4 };
 
 // ---------- DOM 도우미 ----------
+// 이 화면 전용 DOM 생성 도우미. ui.js의 el과 같은 규칙(text, class, testid, onxxx)이다.
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -132,6 +135,7 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+// 입력칸 name에서 label 연결용 id를 만든다(특수문자는 "-"로 바꿔 id에 쓸 수 있게 한다).
 const idOf = (name) => `onb-${name.replace(/\W+/g, "-")}`;
 
 /** label + 입력칸 + 오류 자리. 오류 자리의 data-error-for와 입력칸의 name이 같아야 ui.js가 오류를 붙인다. */
@@ -146,6 +150,7 @@ function field(labelText, control, name, hint) {
   );
 }
 
+// 텍스트·숫자 입력칸. 값이 바뀔 때마다 onInput으로 메모리의 draft를 갱신하고, 저장은 호출한 쪽이 디바운스로 처리한다.
 function textInput({ name, value, maxlength, testid, placeholder, type = "text", onInput, attrs = {} }) {
   const input = el("input", { id: idOf(name), name, type, maxlength, placeholder, testid, ...attrs });
   input.value = value ?? "";
@@ -153,6 +158,7 @@ function textInput({ name, value, maxlength, testid, placeholder, type = "text",
   return input;
 }
 
+// 선택칸. options는 [{key,label}]이고, 저장된 값이 더는 선택지에 없으면 "선택" 상태로 돌려 끊긴 참조가 보이게 한다.
 function selectInput({ name, options, value, testid, placeholder = "선택", onChange }) {
   const select = el("select", { id: idOf(name), name, testid });
   select.append(el("option", { value: "", text: placeholder }));
@@ -175,6 +181,10 @@ function radioGroup({ name, legend, choices, value, onChange }) {
 }
 
 // ---------- 화면 ----------
+// 화면 진입점. 파일 상단 "동작 요약"의 흐름을 구현한다. 상태는 아래 지역 변수가 들고
+// (draft: 입력 중 내용, version: 서버 임시 저장 버전, step: 현재 단계, conflict·stopped·finished: 저장 중단 상태),
+// 단계를 이동하거나 입력이 바뀔 때마다 renderStep·renderRows로 필요한 부분만 다시 그린다.
+// 모든 서버 저장은 saveChain에 줄을 세워 같은 version으로 동시에 보내는 일을 막는다.
 export function render(container, route) {
   renderLoading(container);
 
@@ -330,6 +340,7 @@ export function render(container, route) {
     }
   }
 
+  // 서버의 임시 저장을 화면 상태로 가져온다(처음 진입, 충돌 뒤 "저장된 내용 불러오기"). 단계 범위를 1~4로 보정하고 끊긴 부모 참조를 정리한다.
   function adoptServerDraft(serverDraft) {
     draft = normalizeDraft(serverDraft.draftData);
     version = serverDraft.version ?? null;
@@ -351,6 +362,7 @@ export function render(container, route) {
   // 새로고침 때 keepalive 저장이 나가고, 새 페이지가 그보다 먼저 읽은 version으로 저장하다 409가 나 입력을 잃는다.
   const snapshotOf = (forStep, data) => JSON.stringify([forStep, { ...data, seq: undefined }]);
 
+  // 화면 위쪽의 저장 상태 문구("저장 중…", "저장됨" 등)를 바꾸고 기억해 두어 단계를 다시 그려도 유지한다.
   function setSaveStatus(text) {
     saveStatusText = text;
     const node = alive ? container.querySelector("#onb-save-status") : null;
@@ -370,6 +382,8 @@ export function render(container, route) {
     return run;
   }
 
+  // 실제 PUT 전송. 줄 서 있다 순서가 되었을 때 충돌·중단·완료 상태를 다시 확인하고, 성공하면 응답의 version을 저장해 다음 요청에 쓴다.
+  // 409면 충돌 안내로 넘어가고, 그 밖의 오류는 silent 여부에 따라 상태 문구 또는 폼 배너로 알린다.
   async function doSave(forStep, { silent = false, keepalive = false, userInitiated = false } = {}) {
     // 줄 서 있던 저장이 실제로 나가는 순간에 확인한다. 큐에 넣을 때가 아니라 여기서 막아야
     // 충돌 처리 중에 이미 대기하던 자동·이탈 저장도 무효가 된다.
@@ -425,6 +439,7 @@ export function render(container, route) {
     autosaveTimer = setTimeout(runAutosave, AUTOSAVE_MS);
   }
 
+  // 디바운스가 끝났을 때 자동 저장을 한 번 실행한다. 이동·완료 중이거나 충돌·중단 상태이거나 바뀐 것이 없으면 보내지 않는다.
   function runAutosave() {
     autosaveTimer = null;
     if (finished || stopped || conflict || !alive) return;
@@ -689,6 +704,7 @@ export function render(container, route) {
     }
   }
 
+  // 충돌 해결 요청을 보내는 동안 두 선택 버튼의 중복 클릭을 막는다.
   function setConflictButtonsDisabled(disabled) {
     for (const id of ["conflict-keep-mine", "conflict-load-server"]) {
       const node = container.querySelector(`[data-testid="${id}"]`);
@@ -743,6 +759,7 @@ export function render(container, route) {
     return formatDate(settings.today);
   }
 
+  // 단계별 질문 문구. 1단계는 서버가 상황(처음/추가)에 맞게 준 firstQuestion을 쓴다.
   function questionText(forStep) {
     if (forStep === 1) return status.firstQuestion;
     if (forStep === 2) return "그 목표를 위해 이번 달에 이루고 싶은 건 무엇인가요?";
@@ -750,6 +767,7 @@ export function render(container, route) {
     return "그러면 오늘 해내고 싶은 행동은 무엇인가요?";
   }
 
+  // 현재 단계 화면 전체(상단 바, 질문, 행 목록, 이동 버튼)를 그린다. 화면을 떠난 뒤 늦은 호출이 공유 #view를 덮지 않도록 alive·route.isActive를 먼저 본다.
   function renderStep() {
     if (!alive || !route.isActive()) return; // 화면을 떠난 뒤에는 공유 #view를 다시 그리지 않는다
     ensureRows();
@@ -824,10 +842,12 @@ export function render(container, route) {
     if (draft[name].length === 0 && !(step === 1 && yearLimit().remaining === 0)) addRow();
   }
 
+  // 현재 단계가 편집하는 draft 목록(1 연간, 2 월간, 3 주간, 4 행동).
   function currentList() {
     return draft[["", "yearlyGoals", "monthlyGoals", "weeklyGoals", "actions"][step]];
   }
 
+  // 현재 단계에 빈 행을 추가한다. 연간 목표는 남은 개수(한도 - 기존 - 새로 쓴 것)를 넘지 못하며 새 행마다 tempId를 발급한다.
   function addRow() {
     if (step === 1) {
       if (draft.yearlyGoals.length >= yearLimit().remaining) return;
@@ -890,6 +910,7 @@ export function render(container, route) {
     }
   }
 
+  // 현재 단계의 행 목록과 안내 문구, [추가] 버튼 상태를 다시 그린다. 선택지가 하나뿐인 부모는 먼저 자동 선택한다.
   function renderRows() {
     autoSelect();
     rowsHost.innerHTML = "";
@@ -914,12 +935,14 @@ export function render(container, route) {
     }
   }
 
+  // 행 삭제. 지운 행을 가리키던 하위 행의 참조는 단계 이동·저장 때 sanitizeRefs가 정리한다.
   function removeRow(index) {
     currentList().splice(index, 1);
     renderRows();
     scheduleAutosave();
   }
 
+  // 모든 단계 행의 공통 틀(번호 + 삭제 버튼 + 단계별 입력칸).
   function rowShell(index, rowTestPrefix, ...children) {
     return el(
       "div",
@@ -941,6 +964,7 @@ export function render(container, route) {
     );
   }
 
+  // 단계에 맞는 행 생성기로 연결한다.
   function buildRow(item, index) {
     if (step === 1) return buildYearlyRow(item, index);
     if (step === 2) return buildMonthlyRow(item, index);
@@ -948,6 +972,7 @@ export function render(container, route) {
     return buildActionRow(item, index);
   }
 
+  // 1단계 행: 연간 목표 제목만 받는다.
   function buildYearlyRow(item, index) {
     const name = `yearlyGoals[${index}].title`;
     return rowShell(
@@ -968,6 +993,7 @@ export function render(container, route) {
     );
   }
 
+  // 2단계 행: 상위 연간 목표 선택(기존 + 방금 쓴 것), 제목, 설명.
   function buildMonthlyRow(item, index) {
     const parentName = `monthlyGoals[${index}].parent`;
     const titleName = `monthlyGoals[${index}].title`;
@@ -1012,6 +1038,7 @@ export function render(container, route) {
     );
   }
 
+  // 3단계 행: 상위 월간 목표 선택, 제목, 측정 방식(체크리스트·수치형), 수치형이면 목표 수치.
   function buildWeeklyRow(item, index) {
     const parentName = `weeklyGoals[${index}].parent`;
     const titleName = `weeklyGoals[${index}].title`;
@@ -1077,6 +1104,7 @@ export function render(container, route) {
     );
   }
 
+  // 4단계 행: 목표 연결 행동(월간·주간 선택, 수치형이면 기여 수치) 또는 그 밖의 할 일(MAINTENANCE, 연결 없음), 수행일.
   function buildActionRow(item, index) {
     const typeName = `actions[${index}].type`;
     const targetName = `actions[${index}].target`;
@@ -1211,6 +1239,7 @@ export function render(container, route) {
   // ---------- 검증(서버가 최종 검증하므로 헛요청을 줄이는 간단한 확인만) ----------
   const REQUIRED_PARENT = "연결할 상위 목표를 선택해 주세요.";
 
+  // 단계를 넘어가기 전 가벼운 검증. 서버가 최종 검증하지만 부모 미선택·수치 형식 같은 명백한 오류는 요청 전에 입력칸 아래에 표시하고 첫 오류 칸으로 포커스를 옮긴다.
   function validateStep(forStep) {
     clearFormErrors(form);
     let firstBad = null;
@@ -1391,6 +1420,7 @@ export function render(container, route) {
     return { step: LIST_STEP[list], name: `${list}[${index}].${prop}` };
   }
 
+  // POST complete의 오류를 code별로 보여 준다. 필드 오류는 mapServerField로 (단계, 입력칸)에 대응시켜 가장 앞 단계의 입력칸으로 돌아가 표시한다.
   async function showCompleteError(error) {
     if (error.code === "VALIDATION_FAILED") {
       const mapped = (error.details?.fieldErrors ?? [])

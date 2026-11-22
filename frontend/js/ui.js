@@ -87,10 +87,15 @@ const REASON_MESSAGES = {
   PASSWORD_MISMATCH: "비밀번호가 일치하지 않습니다.",
 };
 
+/** 폼 안에서 name이 field인 입력칸을 찾는다. 서버 details.fieldErrors의 field 이름과 name을 맞춰 두었기 때문에 가능하다. */
 function controlOf(form, field) {
   return form.querySelector(`[name="${field}"]`);
 }
 
+/**
+ * 한 입력칸 아래 오류 문구를 채우고 접근성 속성(aria-invalid, aria-describedby)을 붙인다.
+ * @returns {boolean} 오류 자리(data-error-for)가 있어 표시했으면 true. 없으면 false라서 호출자가 다른 방식으로 알려야 한다.
+ */
 export function setFieldError(form, field, message) {
   const errorEl = form.querySelector(`[data-error-for="${field}"]`);
   const control = controlOf(form, field);
@@ -104,6 +109,7 @@ export function setFieldError(form, field, message) {
   return true;
 }
 
+/** 한 입력칸의 오류 문구와 접근성 속성을 지운다. 사용자가 다시 입력하기 시작할 때 쓴다. */
 export function clearFieldError(form, field) {
   const errorEl = form.querySelector(`[data-error-for="${field}"]`);
   const control = controlOf(form, field);
@@ -270,6 +276,7 @@ export function formField(labelText, control, name, hint) {
 
 // ---------- 표시 형식 ----------
 /** 2026-11-12 → 2026.11.12 (명세 §2.3, 화면 표시용) */
+/** 서버의 YYYY-MM-DD를 표시용으로만 바꾼다. 날짜 계산에는 쓰지 않고(계산은 dateUtil.js), 문자열이 아니면 빈 문자열이다. */
 export function formatDate(isoDate) {
   return typeof isoDate === "string" ? isoDate.replaceAll("-", ".") : "";
 }

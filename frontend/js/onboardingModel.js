@@ -12,10 +12,12 @@
 // POST /api/goals/onboarding/complete 본문은 이 형태에서 buildCompleteBody()가 만든다.
 // 부모 참조는 "tempId 또는 id 중 하나만" 쓰는 명세 규칙 때문에, 화면에서는 "t:y1" / "id:3" 같은 키 문자열로 다룬다.
 
+// 서버가 받아 주는 draftData 최대 크기. 저장 전에 draftBytes()로 미리 재서 넘으면 사용자에게 알린다.
 export const MAX_DRAFT_BYTES = 64 * 1024;
 
 const LISTS = ["yearlyGoals", "monthlyGoals", "weeklyGoals", "actions"];
 
+/** 아무것도 입력하지 않은 새 draft. seq는 0에서 시작한다. */
 export function emptyDraft() {
   return { seq: 0, yearlyGoals: [], monthlyGoals: [], weeklyGoals: [], actions: [] };
 }
@@ -31,10 +33,12 @@ export function normalizeDraft(raw) {
   return draft;
 }
 
+/** JSON으로 직렬화했을 때 UTF-8 바이트 수. 한글은 글자당 3바이트라 length가 아니라 바이트로 세야 서버 한도와 맞는다. */
 export function draftBytes(draft) {
   return new TextEncoder().encode(JSON.stringify(draft)).length;
 }
 
+/** 제목이 비었거나 공백뿐인 행인지. 이런 행은 저장·전송 대상에서 뺀다. */
 export function isBlank(item) {
   return !String(item.title ?? "").trim();
 }
@@ -44,10 +48,12 @@ export function pruneBlank(draft) {
   for (const name of LISTS) draft[name] = draft[name].filter((item) => !isBlank(item));
 }
 
+/** 입력한 항목이 하나라도 있는지(임시 저장·이탈 경고 여부 판단용). */
 export function hasContent(draft) {
   return LISTS.some((name) => draft[name].length > 0);
 }
 
+/** "y"·"m"·"w" 같은 접두사에 증가 번호를 붙여 새 tempId를 만든다. 번호는 줄지 않으므로 지운 행의 id가 재사용되지 않는다. */
 export function nextTempId(draft, prefix) {
   draft.seq += 1;
   return `${prefix}${draft.seq}`;
@@ -69,6 +75,7 @@ export function setRef(item, base, key) {
   else if (key.startsWith("id:")) item[`${base}Id`] = Number(key.slice(3));
 }
 
+/** 키("t:..." / "id:...")를 API 본문 필드(xxxTempId 또는 xxxId) 하나로 풀어 넣는다. 키가 비었으면 아무것도 넣지 않는다. */
 function refForBody(body, base, key) {
   if (key.startsWith("t:")) body[`${base}TempId`] = key.slice(2);
   else if (key.startsWith("id:")) body[`${base}Id`] = Number(key.slice(3));
@@ -76,11 +83,13 @@ function refForBody(body, base, key) {
 
 // ---------- 선택지 ----------
 // ctx = { existingYearly, existingMonthly, existingWeekly }  (서버에서 읽은 기존 목표)
+/** 선택지 라벨 뒤 상태 꼬리표. 상위 경로 상태(pathStatus)가 있으면 우선한다. */
 function suffix(goal) {
   const state = goal.pathStatus || goal.status;
   return state === "ON_HOLD" ? " (보류)" : state === "DROPPED" ? " (중단)" : "";
 }
 
+/** 월간 목표의 부모로 고를 수 있는 연간 목표: 서버의 기존 목표("id:") + 이번 온보딩에서 새로 쓴 것("t:"). 월간·주간 선택지도 같은 구조다. */
 export function yearlyOptions(draft, ctx) {
   return [
     ...ctx.existingYearly.map((g) => ({ key: `id:${g.id}`, label: `${g.title}${suffix(g)} · 기존` })),
@@ -88,6 +97,7 @@ export function yearlyOptions(draft, ctx) {
   ];
 }
 
+// 월간 목표 선택지(주간 목표·행동의 부모 후보). 구조는 yearlyOptions와 같다.
 export function monthlyOptions(draft, ctx) {
   return [
     ...ctx.existingMonthly.map((g) => ({ key: `id:${g.id}`, label: `${g.title}${suffix(g)} · 기존` })),

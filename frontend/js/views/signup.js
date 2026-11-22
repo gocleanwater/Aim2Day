@@ -17,9 +17,13 @@ import {
   toast,
 } from "../ui.js";
 
+// 입력 중 버튼을 열지 판단하는 형식 검사. 서버가 최종 검증하므로 느슨하게 둔다(이메일은 @와 점 유무, 인증번호는 숫자 6자리).
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CODE_PATTERN = /^\d{6}$/;
 
+// 화면 진입점. 세 단계(이메일 인증번호 발송 -> 인증번호 확인으로 가입권 획득 -> 사용자명·비밀번호로 가입)를 한 폼에서 순서대로 연다.
+// 단계 상태는 sentEmail·signupToken 같은 지역 변수가 들고, refresh*Button()이 그 상태로 각 버튼의 활성 여부를 다시 계산한다.
+// 이 화면은 로그인 전 화면이라 route 없이 호출되므로, 화면을 떠난 것은 alive 플래그로 직접 관리한다.
 export function render(container) {
   container.innerHTML = `
     <section class="card auth-card">
@@ -111,6 +115,7 @@ export function render(container) {
   let lockSeq = 0;
   let pendingLock = null;
 
+  // 요청 잠금을 잡는다. 반환값(잠금 번호)을 releaseLock에 넘겨 자기가 잡은 잠금만 풀게 한다.
   function acquireLock() {
     const mine = ++lockSeq;
     pendingLock = mine;
@@ -137,14 +142,17 @@ export function render(container) {
     sendButton.disabled = pendingLock !== null || !EMAIL_PATTERN.test(emailInput.value.trim());
   }
 
+  // [확인] 버튼: 요청 중이 아니고, 아직 인증 전이며, 인증번호를 보낸 상태에서 6자리 숫자를 입력했을 때만 연다.
   function refreshVerifyButton() {
     verifyButton.disabled = pendingLock !== null || signupToken !== null || !sentEmail || !CODE_PATTERN.test(codeInput.value);
   }
 
+  // [가입하기] 버튼: 가입권이 있고 비밀번호 규칙을 모두 만족할 때만 연다.
   function refreshSubmitButton() {
     submitButton.disabled = !(signupToken && passwordOk);
   }
 
+  // 재요청 카운트다운을 멈춘다(화면 이탈·단계 초기화 때).
   function stopTimer() {
     stopCountdown?.();
     stopCountdown = null;

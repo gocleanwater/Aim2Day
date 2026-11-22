@@ -4,10 +4,13 @@ import { api } from "../api.js";
 import { el, handleApiError, renderLoading, setBusy, toast } from "../ui.js";
 import { LEVEL_LABELS, formatInstantDate, loadAccountTimeZone } from "./goalCommon.js";
 
+// 화면 진입점. 목록(GET /api/goals/trash)은 서버가 복구 기한 안의 목표를 단계 구분 없이 최근 삭제 순으로 준다.
+// 항목마다 level(YEARLY|MONTHLY|WEEKLY)을 소문자로 바꿔 복원 경로(/api/goals/{level}/{id}/restore)를 만든다.
 export function render(container, route) {
   renderLoading(container);
   const alive = () => route.isActive();
 
+  // 목록과 계정 시간대를 함께 읽어 그린다. 복원·기한 만료 뒤에도 이 함수로 목록을 새로 맞춘다.
   async function load() {
     let items;
     try {
@@ -42,6 +45,7 @@ export function render(container, route) {
     );
   }
 
+  // 삭제된 목표 한 줄. 남은 일수, 복구 기한 날짜, 상위 목표(삭제되어 있으면 먼저 복원하라는 안내)를 보여 준다.
   function row(item) {
     const level = item.level.toLowerCase(); // API 경로와 data-testid에 쓰는 소문자 단계
     const button = el("button", {
@@ -67,6 +71,7 @@ export function render(container, route) {
     );
   }
 
+  // 복원 요청. 오류는 code로 분기한다: 연간 목표 한도 초과, 삭제된 상위 목표, 복구 기한 만료는 각각 안내하고 그 밖은 공통 규칙으로 처리한다.
   async function restore(item, button) {
     const message = container.querySelector('[data-testid="trash-message"]');
     message.hidden = true;

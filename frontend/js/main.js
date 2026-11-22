@@ -11,6 +11,10 @@ const memberActions = document.getElementById("member-actions");
 const guestActions = document.getElementById("guest-actions");
 const memberName = document.getElementById("member-name");
 
+/**
+ * 사용자 상태(auth.js)를 헤더 DOM에 반영한다. 로그인이면 메뉴·계정 영역을, 아니면 로그인·가입 안내만 보인다.
+ * onUserChange로 구독해 두었으므로 로그인·로그아웃·세션 만료 어느 경로로 상태가 바뀌어도 헤더가 같이 바뀐다.
+ */
 function renderHeader(user) {
   const loggedIn = Boolean(user);
   mainNav.hidden = !loggedIn;
@@ -44,4 +48,5 @@ setUnauthenticatedHandler(() => {
   navigate("#/login");
 });
 
+// 헤더와 401 처리 연결을 마친 뒤에 라우터를 시작한다. 첫 화면 요청이 401을 받아도 핸들러가 이미 등록돼 있어야 하기 때문이다.
 startRouter();

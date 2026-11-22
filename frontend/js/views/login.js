@@ -3,6 +3,8 @@ import { api } from "../api.js";
 import { routeAfterLogin, setUser } from "../auth.js";
 import { clearFormErrors, handleApiError, setBusy, setFieldError } from "../ui.js";
 
+// 화면 진입점. 제출 흐름: 빈 값 검사 -> POST /api/auth/login(성공하면 setUser로 헤더 갱신) -> routeAfterLogin으로 온보딩/원래 화면/대시보드 결정.
+// 응답이 늦어 다른 화면으로 이동했다면(route.isActive) 이동·오류 표시를 하지 않는다.
 export function render(container, route) {
   container.innerHTML = `
     <section class="card auth-card">

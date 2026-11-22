@@ -5,6 +5,7 @@ import { ensureUser } from "../auth.js";
 import { setAccountTimeZone } from "./goalCommon.js";
 import { clearFormErrors, formatDate, handleApiError, renderLoading, setBusy, toast } from "../ui.js";
 
+// 주 시작 요일 선택지. 값은 서버 enum(weekStartDay)과 같고 달력의 첫 열을 정한다.
 const DAYS = [
   ["SUNDAY", "일요일"],
   ["MONDAY", "월요일"],
@@ -26,6 +27,8 @@ function timezoneChoices(current) {
   return list;
 }
 
+// 화면 진입점. 사용자 기본 정보와 설정을 함께 읽어 폼에 채운다. 저장은 PUT 한 번으로 요일·시간대를 같이 보내고,
+// 성공하면 응답(새 version 포함)을 설정으로 삼아 화면을 다시 그린다. 시간대는 서버의 "오늘" 계산 기준이므로 저장 직후 캐시도 바꾼다.
 export function render(container, route) {
   renderLoading(container);
 
@@ -34,6 +37,7 @@ export function render(container, route) {
   let form = null;
   let saveButton = null;
 
+  // 사용자 정보(ensureUser)와 설정을 병렬로 읽어 그린다. 409 뒤 최신 값 반영에도 같은 함수를 쓴다.
   async function load() {
     const [user, loaded] = await Promise.all([ensureUser(), api.get("/api/settings")]);
     if (!route.isActive()) return;
@@ -104,6 +108,7 @@ export function render(container, route) {
     form.addEventListener("submit", save);
   }
 
+  // 설정 저장. 조회 때 받은 version을 함께 보내 다른 곳에서 먼저 바뀐 경우를 서버가 409 VERSION_CONFLICT로 알려 준다.
   async function save(event) {
     event.preventDefault();
     clearFormErrors(form);

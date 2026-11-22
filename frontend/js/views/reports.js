@@ -4,10 +4,13 @@
 import { api } from "../api.js";
 import { el, formatDate, handleApiError, renderLoading, setBusy, setFormError, showFieldErrors, clearFormErrors, toast } from "../ui.js";
 
+// 회고 입력칸 하나의 최대 글자 수(서버 검증과 같다). 글자 수 표시와 제출 전 확인에 쓴다.
 const REVIEW_MAX = 5000;
 const DEFAULT_COLOR = "#3B82F6";
+// 서버가 준 색 문자열을 CSS에 넣기 전에 #RRGGBB 형식만 통과시킨다. 아니면 기본색(스타일 속성에 임의 문자열이 들어가는 것을 막는다).
 const safeColor = (color) => (/^#[0-9a-fA-F]{6}$/.test(color || "") ? color : DEFAULT_COLOR);
 
+// "YYYY-MM"에 달 수(음수 가능)를 더한다.
 function shiftMonth(month, delta) {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
@@ -19,8 +22,11 @@ function pathText(goalPath) {
   return [goalPath.yearlyGoal?.title, goalPath.monthlyGoal?.title, goalPath.weeklyGoal?.title].filter(Boolean).join(" › ");
 }
 
+// 달성률 변화(%p)를 부호와 함께 표시한다. 양수는 "+"를 붙이고 0·음수는 숫자 그대로다.
 const changeText = (pp) => `${pp > 0 ? "+" : ""}${pp}%p`;
 
+// 화면 진입점. 흐름: 이번 달 확인(init) -> 기준 월의 탭 조회(loadTabs) -> 선택한 탭의 리포트 조회(loadReport) -> 회고 입력.
+// 기준 월이나 탭을 빠르게 바꿔도 마지막 선택의 응답만 반영하도록 tabsSeq·reportSeq로 요청에 번호를 매긴다.
 export function render(container, route) {
   renderLoading(container);
   const alive = () => route.isActive();
@@ -37,6 +43,7 @@ export function render(container, route) {
   let reportSeq = 0;
   const ui = {};
 
+  // 이번 달(서버가 계정 시간대로 정한 값)을 받아 기준 월의 초깃값과 선택 상한으로 쓴다.
   async function init() {
     const settings = await api.get("/api/settings");
     if (!alive()) return;
@@ -47,6 +54,7 @@ export function render(container, route) {
   }
 
   // ---------- 뼈대 ----------
+  // 기준 월 선택(이전·다음 버튼, 연·월 선택칸), 탭 목록, 리포트 패널의 골격을 만든다.
   function buildLayout() {
     ui.prev = el("button", { type: "button", class: "btn btn-outline btn-small", text: "◀", "aria-label": "이전 달", testid: "report-prev", onclick: () => moveMonth(shiftMonth(state.month, -1)) });
     ui.next = el("button", { type: "button", class: "btn btn-outline btn-small", text: "▶", "aria-label": "다음 달", testid: "report-next", onclick: () => moveMonth(shiftMonth(state.month, 1)) });
@@ -105,6 +113,7 @@ export function render(container, route) {
     ui.next.disabled = state.month >= state.currentMonth;
   }
 
+  // 리포트 영역의 오류 표시. 화면 안에 서버 message를 보이고 공통 오류 규칙(401 처리 등)도 적용한다.
   function showError(error) {
     ui.message.textContent = error.message || "리포트를 불러오지 못했어요.";
     ui.message.hidden = false;
@@ -112,6 +121,7 @@ export function render(container, route) {
   }
 
   // ---------- 기준 월과 탭 ----------
+  // 기준 월 이동. 이번 달 이후나 선택 범위 밖이면 무시하고, 바뀌면 탭 목록부터 다시 조회한다.
   function moveMonth(month) {
     if (month > state.currentMonth) return;
     if (Number(month.slice(0, 4)) < Number(state.currentMonth.slice(0, 4)) - 2) return; // 선택 범위 밖
@@ -120,6 +130,7 @@ export function render(container, route) {
     loadTabs();
   }
 
+  // 기준 월에서 끝나는 기간 탭(월간·분기·연간)을 받는다. 탭이 바뀌면 이미 보낸 리포트 요청은 reportSeq를 올려 응답을 버리게 한다.
   async function loadTabs() {
     const seq = ++tabsSeq;
     ++reportSeq; // 이미 날아간 리포트 요청의 응답은 버린다
@@ -142,6 +153,7 @@ export function render(container, route) {
     }
   }
 
+  // 탭 버튼을 그린다. WAI-ARIA 탭 패턴에 맞춰 선택된 탭만 tab 순서에 두고 방향키로 이동한다.
   function drawTabs() {
     ui.tabs.replaceChildren(
       ...state.tabs.map((tab) => {
@@ -173,6 +185,7 @@ export function render(container, route) {
     );
   }
 
+  // 탭 선택. 같은 탭이면 무시하고, 바뀌면 그 기간의 리포트를 새로 받는다. 키보드 이동이면 새 탭에 포커스를 둔다.
   function selectTab(tab, focus = false) {
     if (state.tab && tab.periodType === state.tab.periodType) return;
     state.tab = tab;
@@ -182,6 +195,7 @@ export function render(container, route) {
   }
 
   // ---------- 리포트 ----------
+  // 선택한 탭의 리포트(GET /api/reports)를 받아 그린다.
   async function loadReport() {
     const seq = ++reportSeq;
     const tab = state.tab;
@@ -198,6 +212,7 @@ export function render(container, route) {
     }
   }
 
+  // 기간 안내, 요약, 완료한 행동·결과물, 목표별 달성률 변화, 직접 회고 순으로 패널을 채운다.
   function drawReport(tab, report) {
     ui.panel.replaceChildren(
       el("p", { class: "note", style: "margin:0", testid: "report-period", text: `${tab.label} 리포트 · ${formatDate(report.startDate)} – ${formatDate(report.endDate)}` }),
@@ -208,6 +223,7 @@ export function render(container, route) {
     );
   }
 
+  // 요약 수치 두 개: 완료한 핵심 행동 수, 기록된 활동일 수.
   function summarySection(report) {
     const stat = (label, value, testid) =>
       el("div", { class: "report-stat" }, el("p", { text: label }), el("strong", { text: value, testid }));
@@ -219,6 +235,7 @@ export function render(container, route) {
     );
   }
 
+  // 이 기간에 완료한 행동 목록과 기록된 결과물. 결과물은 행동 id로 제목을 찾아 어느 행동의 것인지 함께 보인다.
   function actionsSection(report) {
     const actions = report.actions ?? [];
     const results = report.results ?? [];
@@ -276,6 +293,7 @@ export function render(container, route) {
   }
 
   // ---------- 목표별 달성률 변화 ----------
+  // 연간 목표별 달성률 변화 영역. 각 카드는 goalCard가 그린다.
   function goalsSection(report) {
     const goals = report.goalProgress ?? [];
     return el(

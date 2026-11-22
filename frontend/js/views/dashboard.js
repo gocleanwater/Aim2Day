@@ -31,6 +31,8 @@ const SORTS = [
   ["GROUP", "목표 / 그 밖의 할 일"],
 ];
 
+// 화면 진입점. 흐름: 온보딩 상태·설정 확인(init) -> 골격 생성(build) -> 영역별 로드(loadAll).
+// 쓰기(행동 추가·완료·삭제)가 끝나면 영향받는 영역만 reloadProgress()로 다시 읽는다. 진행률은 서버가 계산하므로 화면은 값을 직접 고치지 않는다.
 export function render(container, route) {
   renderLoading(container);
   const alive = () => route.isActive();
@@ -59,6 +61,7 @@ export function render(container, route) {
   const beyondWeek = () => state.date > state.settings.currentWeek.endDate;
 
   // ---------- 시작: 온보딩 필요 여부와 설정을 먼저 읽는다 ----------
+  // 시작: 온보딩 필요 여부와 설정을 병렬로 읽고, 필요하면 온보딩으로 보낸다.
   async function init() {
     const [status, settings] = await Promise.all([api.get("/api/goals/onboarding/status"), api.get("/api/settings")]);
     if (!alive()) return;
@@ -81,6 +84,7 @@ export function render(container, route) {
   // ---------- 골격 ----------
   let ui = {};
 
+  // 화면 골격(DOM)을 만들어 ui에 참조를 모아 둔다. 영역별로 따로 채우므로 데이터 없이도 한 번에 그릴 수 있다.
   function build() {
     ui.title = el("h2", { testid: "actions-title" });
     ui.doneCount = el("span", { class: "note", testid: "done-count" });
@@ -248,6 +252,7 @@ export function render(container, route) {
     );
   }
 
+  // 오늘 행동 영역 조회. actionsSeq로 날짜·정렬을 연속해서 바꿀 때 최신 응답만 반영하고, 성공하면 사분면도 같은 데이터로 갱신한다.
   async function loadActions() {
     const mine = ++actionsSeq;
     try {
@@ -262,6 +267,7 @@ export function render(container, route) {
     quad.update();
   }
 
+  // 해야 할 일·일정 영역 조회(GET /api/calendar/dashboard). 그리기는 dashboardSections.js가 한다.
   async function loadCalendar() {
     try {
       const data = await api.get("/api/calendar/dashboard");
@@ -276,6 +282,7 @@ export function render(container, route) {
     }
   }
 
+  // 이번 주 목표 영역 조회. 결과는 요약 표시와 행동 추가 폼 선택지에 함께 쓴다.
   async function loadWeekly() {
     try {
       const data = await api.get("/api/goals/weekly");
@@ -287,6 +294,7 @@ export function render(container, route) {
     }
   }
 
+  // 이번 달 목표 영역 조회. 이 영역의 실패는 다른 영역을 막지 않는다.
   async function loadMonthly() {
     try {
       const data = await api.get("/api/goals/monthly");
@@ -340,6 +348,7 @@ export function render(container, route) {
     refreshDestinations();
   }
 
+  // 최근 진행 기록 영역 조회(최근 10건).
   async function loadLogs() {
     try {
       const data = await api.get("/api/goals/progress-logs", { query: { limit: 10 } });
@@ -350,6 +359,7 @@ export function render(container, route) {
     }
   }
 
+  // 모든 영역을 병렬로 불러온다. 서로 독립이므로 Promise.all로 묶는다.
   function loadAll() {
     return Promise.all([loadActions(), loadCalendar(), loadWeekly(), loadMonthly(), loadLogs(), loadDestinations()]);
   }
@@ -406,6 +416,7 @@ export function render(container, route) {
     refreshFormVisibility();
   }
 
+  // 오늘 행동 목록. GROUP 정렬이면 목표 연결 행동과 그 밖의 할 일로 나누어 보여 주고, 그 외 정렬은 서버가 준 순서 그대로 보여 준다.
   function renderList() {
     const items = state.data?.items ?? [];
     if (state.sort === "GROUP") {
@@ -422,11 +433,13 @@ export function render(container, route) {
     }
   }
 
+  // 행동 배열을 목록으로 바꾼다. 비었으면 안내 문구.
   function listOf(items, emptyText) {
     if (items.length === 0) return el("p", { class: "note", text: emptyText });
     return el("ul", { class: "list-plain" }, items.map(actionRow));
   }
 
+  // 행동 한 줄: 완료 체크, 제목·소속 경로·점 상태, 수정·삭제 버튼. 목표 연결 행동은 목표 색을 왼쪽 테두리에 쓴다.
   function actionRow(a) {
     const check = el("input", { type: "checkbox", "aria-label": `${a.title} 완료`, testid: `action-check-${a.id}` });
     check.checked = a.isCompleted;
@@ -469,6 +482,7 @@ export function render(container, route) {
     return row;
   }
 
+  // 지난 미완료 행동 접이식 영역(오늘 날짜를 볼 때만 보인다).
   function renderPast() {
     const past = state.data?.pastIncomplete;
     const items = past?.items ?? [];
@@ -531,6 +545,7 @@ export function render(container, route) {
     }
   }
 
+  // 행동 삭제. 완료한 행동은 목록에서만 숨겨지고 기록은 남는다는 점을 모달에서 알린다. 삭제 뒤 진행률·기록도 다시 읽는다.
   async function deleteAction(a) {
     const ok = await confirmDialog({
       title: "행동을 삭제할까요?",
@@ -550,6 +565,7 @@ export function render(container, route) {
     }
   }
 
+  // 달력 요약의 체크박스 변경. 실패하면 체크 상태를 되돌린다(dashboardSections가 콜백으로 부른다).
   async function toggleCalendarItem(item, checked, check) {
     check.disabled = true;
     try {
@@ -563,6 +579,7 @@ export function render(container, route) {
   }
 
   // ---------- 행동 추가 폼 ----------
+  // 이 화면 폼용 필드 묶음. ui.js의 formField와 같은 구조이며, 입력칸 name과 data-error-for가 같아야 서버 필드 오류가 붙는다.
   function formField(labelText, control, name) {
     return el(
       "div",
@@ -573,6 +590,8 @@ export function render(container, route) {
     );
   }
 
+  // 행동 추가 폼. 목적지는 "월간 목표(m:id)" 또는 "그 밖의 할 일(maintenance)" 중 하나다.
+  // 주간 목표와 기여 수치 칸은 목적지·후보 수에 따라 refreshFormVisibility()가 보이거나 숨긴다.
   function buildAddForm() {
     ui.destination = el("select", { id: "add-destination", name: "destination", required: true, testid: "add-action-destination" });
     ui.weeklySelect = el("select", { id: "add-weekly", name: "weeklyGoalId", testid: "add-action-weekly" });
@@ -648,6 +667,7 @@ export function render(container, route) {
     refreshFormVisibility();
   }
 
+  // 선택한 월간 목표 아래의 주간 목표 후보. 서버가 모호하다고(422) 알려 준 후보가 있으면 그것을 우선한다.
   function weeklyCandidates(monthlyId) {
     if (state.ambiguous) return state.ambiguous;
     // 보고 있는 날짜가 속한 주의 주간 목표(GET /api/goals/weekly?date=)에서 고른다. 최종 판단은 서버가 한다(결정 6).
@@ -701,6 +721,9 @@ export function render(container, route) {
     if (ui.contributionField.hidden) ui.contribution.value = "";
   }
 
+  // 행동 추가 제출. 본문에는 선택에 따라 필요한 필드만 담는다.
+  // 그 밖의 할 일은 type=MAINTENANCE만, 목표 연결은 type=GOAL + monthlyGoalId(+ 사용자가 직접 고른 weeklyGoalId, 수치형이면 contributionValue).
+  // 성공하면 영향받는 영역을 다시 읽는다.
   async function submitAction(event) {
     event.preventDefault();
     clearFormErrors(ui.addForm);
@@ -748,6 +771,8 @@ export function render(container, route) {
     }
   }
 
+  // 행동 추가 오류를 code별로 처리한다. 검증 오류는 서버 필드 이름(monthlyGoalId)을 화면 입력칸 이름으로 바꿔 표시하고,
+  // 주간 목표 필요·모호 오류는 안내 문구와 후보 선택 UI로 이어 준다.
   function handleAddError(error) {
     const form = ui.addForm;
     switch (error.code) {

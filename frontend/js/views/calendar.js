@@ -30,11 +30,13 @@ const safeColor = (color) => (/^#[0-9a-fA-F]{6}$/.test(color || "") ? color : DE
 const monthOf = (iso) => iso.slice(0, 7);
 const firstOfMonth = (month) => `${month}-01`;
 
+// "YYYY-MM"에 달 수(음수 가능)를 더한다. 연 경계는 Date.UTC가 넘겨 준다.
 function shiftMonth(month, delta) {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
 }
 
+// 그 달의 일 수. 다음 달 0일 = 이번 달 말일이라는 Date 성질을 이용한다.
 function daysInMonth(month) {
   const [y, m] = month.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -53,6 +55,7 @@ function gridRange(month, weekStartIndex) {
   return { from, to: addDays(from, weeks * 7 - 1), cellCount: weeks * 7 };
 }
 
+// 날짜(YYYY-MM-DD)의 요일 한 글자. 브라우저 시간대의 영향을 받지 않게 UTC로 계산한다.
 function weekdayLabel(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return WEEKDAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
@@ -66,6 +69,9 @@ function whenText(item) {
   return item.startDate === item.endDate ? formatDate(item.startDate) : `${formatDate(item.startDate)} – ${formatDate(item.endDate)}`;
 }
 
+// 화면 진입점. 라우터가 호출하며 route.isActive()로 화면 이탈 뒤 늦은 응답을 버린다.
+// 흐름: 설정·목표 로드 -> 레이아웃 생성 -> 보이는 달의 항목 로드 -> 사용자 조작(달 이동, 날짜 선택, 필터, 추가·수정·완료·삭제)마다
+// 서버에 쓰고 loadItems()로 다시 읽는다. 항목의 완료·기간 판정은 서버 값을 그대로 쓴다.
 export function render(container, route) {
   renderLoading(container);
   const alive = () => route.isActive();
@@ -86,6 +92,7 @@ export function render(container, route) {
   let loadSeq = 0;
   const ui = {};
 
+  // 첫 로드. 설정(오늘·주 시작 요일)과 연간 목표(필터·연결 선택지)를 받아 오늘이 속한 달을 보여 준다.
   async function init() {
     // 설정과 연간 목표는 서로 독립이라 함께 요청한다.
     const [settings, yearly] = await Promise.all([api.get("/api/settings"), api.get("/api/goals/yearly")]);
@@ -114,6 +121,7 @@ export function render(container, route) {
     return `/api/calendar/items?${parts.join("&")}`;
   }
 
+  // 보이는 칸 범위의 항목을 다시 받아 그린다. loadSeq로 가장 최근 요청의 응답만 반영한다.
   async function loadItems() {
     const seq = ++loadSeq;
     const range = gridRange(state.month, state.weekStartIndex);
@@ -173,6 +181,7 @@ export function render(container, route) {
     drawFilters();
   }
 
+  // [오늘] 버튼: 오늘이 속한 달로 돌아가 오늘을 선택한다.
   function goToday() {
     state.selectedDay = state.settings.today;
     state.month = monthOf(state.selectedDay);
@@ -180,6 +189,7 @@ export function render(container, route) {
     loadItems();
   }
 
+  // 이전·다음 달 이동. 달이 바뀌면 칸 범위가 달라지므로 항목을 다시 조회한다.
   function moveMonth(month) {
     state.month = month;
     // 선택일은 항상 보이는 달 안에 있게 한다: 오늘이 그 달이면 오늘, 아니면 1일.
@@ -188,6 +198,7 @@ export function render(container, route) {
     loadItems();
   }
 
+  // 날짜 칸 선택. 같은 범위 안이라 서버 호출 없이 이미 받은 항목으로 칸과 목록만 다시 그린다.
   function selectDay(day) {
     state.selectedDay = day;
     syncFormDates();
@@ -196,6 +207,7 @@ export function render(container, route) {
   }
 
   // ---------- 목표 필터 ----------
+  // 목표 필터 체크박스. 바꿀 때마다 서버에 다시 조회한다(필터는 서버가 적용한다. itemsUrl 참고).
   function drawFilters() {
     const boxes = state.goals.map((g) => {
       const input = el("input", { type: "checkbox", testid: `filter-goal-${g.id}` });
@@ -223,6 +235,7 @@ export function render(container, route) {
   }
 
   // ---------- 월 격자 ----------
+  // 격자와 선택한 날 목록을 함께 다시 그린다.
   function drawAll() {
     ui.gridMessage.hidden = true;
     drawGrid();
@@ -243,6 +256,7 @@ export function render(container, route) {
     return map;
   }
 
+  // 월 달력 칸을 그린다. 칸마다 그 날짜에 걸친 항목(일정은 시작~종료 사이 모든 날, 해야 할 일은 마감일)을 점/제목으로 표시한다.
   function drawGrid() {
     ui.label.textContent = monthTitle(state.month);
     ui.weekdays.replaceChildren(
@@ -294,6 +308,7 @@ export function render(container, route) {
   }
 
   // ---------- 선택한 날의 항목 목록 ----------
+  // 선택한 날 목록. 이미 받은 항목 중 선택일이 시작~종료 사이에 드는 것만 보여 준다.
   function drawDay() {
     const day = state.selectedDay;
     ui.dayHeading.textContent = `선택 날짜: ${formatDate(day)} (${weekdayLabel(day)})`;
@@ -305,6 +320,7 @@ export function render(container, route) {
     );
   }
 
+  // 선택한 날의 항목 한 줄(완료 체크, 수정, 삭제). 수정 버튼은 openEditDialog 모달을 연다.
   function dayRow(item) {
     const check = el("input", { type: "checkbox", "aria-label": `${item.title} 완료`, testid: `item-check-${item.id}` });
     check.checked = Boolean(item.isCompleted);
@@ -336,6 +352,7 @@ export function render(container, route) {
     );
   }
 
+  // 완료 체크 변경. 요청 중 중복 클릭을 막고, 실패하면 체크 상태를 되돌린다.
   async function toggleComplete(check, item) {
     check.disabled = true;
     try {
@@ -349,6 +366,7 @@ export function render(container, route) {
     }
   }
 
+  // 항목 삭제. 확인 모달 -> DELETE. 달력 항목은 휴지통이 없어서 되돌릴 수 없다.
   async function deleteItem(item) {
     const ok = await confirmDialog({
       title: `"${item.title}"을(를) 삭제할까요?`,
@@ -369,6 +387,7 @@ export function render(container, route) {
   // ---------- 공통 입력칸 ----------
   const textArea = (attrs) => el("textarea", { class: "text-area", rows: "2", maxlength: 2000, ...attrs });
 
+  // 연간 목표 연결 선택칸. selectedId가 null이면 "연결 안 함"이며, 현재 목록에 없는 연결 목표는 임시 선택지로 유지한다.
   function goalSelect(id, testid, selectedId, extraGoal) {
     const select = el("select", { id, name: "yearlyGoalId", testid }, el("option", { value: "", text: "연결 안 함" }));
     const goals = [...state.goals];

@@ -40,6 +40,8 @@ let cleanup = null;
 // 빠르게 연속 이동할 때 늦게 끝난 이전 이동이 화면을 덮어쓰지 않도록 이동마다 번호를 매긴다.
 let navigationId = 0;
 
+// 주소 해시가 바뀔 때마다 실행되는 화면 전환. 순서: 이전 화면 정리 -> 열린 모달 닫기 -> 경로로 화면 찾기 -> 로그인 필요 여부 확인(ensureUser) -> 화면 render.
+// await 뒤에는 isActive()로 "아직 이 이동인가"를 확인해, 늦게 끝난 이전 이동이 화면을 덮어쓰지 않게 한다.
 async function dispatch() {
   const id = ++navigationId;
   const isActive = () => id === navigationId;
@@ -99,6 +101,7 @@ function markCurrentNav(navKey) {
   });
 }
 
+// 라우터 시작: 해시 변경을 감시하고 현재 주소의 화면을 처음 한 번 그린다. main.js가 헤더·401 처리 연결을 마친 뒤 부른다.
 export function startRouter() {
   window.addEventListener("hashchange", dispatch);
   dispatch();

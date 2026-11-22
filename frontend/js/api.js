@@ -45,6 +45,7 @@ export function readCookie(name) {
 // 동시에 여러 요청이 CSRF 발급을 원해도 /api/auth/csrf는 한 번만 부른다.
 let csrfInFlight = null;
 
+// GET /api/auth/csrf로 토큰 쿠키를 새로 받는다. 이미 진행 중이면 같은 Promise를 돌려줘 요청을 합친다.
 function fetchCsrf() {
   if (!csrfInFlight) {
     csrfInFlight = send("GET", "/api/auth/csrf").finally(() => {
