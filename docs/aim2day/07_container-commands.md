@@ -117,7 +117,7 @@ docker run -d --name aim2day-user-service --hostname aim2day-user-service \
 docker logs aim2day-user-service 2>&1 | grep "Started UserServiceApplication"
 ```
 
-### 4.4 goal-service 3개
+### 4.4 goal-service 컨테이너 3개
 
 ```bash
 docker run -d --name aim2day-goal-service-1 --hostname aim2day-goal-service-1 \
