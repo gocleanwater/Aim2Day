@@ -84,11 +84,18 @@ public class YearlyGoalService {
 				.orElseThrow(() -> notFound(goalId));
 	}
 
+	/** 연간 목표가 없을 때 쓰는 404 예외를 만든다. 없음·타인 소유·삭제를 구분하지 않아 남의 목표의 존재가 드러나지 않는다. */
 	public static BusinessException notFound(long goalId) {
 		return new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
 				Map.of("resource", "YEARLY_GOAL", "id", goalId));
 	}
 
+	/**
+	 * 연간 목표를 만든다(POST /api/goals/yearly).
+	 * 입력: 세션 userId와 제목·설명·색·목표 연도(생략하면 올해). 연도는 올해와 내년만 허용한다.
+	 * 처리: 검증을 먼저 하고(400), 쓰기 트랜잭션에서 사용자 행을 잠가 같은 사용자의 동시 생성을 직렬화한 뒤 개수 제한을 확인해 저장한다.
+	 * 반환: 만들어진 목표 응답. 예외: 한도 초과 409 GOAL_LIMIT_EXCEEDED.
+	 */
 	public YearlyGoalResponse create(long userId, CreateYearlyGoalRequest req) {
 		// 시간대 기준 "오늘"은 별도 트랜잭션에서 먼저 읽는다. 생성 트랜잭션의 첫 쿼리는 사용자 행 잠금이어야 한다.
 		UserTime time = settingsService.userTime(userId);
@@ -142,6 +149,12 @@ public class YearlyGoalService {
 				displayOrder));
 	}
 
+	/**
+	 * 연도별 연간 목표 목록을 만든다(GET /api/goals/yearly).
+	 * 입력: 세션 userId, 조회 연도(null이면 계정 시간대 기준 올해).
+	 * 처리: 읽기 전용 트랜잭션 하나에서 목표와 달성 기준을 함께 읽어 한 스냅샷으로 진행률 요약을 계산한다.
+	 * 반환: 연도, 목표 수, 최대 개수, 목표 목록.
+	 */
 	public YearlyGoalListResponse list(long userId, Integer requestedYear) {
 		UserTime time = settingsService.userTime(userId);
 		int year = requestedYear != null ? requestedYear : time.today().getYear();
@@ -204,6 +217,11 @@ public class YearlyGoalService {
 		return list(userId, year);
 	}
 
+	/**
+	 * 연간 목표 상세를 만든다(GET /api/goals/yearly/{id}).
+	 * 처리: 읽기 전용 트랜잭션 안에서 소유권과 삭제 여부를 확인하고 하위 월간·주간 목표 트리를 함께 담는다.
+	 * 예외: 없거나 남의 목표이거나 삭제됐으면 404 RESOURCE_NOT_FOUND.
+	 */
 	public YearlyGoalDetailResponse detail(long userId, long goalId) {
 		UserTime time = settingsService.userTime(userId);
 		return readTx.execute(status -> detailView(userId, goalId, time.today()));
@@ -220,6 +238,12 @@ public class YearlyGoalService {
 				assembler.monthlyTrees(monthlyRepository.findActiveByYearlyGoal(goalId), today));
 	}
 
+	/**
+	 * 연간 목표를 부분 수정한다(PATCH /api/goals/yearly/{id}).
+	 * 입력: 세션 userId, 목표 id, 바꿀 필드(제목·설명·색·상태)와 클라이언트가 본 version.
+	 * 처리: 소유권 확인 후 필드를 검증하고, version이 다르면 거부한다. 사전 비교를 통과해도 다른 인스턴스가 먼저 커밋하면 @Version UPDATE가 충돌한다.
+	 * 반환: 수정된 목표 응답. 예외: 400 검증 실패, 404 없음, 409 VERSION_CONFLICT.
+	 */
 	public YearlyGoalResponse update(long userId, long goalId, UpdateYearlyGoalRequest req) {
 		UserTime time = settingsService.userTime(userId);
 		// 사전 비교를 통과한 뒤 다른 인스턴스가 먼저 커밋하면 @Version UPDATE가 충돌한다.

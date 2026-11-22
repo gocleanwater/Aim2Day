@@ -43,6 +43,7 @@ public class InstanceIdFilter extends OncePerRequestFilter {
 		log.info("X-Instance-Id 값 결정: {} (출처: {})", instanceId, source);
 	}
 
+	/** 응답 헤더에 넣을 인스턴스 식별자(호스트명)를 돌려준다. 테스트에서 값을 확인하는 데 쓴다. */
 	String instanceId() {
 		return instanceId;
 	}
@@ -69,6 +70,7 @@ public class InstanceIdFilter extends OncePerRequestFilter {
 		return fallback.trim();
 	}
 
+	/** 요청마다 응답 헤더에 X-Instance-Id를 설정한 뒤 다음 필터로 넘긴다. */
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
 			FilterChain filterChain) throws ServletException, IOException {

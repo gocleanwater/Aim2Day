@@ -65,6 +65,7 @@ public class UserSetting {
 		return version;
 	}
 
+	/** 주 시작 요일과 시간대를 바꾼다. 검증(IANA 시간대 이름)과 version 비교는 서비스가 한다. */
 	public void change(DayOfWeek weekStartDay, String timezone) {
 		this.weekStartDay = weekStartDay;
 		this.timezone = timezone;

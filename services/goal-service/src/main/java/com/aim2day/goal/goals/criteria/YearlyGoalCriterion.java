@@ -89,11 +89,13 @@ public class YearlyGoalCriterion {
 		this.achievedAt = now;
 	}
 
+	/** 달성 처리하고 달성 시각을 now로 기록한다. */
 	public void achieve(LocalDateTime now) {
 		this.achieved = true;
 		this.achievedAt = now;
 	}
 
+	/** 달성을 취소하고 달성 시각을 지운다. */
 	public void unachieve() {
 		this.achieved = false;
 		this.achievedAt = null;

@@ -132,6 +132,10 @@ public class Action {
 		return weeklyGoalId == null ? ActionType.MAINTENANCE : ActionType.GOAL;
 	}
 
+	/**
+	 * 사용자가 고칠 수 있는 필드를 한꺼번에 바꾼다. 검증과 version 비교는 서비스가 끝낸 뒤 부른다.
+	 * 완료 여부와 삭제 시각은 진행률 계산과 얽혀 있어 전용 UPDATE 쿼리로만 바꾼다.
+	 */
 	public void change(String title, LocalDate performedDate, LocalDate dueDate, String resultSummary,
 			Long weeklyGoalId, BigDecimal contributionValue) {
 		this.title = title;

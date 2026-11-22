@@ -24,6 +24,7 @@ public final class CriteriaCalculator {
 		return sum;
 	}
 
+	/** 달성 기준 배점의 합계를 구한다. 확정 조건(100)과 달성률 계산에 쓴다. */
 	public static int totalWeight(List<YearlyGoalCriterion> criteria) {
 		int sum = 0;
 		for (YearlyGoalCriterion criterion : criteria) {

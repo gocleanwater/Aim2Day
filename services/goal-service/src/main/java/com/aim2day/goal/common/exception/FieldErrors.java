@@ -31,15 +31,18 @@ public final class FieldErrors {
 		return new FieldErrors(errors, prefix + scopePrefix);
 	}
 
+	/** 필드 하나의 검증 실패를 목록에 추가한다(접두사가 있으면 경로 앞에 붙는다). 연쇄 호출을 위해 자기 자신을 돌려준다. */
 	public FieldErrors add(String field, ValidationReason reason) {
 		errors.add(new FieldErrorDetail(prefix + field, reason.name()));
 		return this;
 	}
 
+	/** 지금까지 모인 검증 오류가 없으면 true다. */
 	public boolean isEmpty() {
 		return errors.isEmpty();
 	}
 
+	/** 모인 오류가 하나라도 있으면 400 VALIDATION_FAILED 예외를 던진다. 없으면 아무것도 하지 않는다. 여러 필드 오류를 한 번에 알리려고 검증이 끝난 뒤 한 번만 부른다. */
 	public void throwIfAny() {
 		if (!errors.isEmpty()) {
 			throw toException();

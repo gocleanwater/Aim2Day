@@ -24,6 +24,7 @@ public final class GoalFieldRules {
 		return TextRules.requiredStrippedText(raw, "title", TITLE_MAX, errors);
 	}
 
+	/** 설명 길이 검사. 최대 길이를 넘으면 오류를 쌓고 값은 그대로 돌려준다. null은 설명 없음으로 허용한다. */
 	public static String description(String raw, FieldErrors errors) {
 		return TextRules.maxLength(raw, "description", DESCRIPTION_MAX, errors);
 	}

@@ -21,6 +21,7 @@ public class ProgressLogWriter {
 		this.repository = repository;
 	}
 
+	/** 진행 기록 한 줄을 저장한다. 이전·새 진행률은 소수 둘째 자리로 맞춘다. 호출자 트랜잭션이 없으면 예외가 난다(MANDATORY). */
 	@Transactional(propagation = Propagation.MANDATORY)
 	public GoalProgressLog record(long userId, ProgressTargetType type, long targetId, BigDecimal previousRate,
 			BigDecimal newRate, ProgressChangeType changeType, LocalDate logDate, String memo) {

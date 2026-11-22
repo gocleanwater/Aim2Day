@@ -68,6 +68,13 @@ public class OnboardingCompleteService {
 		this.tx = Tx.write(txManager);
 	}
 
+	/**
+	 * 온보딩 완료(POST /api/goals/onboarding/complete).
+	 * 입력: 세션 userId, 임시 id(tempId)로 서로 참조하는 연간·월간·주간 목표와 행동 목록.
+	 * 처리: 1) 구조·필드 검증을 모아서 400으로 낸다 2) 하나의 쓰기 트랜잭션에서 사용자 행을 잠그고 연간 -> 월간 -> 주간 -> 행동 순으로 저장한다
+	 * 3) 임시 저장본을 삭제한다. 중간에 하나라도 실패하면 전부 롤백되어 일부만 만들어진 상태가 남지 않는다.
+	 * 반환: 임시 id별 만들어진 연간·월간·주간 목표 id와 행동 id 목록. 예외: 400 VALIDATION_FAILED, 409 GOAL_LIMIT_EXCEEDED, 422 GOAL_PARENT_* 등.
+	 */
 	public CompleteResponse complete(long userId, CompleteRequest req) {
 		// "올해·이번 달·이번 주·오늘"은 계정 설정 기준이다. 트랜잭션 밖에서 먼저 읽는다.
 		UserTime time = settingsService.userTime(userId);

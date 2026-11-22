@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ApiErrorController implements ErrorController {
 
+	/** 서블릿 /error로 넘어온 오류를 공통 오류 JSON으로 바꾼다. 4xx는 상태에 맞는 코드로, 그 밖은 500 INTERNAL_ERROR로 응답한다. */
 	@RequestMapping("/error")
 	public ResponseEntity<ErrorResponse> error(HttpServletRequest request) {
 		Object attr = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);

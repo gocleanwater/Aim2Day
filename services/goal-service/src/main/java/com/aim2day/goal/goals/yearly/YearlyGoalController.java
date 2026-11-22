@@ -34,12 +34,23 @@ public class YearlyGoalController {
 		this.service = service;
 	}
 
+	/**
+	 * GET /api/goals/yearly: 해당 연도의 연간 목표 목록을 조회한다(§4.3).
+	 * 요청값: year(생략하면 사용자 기준 올해).
+	 * 응답: 200과 정렬 순서대로의 연간 목표 목록. year 형식 오류는 400 VALIDATION_FAILED.
+	 */
 	@GetMapping
 	public ApiResponse<YearlyGoalListResponse> list(@AuthenticationPrincipal Long userId,
 			@RequestParam(required = false) Integer year) {
 		return ApiResponse.success(service.list(userId, year));
 	}
 
+	/**
+	 * POST /api/goals/yearly: 연간 목표를 만든다.
+	 * 요청값: 제목·연도 등 CreateYearlyGoalRequest(JSON 본문).
+	 * 처리: 서비스가 입력을 검증하고, 사용자당 연도별 최대 3개 제한을 사용자 행 잠금 아래에서 확인한 뒤 저장한다.
+	 * 응답: 201과 만들어진 목표. 입력 오류는 400 VALIDATION_FAILED, 한도 초과는 409 GOAL_LIMIT_EXCEEDED.
+	 */
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<YearlyGoalResponse> create(@AuthenticationPrincipal Long userId,
@@ -54,12 +65,22 @@ public class YearlyGoalController {
 		return ApiResponse.success(service.reorder(userId, request));
 	}
 
+	/**
+	 * GET /api/goals/yearly/{id}: 연간 목표 상세(달성 기준·진행률·하위 목표 요약)를 조회한다.
+	 * 응답: 200. 없거나 남의 목표이거나 삭제된 목표면 404 RESOURCE_NOT_FOUND.
+	 */
 	@GetMapping("/{id}")
 	public ApiResponse<YearlyGoalDetailResponse> detail(@AuthenticationPrincipal Long userId,
 			@PathVariable long id) {
 		return ApiResponse.success(service.detail(userId, id));
 	}
 
+	/**
+	 * PATCH /api/goals/yearly/{id}: 연간 목표를 부분 수정한다.
+	 * 요청값: 수정할 필드와 version(UpdateYearlyGoalRequest).
+	 * 처리: 소유권을 확인하고 version으로 동시 수정을 막는다.
+	 * 응답: 200과 수정된 목표. 없거나 남의 목표면 404 RESOURCE_NOT_FOUND, 동시 수정은 409 VERSION_CONFLICT, 입력 오류는 400 VALIDATION_FAILED.
+	 */
 	@PatchMapping("/{id}")
 	public ApiResponse<YearlyGoalResponse> update(@AuthenticationPrincipal Long userId, @PathVariable long id,
 			@RequestBody UpdateYearlyGoalRequest request) {

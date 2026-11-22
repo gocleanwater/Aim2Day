@@ -81,6 +81,10 @@ public class SettingsService {
 		return toUserTime(getOrCreate(userId));
 	}
 
+	/**
+	 * 설정 행에서 "오늘·이번 주·이번 달"을 계산한 UserTime을 만든다.
+	 * 시간대는 저장된 IANA 이름이고, 주의 시작은 설정한 요일이다. 서버 시계가 아니라 사용자 시간대 기준 날짜를 쓰려는 것이다.
+	 */
 	public UserTime toUserTime(UserSetting setting) {
 		ZoneId zone = ZoneId.of(setting.getTimezone());
 		LocalDate today = CalendarMath.today(clock, zone);
@@ -88,6 +92,12 @@ public class SettingsService {
 				CalendarMath.weekContaining(today, setting.getWeekStartDay()), YearMonth.from(today));
 	}
 
+	/**
+	 * 설정 저장(PUT /api/settings).
+	 * 처리: 시간대가 등록된 IANA 이름인지 검사하고(400), 행이 없으면 만든 뒤 version을 비교해 갱신한다.
+	 * 사전 비교를 통과해도 다른 인스턴스가 먼저 커밋하면 @Version UPDATE가 충돌하며 409로 바꾼다.
+	 * 반환: 갱신된 설정. 예외: 400 VALIDATION_FAILED, 409 VERSION_CONFLICT.
+	 */
 	public UserSetting update(long userId, UpdateSettingsRequest req) {
 		// ZoneId.of는 오프셋(+09:00)·약어(KST)도 받으므로 쓰지 않고, 등록된 IANA 이름과 정확히 비교한다.
 		if (!ZoneId.getAvailableZoneIds().contains(req.timezone())) {

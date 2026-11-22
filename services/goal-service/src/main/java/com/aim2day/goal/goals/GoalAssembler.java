@@ -42,6 +42,7 @@ public class GoalAssembler {
 		this.actionCounter = actionCounter;
 	}
 
+	/** 월간 목표들을 응답으로 바꾼다. 상위 연간 목표와 하위 주간 목표 수를 묶음 쿼리로 한 번씩만 읽는다. */
 	public List<MonthlyGoalResponse> monthlyResponses(List<MonthlyGoal> goals, LocalDate today) {
 		if (goals.isEmpty()) {
 			return List.of();
@@ -56,6 +57,7 @@ public class GoalAssembler {
 				.toList();
 	}
 
+	/** 주간 목표들을 응답으로 바꾼다. 상위 월간·연간 목표와 행동 집계를 묶음 쿼리로 읽어 경로 정보와 진행률을 채운다. */
 	public List<WeeklyGoalResponse> weeklyResponses(List<WeeklyGoal> goals, LocalDate today) {
 		if (goals.isEmpty()) {
 			return List.of();

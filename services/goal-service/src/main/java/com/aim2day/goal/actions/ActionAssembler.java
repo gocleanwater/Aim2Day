@@ -47,6 +47,10 @@ public class ActionAssembler {
 		this.yearlies = yearlies;
 	}
 
+	/**
+	 * 행동 목록을 응답으로 바꾼다. 연결 경로와 사분면 좌표를 묶음 쿼리로 읽고, 수행일이 오늘이 아니면 확정 좌표만 노출한다.
+	 * today는 사용자 계정 시간대 기준 오늘이며 daysUntilDue 계산에 쓴다.
+	 */
 	public List<ActionResponse> responses(List<Action> actions, LocalDate today) {
 		if (actions.isEmpty()) {
 			return List.of();
@@ -123,6 +127,7 @@ public class ActionAssembler {
 				new GoalRef(w.getId(), w.getTitle()));
 	}
 
+	/** 행동 하나와 그 경로(주간·월간·연간, MAINTENANCE는 null)로 응답을 조립한다. 표시 색은 주간 -> 월간 -> 연간 순으로 처음 지정된 색이다. */
 	static ActionResponse of(Action a, WeeklyGoal w, MonthlyGoal m, YearlyGoal y, LocalDate today,
 			Placement placement) {
 		// daysUntilDue는 조회 날짜가 아니라 오늘 기준이다(§4.9). 기한이 없으면 null이다.

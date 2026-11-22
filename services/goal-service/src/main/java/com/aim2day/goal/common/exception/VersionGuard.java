@@ -19,6 +19,11 @@ public final class VersionGuard {
 	private VersionGuard() {
 	}
 
+	/**
+	 * 낙관적 동시성 사전 비교. 클라이언트가 본 version이 DB의 현재 version과 같은지 확인한다.
+	 * requested가 null이면 400 VALIDATION_FAILED(version REQUIRED), 다르면 409 VERSION_CONFLICT와 currentVersion을 담아 던진다.
+	 * 이 비교를 통과해도 다른 인스턴스가 먼저 커밋하면 @Version UPDATE가 실패하므로, 최종 방어선은 DB다.
+	 */
 	public static void check(Long requested, long current) {
 		if (requested == null) {
 			throw new BusinessException(CommonErrorCode.VALIDATION_FAILED,

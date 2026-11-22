@@ -37,6 +37,7 @@ public class GlobalExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+	/** 서비스가 던진 업무 규칙 예외를 오류 코드가 정한 HTTP 상태와 {code, message, details} 본문으로 바꾼다. */
 	@ExceptionHandler(BusinessException.class)
 	public ResponseEntity<ErrorResponse> handleBusiness(BusinessException e) {
 		ErrorCode code = e.getErrorCode();
@@ -84,6 +85,7 @@ public class GlobalExceptionHandler {
 		return validationFailed(errors);
 	}
 
+	/** 필수 쿼리 파라미터가 없을 때 400 VALIDATION_FAILED(REQUIRED)로 응답한다. */
 	@ExceptionHandler(MissingServletRequestParameterException.class)
 	public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException e) {
 		return validationFailed(List.of(new FieldErrorDetail(e.getParameterName(), ValidationReason.REQUIRED.name())));

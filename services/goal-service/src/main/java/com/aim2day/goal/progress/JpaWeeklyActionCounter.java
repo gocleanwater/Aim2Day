@@ -21,12 +21,14 @@ public class JpaWeeklyActionCounter implements WeeklyActionCounter {
 		this.actions = actions;
 	}
 
+	/** 주간 목표 하나의 완료 수와 분모를 DB에서 센다. */
 	@Override
 	public ActionCounts counts(long weeklyGoalId) {
 		return new ActionCounts((int) actions.countCompleted(weeklyGoalId),
 				(int) actions.countDenominator(weeklyGoalId));
 	}
 
+	/** 주간 목표 여러 개를 한 쿼리로 센다. 행동이 없는 주간 목표는 (0, 0)으로 채워 모든 id가 결과에 들어 있게 한다. */
 	@Override
 	public Map<Long, ActionCounts> countsFor(Collection<Long> weeklyGoalIds) {
 		Map<Long, ActionCounts> result = new HashMap<>();

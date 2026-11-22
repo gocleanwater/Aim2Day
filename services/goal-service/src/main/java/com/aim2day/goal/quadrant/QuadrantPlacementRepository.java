@@ -9,8 +9,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 사분면 좌표(quadrant_placements) 테이블 접근 인터페이스.
+ * 좌표 행은 (행동, 분류 날짜) 단위이며, 소유권은 행동을 소유자 조건으로 먼저 조회해 확인한다.
+ */
 public interface QuadrantPlacementRepository extends JpaRepository<QuadrantPlacement, Long> {
 
+	/**
+	 * 행동 하나의 특정 분류 날짜 좌표 행을 찾는다.
+	 * 반환: 있으면 그 행, 아직 좌표를 둔 적이 없으면 빈 Optional(미분류 상태).
+	 */
 	Optional<QuadrantPlacement> findByActionIdAndClassificationDate(Long actionId, LocalDate classificationDate);
 
 	/**

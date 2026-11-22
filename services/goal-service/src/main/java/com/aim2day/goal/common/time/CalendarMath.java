@@ -27,6 +27,7 @@ public final class CalendarMath {
 		return new DateRange(start, start.plusDays(6));
 	}
 
+	/** 월의 첫날과 마지막 날을 기간으로 돌려준다. */
 	public static DateRange monthOf(YearMonth month) {
 		return new DateRange(month.atDay(1), month.atEndOfMonth());
 	}

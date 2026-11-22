@@ -123,6 +123,7 @@ public class MonthlyGoal {
 		return version;
 	}
 
+	/** 수정 가능한 필드(제목·설명·색·상태)만 바꾼다. color가 null이면 부모 연간 목표의 색을 따른다. 값이 모두 같으면 UPDATE가 생략되어 version도 오르지 않는다. */
 	public void change(String title, String description, String color, GoalStatus status) {
 		this.title = title;
 		this.description = description;

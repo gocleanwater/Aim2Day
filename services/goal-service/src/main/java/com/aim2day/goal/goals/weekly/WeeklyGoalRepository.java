@@ -23,6 +23,7 @@ public interface WeeklyGoalRepository extends JpaRepository<WeeklyGoal, Long> {
 			+ "where m.id = w.monthlyGoalId and m.deletedAt is null and y.id = m.yearlyGoalId "
 			+ "and y.userId = :userId and y.deletedAt is null)";
 
+	/** 내게 보이는 주간 목표를 id로 찾는다(잠금 없는 읽기). 반환: 목표, 없거나 남의 것이거나 숨겨졌으면 빈 Optional. */
 	@Query("select w from WeeklyGoal w where " + VISIBLE)
 	Optional<WeeklyGoal> findVisible(@Param("id") Long id, @Param("userId") Long userId);
 
@@ -76,6 +77,7 @@ public interface WeeklyGoalRepository extends JpaRepository<WeeklyGoal, Long> {
 	@Query("update WeeklyGoal w set w.currentValue = w.currentValue + :delta where w.id = :id")
 	int addCurrentValue(@Param("id") Long id, @Param("delta") BigDecimal delta);
 
+	/** 서버가 계산한 진행률을 저장한다. version은 올리지 않고 영속성 컨텍스트도 비우지 않는다. 반환: 갱신된 행 수. */
 	@Modifying(flushAutomatically = true)
 	@Query("update WeeklyGoal w set w.progressRate = :rate where w.id = :id")
 	int updateProgressRate(@Param("id") Long id, @Param("rate") BigDecimal rate);
@@ -101,6 +103,7 @@ public interface WeeklyGoalRepository extends JpaRepository<WeeklyGoal, Long> {
 			+ "and m.yearlyGoalId = :yearlyId and m.deletedAt is null and w.deletedAt is null")
 	long countActiveByYearly(@Param("yearlyId") Long yearlyId);
 
+	/** 삭제 시각을 직접 UPDATE로 기록한다(null이면 복원). 반환: 갱신된 행 수. 호출자가 행 잠금과 소유권 확인을 마쳤다. */
 	@Modifying(flushAutomatically = true)
 	@Query("update WeeklyGoal w set w.deletedAt = :deletedAt where w.id = :id")
 	int setDeletedAt(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);

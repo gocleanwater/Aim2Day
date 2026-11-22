@@ -82,6 +82,11 @@ public class CriteriaService {
 		this.readTx = Tx.readOnly(txManager);
 	}
 
+	/**
+	 * 연간 목표의 달성 기준 조회(GET /api/goals/yearly/{id}/criteria).
+	 * 처리: 목표와 기준 목록을 읽기 전용 트랜잭션 하나에서 읽어 확정 상태·version과 항목이 같은 시점의 값이 되게 한다.
+	 * 예외: 없거나 남의 목표이거나 삭제됐으면 404 RESOURCE_NOT_FOUND.
+	 */
 	public CriteriaResponse get(long userId, long goalId) {
 		// 목표 행과 기준 목록을 한 스냅샷으로 읽는다. 따로 읽으면 그 사이 확정·개정이 끼어
 		// state·version은 옛 값, 항목은 새 값인 응답이 나온다.

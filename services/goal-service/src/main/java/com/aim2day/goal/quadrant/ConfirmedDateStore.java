@@ -16,6 +16,7 @@ public class ConfirmedDateStore {
 	@PersistenceContext
 	private EntityManager em;
 
+	/** 사용자가 마지막으로 사분면 분류를 확정한 날짜를 읽는다. 한 번도 확정한 적이 없으면 null이다. */
 	public LocalDate read(long userId) {
 		var rows = em.createNativeQuery("SELECT last_quadrant_confirmed_date FROM user_settings WHERE user_id = :u")
 				.setParameter("u", userId).getResultList();

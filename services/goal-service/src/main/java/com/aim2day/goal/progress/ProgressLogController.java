@@ -31,6 +31,12 @@ public class ProgressLogController {
 		this.titleResolver = titleResolver;
 	}
 
+	/**
+	 * GET /api/goals/progress-logs?limit=10: 최근 진행 기록을 최신순으로 조회한다.
+	 * 요청값: limit(1~50, 기본 10).
+	 * 처리: 세션 userId로 기록을 읽고, 목표 제목은 삭제된 목표까지 포함해 한꺼번에 찾아 붙인다.
+	 * 응답: 200과 기록 목록. limit 범위를 벗어나면 400 VALIDATION_FAILED.
+	 */
 	@GetMapping
 	public ApiResponse<List<ProgressLogResponse>> recent(@AuthenticationPrincipal Long userId,
 			@RequestParam(defaultValue = "10") int limit) {

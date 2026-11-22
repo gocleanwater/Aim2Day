@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ClockConfig {
 
+	/** 운영용 시계. UTC 시스템 시계를 쓰며, 사용자 시간대 변환은 CalendarMath가 한다. */
 	@Bean
 	Clock clock() {
 		return Clock.systemUTC();

@@ -9,6 +9,7 @@ import java.util.Map;
  */
 public interface WeeklyActionCounter {
 
+	/** 주간 목표 하나의 (완료 행동 수, 분모)를 센다. */
 	ActionCounts counts(long weeklyGoalId);
 
 	/** 주간 목표 여러 개를 한 쿼리로 센다. 결과에는 요청한 모든 id가 들어 있고, 행동이 없는 주간은 (0,0)이다. */

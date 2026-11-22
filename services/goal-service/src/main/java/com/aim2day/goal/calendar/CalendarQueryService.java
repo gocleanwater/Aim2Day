@@ -76,6 +76,11 @@ public class CalendarQueryService {
 		});
 	}
 
+	/**
+	 * 대시보드용 달력 요약을 만든다(GET /api/calendar/dashboard).
+	 * 처리: 계정 시간대 기준 오늘을 정하고, 읽기 전용 트랜잭션에서 미완료 TASK 전체, 앞으로 7일 안의 EVENT, 지난 7일 안에 끝난 EVENT를 읽는다.
+	 * 반환: 오늘 날짜와 세 목록(지난 일정에는 끝난 지 며칠 지났는지 포함).
+	 */
 	public CalendarDashboardResponse dashboard(long userId) {
 		// 오늘은 계정 시간대 기준이다. 트랜잭션 밖에서 먼저 읽는다(SettingsService는 자기 트랜잭션을 쓴다).
 		UserTime time = settingsService.userTime(userId);

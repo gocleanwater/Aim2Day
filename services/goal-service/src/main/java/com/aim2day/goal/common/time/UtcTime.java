@@ -19,6 +19,7 @@ public final class UtcTime {
 		return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 	}
 
+	/** UTC 기준 LocalDateTime을 응답용 Instant로 바꾼다. null이면 null을 돌려준다(예: 완료 전의 completedAt). */
 	public static Instant toInstant(LocalDateTime utc) {
 		return utc == null ? null : utc.toInstant(ZoneOffset.UTC);
 	}

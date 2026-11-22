@@ -17,6 +17,7 @@ public class RawJsonDeserializer extends ValueDeserializer<String> {
 
 	private static final JsonMapper WRITER = JsonMapper.builder().build();
 
+	/** 현재 JSON 값을 숫자 정밀도를 잃지 않고 컴팩트한 JSON 문자열로 복사해 돌려준다. */
 	@Override
 	public String deserialize(JsonParser p, DeserializationContext ctxt) {
 		StringWriter out = new StringWriter();

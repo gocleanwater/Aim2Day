@@ -24,6 +24,7 @@ public interface MonthlyGoalRepository extends JpaRepository<MonthlyGoal, Long> 
 	String VISIBLE = "m.id = :id and m.deletedAt is null and exists (select 1 from YearlyGoal y "
 			+ "where y.id = m.yearlyGoalId and y.userId = :userId and y.deletedAt is null)";
 
+	/** 내게 보이는 월간 목표를 id로 찾는다(잠금 없는 읽기). 반환: 목표, 없거나 남의 것이거나 숨겨졌으면 빈 Optional. */
 	@Query("select m from MonthlyGoal m where " + VISIBLE)
 	Optional<MonthlyGoal> findVisible(@Param("id") Long id, @Param("userId") Long userId);
 
@@ -70,6 +71,7 @@ public interface MonthlyGoalRepository extends JpaRepository<MonthlyGoal, Long> 
 	/** 삭제 확인 창의 하위 개수: 삭제되지 않은 월간 목표 수. */
 	long countByYearlyGoalIdAndDeletedAtIsNull(Long yearlyGoalId);
 
+	/** 삭제 시각을 직접 UPDATE로 기록한다(null이면 복원). 반환: 갱신된 행 수. 호출자가 행 잠금과 소유권 확인을 마쳤다. */
 	@Modifying(flushAutomatically = true)
 	@Query("update MonthlyGoal m set m.deletedAt = :deletedAt where m.id = :id")
 	int setDeletedAt(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);

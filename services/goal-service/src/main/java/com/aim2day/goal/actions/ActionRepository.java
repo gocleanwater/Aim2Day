@@ -21,13 +21,16 @@ import org.springframework.data.repository.query.Param;
  */
 public interface ActionRepository extends JpaRepository<Action, Long> {
 
+	/** 행동이 연결된 경로(주간·월간·연간 목표)가 모두 삭제되지 않았고 같은 사용자 소유인지 확인하는 JPQL 조각. */
 	String PATH_VISIBLE = "exists (select 1 from WeeklyGoal w, MonthlyGoal m, YearlyGoal y "
 			+ "where w.id = a.weeklyGoalId and w.deletedAt is null and m.id = w.monthlyGoalId and m.deletedAt is null "
 			+ "and y.id = m.yearlyGoalId and y.deletedAt is null and y.userId = a.userId)";
 
+	/** 수정·완료·삭제 대상 조건: 내 행동이고 삭제되지 않았으며, 목표 연결 행동이면 경로도 보인다. */
 	String WRITABLE = "a.id = :id and a.userId = :userId and a.deletedAt is null "
 			+ "and (a.weeklyGoalId is null or " + PATH_VISIBLE + ")";
 
+	/** 목록·조회 대상 조건: 내 행동이고 삭제되지 않았으며, 경로가 삭제된 행동은 완료된 것만 남긴다. */
 	String LISTED = "a.userId = :userId and a.deletedAt is null "
 			+ "and (a.weeklyGoalId is null or a.completed = true or " + PATH_VISIBLE + ")";
 
@@ -86,6 +89,7 @@ public interface ActionRepository extends JpaRepository<Action, Long> {
 	int updateCompletion(@Param("id") Long id, @Param("completed") boolean completed,
 			@Param("completedAt") LocalDateTime completedAt);
 
+	/** 행동을 삭제 시각만 기록해 숨긴다(소프트 삭제). 완료된 행동은 진행률 분모에 남아야 하기 때문이다. 반환: 갱신된 행 수. */
 	@Modifying(flushAutomatically = true)
 	@Query("update Action a set a.deletedAt = :deletedAt where a.id = :id")
 	int softDelete(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);
@@ -97,10 +101,12 @@ public interface ActionRepository extends JpaRepository<Action, Long> {
 	@Query("select count(a) from Action a where a.completed = false and a.deletedAt is null and a.weeklyGoalId = :weeklyId")
 	long countIncompleteUnderWeekly(@Param("weeklyId") Long weeklyId);
 
+	/** 월간 목표 삭제 확인 창용: 보이는 주간 목표 아래의 미삭제 미완료 행동 수를 센다. */
 	@Query("select count(a) from Action a where a.completed = false and a.deletedAt is null and a.weeklyGoalId in "
 			+ "(select w.id from WeeklyGoal w where w.monthlyGoalId = :monthlyId and w.deletedAt is null)")
 	long countIncompleteUnderMonthly(@Param("monthlyId") Long monthlyId);
 
+	/** 연간 목표 삭제 확인 창용: 보이는 월간·주간 목표 아래의 미삭제 미완료 행동 수를 센다. */
 	@Query("select count(a) from Action a where a.completed = false and a.deletedAt is null and a.weeklyGoalId in "
 			+ "(select w.id from WeeklyGoal w, MonthlyGoal m where m.id = w.monthlyGoalId and m.yearlyGoalId = :yearlyId "
 			+ "and m.deletedAt is null and w.deletedAt is null)")

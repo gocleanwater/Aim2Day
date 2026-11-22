@@ -35,6 +35,12 @@ public class ActionListService {
 		this.readTx = Tx.readOnly(txManager);
 	}
 
+	/**
+	 * 날짜별 행동 목록 화면용 응답을 만든다(GET /api/actions).
+	 * 입력: 세션 userId, date(null이면 오늘), sort(null이면 중요도·긴급도 순).
+	 * 처리: 읽기 전용 트랜잭션 하나에서 목록·요약 수·사분면 분류 요약을 한 스냅샷으로 계산한다. 오늘을 볼 때만 지난 미완료 행동을 따로 채운다.
+	 * 반환: 정렬된 행동 목록, GOAL·MAINTENANCE별 요약, 분류 요약, 지난 미완료 묶음.
+	 */
 	public ActionListResponse list(long userId, LocalDate date, ActionSort sort) {
 		// 오늘은 트랜잭션 밖에서 먼저 읽는다(SettingsService는 자기 트랜잭션을 쓴다).
 		UserTime time = settingsService.userTime(userId);

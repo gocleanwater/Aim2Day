@@ -16,6 +16,7 @@ public final class ActionSorter {
 	private ActionSorter() {
 	}
 
+	/** 원본을 바꾸지 않고 정렬 방식에 맞게 정렬한 새 목록을 돌려준다. */
 	public static List<ActionResponse> sort(List<ActionResponse> items, ActionSort sort) {
 		List<ActionResponse> sorted = new ArrayList<>(items);
 		sorted.sort(comparator(sort));

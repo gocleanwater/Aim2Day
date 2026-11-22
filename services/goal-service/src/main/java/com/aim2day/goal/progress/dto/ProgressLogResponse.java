@@ -13,6 +13,7 @@ public record ProgressLogResponse(long id, ProgressTargetType targetType, long t
 		BigDecimal previousRate, BigDecimal newRate, ProgressChangeType changeType, LocalDate logDate, String memo,
 		Instant createdAt) {
 
+	/** 진행 기록 엔티티와 조회해 둔 목표 제목으로 응답을 만든다. 일시는 UTC Instant로 바꾼다. */
 	public static ProgressLogResponse of(GoalProgressLog log, String targetTitle) {
 		return new ProgressLogResponse(log.getId(), log.getTargetType(), log.getTargetId(), targetTitle,
 				log.getPreviousRate(), log.getNewRate(), log.getChangeType(), log.getLogDate(), log.getMemo(),

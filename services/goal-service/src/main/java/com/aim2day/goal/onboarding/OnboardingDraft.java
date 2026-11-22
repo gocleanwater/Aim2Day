@@ -80,6 +80,7 @@ public class OnboardingDraft {
 		return updatedAt;
 	}
 
+	/** 임시 저장본의 단계와 입력 내용을 덮어쓴다. version은 @Version이 저장 시점에 올린다. */
 	public void change(int currentStep, String draftData) {
 		this.currentStep = currentStep;
 		this.draftData = draftData;

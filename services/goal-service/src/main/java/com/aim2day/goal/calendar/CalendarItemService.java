@@ -87,6 +87,12 @@ public class CalendarItemService {
 
 	// ---------------------------------------------------------------- 생성
 
+	/**
+	 * 달력 항목을 만든다(POST /api/calendar/items).
+	 * 입력: 세션 userId, itemType(TASK/EVENT)·제목·설명·startDate·endDate·연결 연간 목표 id.
+	 * 처리: 검증(400) 후 쓰기 트랜잭션에서 사용자 행을 잠그고, 연결 목표가 내 삭제되지 않은 목표인지 확인한 뒤 저장한다.
+	 * 반환: 만들어진 항목 응답. 예외: 422 GOAL_PARENT_UNAVAILABLE.
+	 */
 	public CalendarItemResponse create(long userId, CreateCalendarItemRequest req) {
 		// daysUntilDue 계산용 "오늘"은 트랜잭션 밖에서 먼저 읽는다(SettingsService는 자기 트랜잭션을 쓴다).
 		UserTime time = settingsService.userTime(userId);
@@ -122,6 +128,12 @@ public class CalendarItemService {
 
 	// ---------------------------------------------------------------- 수정
 
+	/**
+	 * 달력 항목을 부분 수정한다(PATCH /api/calendar/items/{id}).
+	 * 입력: 세션 userId, 항목 id, 바꿀 필드와 클라이언트가 본 version.
+	 * 처리: 항목 행을 잠그고 검증·version 비교 뒤 수정한다. 종류(itemType)는 바꿀 수 없다.
+	 * 반환: 수정된 항목 응답. 예외: 400, 404, 409 VERSION_CONFLICT, 422 CALENDAR_ITEM_TYPE_IMMUTABLE·GOAL_PARENT_UNAVAILABLE.
+	 */
 	public CalendarItemResponse update(long userId, long itemId, UpdateCalendarItemRequest req) {
 		UserTime time = settingsService.userTime(userId);
 		// 사전 비교를 통과한 뒤 다른 인스턴스가 먼저 커밋하는 경합은 @Version UPDATE가 막고, 트랜잭션 바깥에서 409로 바꾼다
@@ -204,6 +216,11 @@ public class CalendarItemService {
 
 	// ---------------------------------------------------------------- 완료
 
+	/**
+	 * 달력 항목의 완료 여부를 지정한다(PUT /api/calendar/items/{id}/completion, 멱등).
+	 * 처리: 항목 행 잠금 뒤 상태를 다시 읽고, 바뀔 때만 완료 시각을 기록한다(취소하면 null). version은 올리지 않는다.
+	 * 예외: completed가 없으면 400, 없거나 남의 항목이면 404 RESOURCE_NOT_FOUND.
+	 */
 	public CalendarItemResponse complete(long userId, long itemId, CalendarCompletionRequest req) {
 		UserTime time = settingsService.userTime(userId);
 		if (req.completed() == null) {
@@ -225,6 +242,7 @@ public class CalendarItemService {
 
 	// ---------------------------------------------------------------- 삭제
 
+	/** 달력 항목을 즉시 영구 삭제한다(DELETE /api/calendar/items/{id}). 소유자 조건을 건 DELETE가 0행이면 404 RESOURCE_NOT_FOUND다. */
 	public void delete(long userId, long itemId) {
 		tx.execute(status -> {
 			// 소유자 조건을 건 DELETE라 남의 항목·없는 항목은 0행이다. 같은 항목의 수정이 행 잠금을 쥐고 있으면 끝날 때까지 기다린다.

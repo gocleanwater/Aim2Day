@@ -111,6 +111,12 @@ public class ActionService {
 
 	// ---------------------------------------------------------------- 생성
 
+	/**
+	 * 행동을 만든다(POST /api/actions).
+	 * 입력: 세션 userId, 종류(GOAL/MAINTENANCE)·제목·수행일·마감일·연결 목표·기여값.
+	 * 처리: 1) 입력 검증(400) 2) 현재 주 안의 날짜인지 확인(422) 3) 쓰기 트랜잭션에서 사용자 행을 잠근 뒤 연결할 주간 목표 결정·저장·진행률 재계산.
+	 * 반환: 만들어진 행동 응답. 예외: 422 ACTION_WEEKLY_GOAL_REQUIRED·ACTION_WEEKLY_GOAL_AMBIGUOUS·ACTION_DATE_OUT_OF_RANGE, 422 GOAL_PARENT_UNAVAILABLE.
+	 */
 	public ActionResponse create(long userId, CreateActionRequest req) {
 		// "오늘"과 "이번 주"는 생성 시점의 계정 설정으로 계산한다. 트랜잭션 밖에서 먼저 읽는다.
 		UserTime time = settingsService.userTime(userId);
@@ -252,6 +258,13 @@ public class ActionService {
 
 	// ---------------------------------------------------------------- 완료
 
+	/**
+	 * 행동 완료 여부를 지정한다(PUT /api/actions/{id}/completion, 멱등).
+	 * 입력: 세션 userId, 행동 id, completed(필수)와 memo.
+	 * 처리: 사용자 행 -> 행동 행 순서로 잠금을 잡고 상태를 다시 읽는다. 같은 상태면 그대로 돌려준다. 수행일이 미래이면 완료할 수 없다.
+	 * 연결된 주간 목표가 수치형이면 수치 기록과 current_value를 갱신하고, 주간·월간 진행률을 다시 계산한다.
+	 * 반환: 행동과 갱신된 주간·월간 진행률. 예외: 400 VALIDATION_FAILED, 404 RESOURCE_NOT_FOUND, 422 ACTION_FUTURE_COMPLETION.
+	 */
 	public ActionCompletionResponse complete(long userId, long actionId, CompletionRequest req) {
 		UserTime time = settingsService.userTime(userId);
 		FieldErrors errors = new FieldErrors();
@@ -361,6 +374,12 @@ public class ActionService {
 
 	// ---------------------------------------------------------------- 수정
 
+	/**
+	 * 행동을 부분 수정한다(PATCH /api/actions/{id}).
+	 * 입력: 세션 userId, 행동 id, 바꿀 필드(제목·수행일·마감일·결과 요약·기여값·연결 주간 목표)와 version(필드를 보내지 않으면 유지, JSON null이면 지움).
+	 * 처리: 사용자 행·행동 행을 잠근 뒤 검증하고 version을 비교한다. 연결 주간 목표나 기여량이 바뀌면 수치 기록과 진행률을 함께 다시 계산한다.
+	 * 반환: 수정된 행동 응답. 예외: 400, 404, 409 VERSION_CONFLICT, 422(ACTION_*, GOAL_*).
+	 */
 	public ActionResponse update(long userId, long actionId, UpdateActionRequest req) {
 		UserTime time = settingsService.userTime(userId);
 		// 사전 비교를 통과한 뒤 다른 인스턴스가 먼저 커밋하는 경합은 @Version UPDATE가 막고, 트랜잭션 바깥에서 409로
@@ -582,6 +601,11 @@ public class ActionService {
 
 	// ---------------------------------------------------------------- 삭제
 
+	/**
+	 * 행동을 소프트 삭제한다(DELETE /api/actions/{id}).
+	 * 처리: 사용자 행·행동 행을 잠근 뒤 삭제 시각을 기록한다. 미완료 행동이면 체크형 분모가 줄므로 진행률을 다시 계산하고,
+	 * 완료된 행동은 기록·분자·분모를 그대로 남긴다(ERD 4.4). 예외: 없거나 남의 행동이면 404 RESOURCE_NOT_FOUND.
+	 */
 	public void delete(long userId, long actionId) {
 		UserTime time = settingsService.userTime(userId);
 		tx.execute(status -> {

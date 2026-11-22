@@ -110,6 +110,12 @@ public class ReportService {
 		return new ReportTabsResponse(month.toString(), tabs);
 	}
 
+	/**
+	 * 기간 리포트 조회(GET /api/reports).
+	 * 처리: 기간 문자열을 파싱하고(400) 아직 오지 않은 기간을 거부(422)한 뒤, 읽기 전용 트랜잭션 하나에서 기간 안의 완료 행동과 목표 진행 기록을 집계한다.
+	 * 진행 중인 기간은 오늘까지만 집계한다. 소유권은 모든 쿼리의 user_id 조건으로 보장한다.
+	 * 반환: 기간 요약(완료 행동 수·활동일 수), 완료 행동과 결과 요약, 연간 목표별 달성률 변화, 직접 회고. 예외: 400 VALIDATION_FAILED, 422 REPORT_INVALID_PERIOD.
+	 */
 	public ReportResponse report(long userId, String periodType, String period) {
 		ReportPeriod p = ReportPeriod.parse(periodType, period);
 		LocalDate today = settingsService.userTime(userId).today();

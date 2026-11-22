@@ -41,6 +41,11 @@ public class PreviousSummaryService {
 		this.readTx = Tx.readOnly(txManager);
 	}
 
+	/**
+	 * 직전 주 요약 조회(GET /api/goals/weekly/previous-summary).
+	 * 처리: 계정 설정의 주 시작 요일 기준 현재 주 바로 앞 7일을 구하고, 그 기간과 겹치는 내게 보이는 주간 목표와 그 행동을 한 스냅샷으로 읽는다.
+	 * 반환: 직전 주 기간과 주간 목표별 요약. 해당 주간 목표가 없으면 빈 목록.
+	 */
 	public PreviousSummaryResponse summary(long userId) {
 		UserTime time = settingsService.userTime(userId);
 		LocalDate start = time.currentWeek().startDate().minusDays(7);

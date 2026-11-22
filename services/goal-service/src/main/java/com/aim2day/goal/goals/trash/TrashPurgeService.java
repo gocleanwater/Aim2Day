@@ -67,6 +67,7 @@ public class TrashPurgeService {
 			int deletedActions) {
 	}
 
+	/** 영구 삭제 대상 root(복구 기한이 지난, 직접 삭제된 목표) 한 건. userId는 연간 목표의 소유자이고, 잠금과 로그에 쓴다. */
 	record Root(GoalLevel level, long id, long userId) {
 	}
 

@@ -73,6 +73,13 @@ public class QuadrantService {
 
 	// ---------------------------------------------------------------- PUT placement
 
+	/**
+	 * 사분면 좌표 지정·트레이 되돌리기(PUT /api/actions/{id}/placement).
+	 * 처리: 1) 입력 검증(400) 2) 사용자 행·행동 행 잠금과 소유권 확인(404) 3) 오늘 수행일인지 확인(422)
+	 * 4) 좌표를 보낼 때 목표 연결 행동이 중요도 50 이상인지 확인(422) 5) 오늘자 행에 확정 전 변경(pending)으로 저장한다. 확정 전에는 확정 좌표를 바꾸지 않는다.
+	 * 트레이로 되돌리기는 확정 좌표가 없으면 행을 지워 바로 미분류로 만들고, 있으면 확정 때까지 되돌리기 대기로 표시한다.
+	 * 반환: 행동의 현재 분류 상태. 예외: 422 QUADRANT_DATE_INVALID, 422 QUADRANT_OUT_OF_RANGE.
+	 */
 	public PlacementResponse place(long userId, long actionId, PlacementRequest req) {
 		// 1. 입력 검증(400)이 404보다 먼저다. DB를 읽기 전에 끝낸다.
 		Integer[] coordinate = validate(req);
@@ -114,6 +121,11 @@ public class QuadrantService {
 
 	// ---------------------------------------------------------------- DELETE placement/pending
 
+	/**
+	 * 행동 하나의 확정되지 않은 변경 취소(DELETE /api/actions/{id}/placement/pending).
+	 * 처리: 잠금과 소유권 확인 뒤, 확정 좌표가 있으면 오늘자 행의 pending 값만 지우고, 확정 좌표가 없던 행은 행 자체를 지워 미분류로 되돌린다.
+	 * 예외: 404 없음, 오늘 수행일이 아니면 422 QUADRANT_DATE_INVALID.
+	 */
 	public PlacementResponse cancelPending(long userId, long actionId) {
 		UserTime time = settingsService.userTime(userId);
 		return tx.execute(status -> {
@@ -138,6 +150,12 @@ public class QuadrantService {
 
 	// ---------------------------------------------------------------- POST placements/confirm
 
+	/**
+	 * 오늘의 확정되지 않은 변경을 모두 확정(POST /api/actions/placements/confirm).
+	 * 처리: 사용자 행 잠금으로 같은 사용자의 PUT·DELETE와 직렬화한 뒤, 오늘 목록에 보이는 행동의 오늘자 행만 pending을 확정 좌표로 옮긴다.
+	 * 되돌리기 대기 행은 지워 미분류로 만들고, 변경이 없어도 확정일을 오늘로 기록한다(confirmedToday).
+	 * 반환: 오늘 날짜, 확정된 개수, 미분류로 확정된 개수.
+	 */
 	public ConfirmResponse confirm(long userId) {
 		// 설정 행을 먼저 확보한다(없으면 만든다). 확정일 UPDATE가 행을 못 찾아 조용히 0건이 되는 일을 막는다.
 		UserTime time = settingsService.userTime(userId);

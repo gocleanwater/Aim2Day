@@ -27,6 +27,10 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
 	/** user-service가 세션에 넣는 속성 이름(API 명세 §2.2). 값은 java.lang.Long이다. */
 	static final String USER_ID_ATTRIBUTE = "userId";
 
+	/**
+	 * 요청의 세션에서 userId(Long)를 읽어 있으면 인증 객체를 SecurityContext에 넣고 다음 필터로 넘긴다.
+	 * 세션이 없거나 userId가 없으면 인증 없이 통과시키며, 이후 인가 단계에서 401이 된다. 세션을 새로 만들지 않는다.
+	 */
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
 			FilterChain filterChain) throws ServletException, IOException {

@@ -30,6 +30,11 @@ public class OnboardingStatusService {
 		this.readTx = Tx.readOnly(txManager);
 	}
 
+	/**
+	 * 온보딩 상태 조회(GET /api/goals/onboarding/status).
+	 * 처리: 계정 시간대 기준 올해의 활성 연간 목표 수와 임시 저장 여부를 한 스냅샷으로 읽는다. 목표가 없거나 임시 저장이 있으면 온보딩이 필요하다.
+	 * 반환: 온보딩 필요 여부, 임시 저장 여부, 올해, 활성 목표 수, 최대 개수, 1월 여부에 따른 안내 질문.
+	 */
 	public StatusResponse status(long userId) {
 		// "올해"와 "1월 여부"는 계정 시간대 기준이다. 트랜잭션 밖에서 먼저 읽는다.
 		UserTime time = settingsService.userTime(userId);

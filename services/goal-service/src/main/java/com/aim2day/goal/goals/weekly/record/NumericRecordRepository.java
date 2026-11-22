@@ -8,6 +8,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 수치 기록(numeric_records) 테이블 접근 인터페이스.
+ * 기록에는 user_id가 없으므로, 호출자가 주간 목표의 소유권을 확인한 뒤 주간 목표 id로 조회한다.
+ */
 public interface NumericRecordRepository extends JpaRepository<NumericRecord, Long> {
 
 	/** 최근 기록부터. 같은 시각(초 단위)에 만든 기록은 id가 큰 쪽이 나중이다. */

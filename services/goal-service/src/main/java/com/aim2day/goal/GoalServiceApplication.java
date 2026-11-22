@@ -4,6 +4,10 @@ import java.util.TimeZone;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * goal-service 진입점. 목표·행동·달력·리포트 API를 제공하는 Spring Boot 애플리케이션이다.
+ * 같은 이미지로 컨테이너 3개가 뜨고 Nginx가 요청을 나눠 주므로, 사용자 상태는 인스턴스 메모리가 아니라 MySQL과 Redis 세션에만 둔다.
+ */
 @SpringBootApplication
 public class GoalServiceApplication {
 
@@ -13,6 +17,7 @@ public class GoalServiceApplication {
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 	}
 
+	/** 애플리케이션을 시작한다. 내장 Tomcat이 뜨고 Flyway 마이그레이션이 먼저 적용된다. */
 	public static void main(String[] args) {
 		SpringApplication.run(GoalServiceApplication.class, args);
 	}

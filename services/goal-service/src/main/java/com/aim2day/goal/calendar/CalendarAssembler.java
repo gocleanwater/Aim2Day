@@ -47,11 +47,13 @@ public class CalendarAssembler {
 		return visible;
 	}
 
+	/** 달력 항목 목록을 응답으로 바꾼다. 연결 목표는 한 번에 읽고, 보이지 않는 목표는 연결 없음으로 낸다. */
 	public List<CalendarItemResponse> responses(long userId, List<CalendarItem> items, LocalDate today) {
 		Map<Long, YearlyGoal> goals = visibleGoals(userId, items);
 		return items.stream().map(item -> response(item, goals, today)).toList();
 	}
 
+	/** 항목 하나를 응답으로 바꾼다. goals는 visibleGoals로 미리 읽은 결과이고, daysUntilDue는 오늘부터 시작일까지의 일수다. */
 	public CalendarItemResponse response(CalendarItem item, Map<Long, YearlyGoal> goals, LocalDate today) {
 		YearlyGoal goal = item.getYearlyGoalId() == null ? null : goals.get(item.getYearlyGoalId());
 		CalendarItemResponse.YearlyRef ref = goal == null ? null

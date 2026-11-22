@@ -128,6 +128,7 @@ public class CalendarItem {
 		return version;
 	}
 
+	/** 연결 목표·제목·설명·기간을 바꾼다. 종류(TASK/EVENT)와 완료 상태는 여기서 바꾸지 않는다. */
 	public void change(Long yearlyGoalId, String title, String description, LocalDate startDate, LocalDate endDate) {
 		this.yearlyGoalId = yearlyGoalId;
 		this.title = title;

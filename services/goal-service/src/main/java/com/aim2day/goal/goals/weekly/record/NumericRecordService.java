@@ -81,6 +81,10 @@ public class NumericRecordService {
 		this.readTx = Tx.readOnly(txManager);
 	}
 
+	/**
+	 * 수치 기록 목록 조회(GET .../numeric-records). 주간 목표의 소유권을 확인한 뒤 최신 기록부터 돌려준다.
+	 * 행동 완료로 생긴 기록에는 행동 제목을 붙인다.
+	 */
 	public List<NumericRecordResponse> list(long userId, long weeklyGoalId) {
 		return readTx.execute(status -> {
 			weeklyService.findOwnedVisible(userId, weeklyGoalId);
@@ -95,6 +99,12 @@ public class NumericRecordService {
 		});
 	}
 
+	/**
+	 * 수치 기록 직접 추가(POST .../numeric-records).
+	 * 입력: 세션 userId, 주간 목표 id, amount(0보다 큼)와 memo.
+	 * 처리: 검증(400) 후 사용자 행 -> 주간 목표 행 순서로 잠금을 잡고, 수치형인지 확인한 뒤 기록을 저장하고 current_value와 진행률을 갱신한다.
+	 * 예외: 404 없음, 422 GOAL_NOT_NUMERIC.
+	 */
 	public NumericRecordCreatedResponse add(long userId, long weeklyGoalId, CreateNumericRecordRequest req) {
 		UserTime time = settingsService.userTime(userId);
 
@@ -125,6 +135,11 @@ public class NumericRecordService {
 		});
 	}
 
+	/**
+	 * 수치 기록 삭제(DELETE .../numeric-records/{recordId}).
+	 * 처리: 사용자 행·주간 목표 행을 잠그고, 기록이 그 주간 목표의 직접 입력 기록인지 확인한 뒤 삭제하고 current_value와 진행률을 되돌린다.
+	 * 예외: 404 없음, 422 RECORD_NOT_DELETABLE(행동 완료로 생긴 기록).
+	 */
 	public NumericRecordDeletedResponse delete(long userId, long weeklyGoalId, long recordId) {
 		UserTime time = settingsService.userTime(userId);
 		WeeklyGoalResponse view = tx.execute(status -> {

@@ -58,6 +58,14 @@ public class OnboardingDraftService {
 		return readTx.execute(status -> repository.findByUserId(userId).map(DraftResponse::of).orElse(null));
 	}
 
+	/**
+	 * 온보딩 임시 저장본 저장(PUT /api/goals/onboarding/draft). 사용자당 한 행을 만들거나 덮어쓴다.
+	 * 입력: currentStep(허용 범위 안), draftData(최대 크기 이하 문자열), version(저장본이 이미 있을 때 클라이언트가 본 값).
+	 * 처리: 검증(400) 후 사용자 행 잠금 아래에서 upsert한다. 같은 사용자의 동시 저장이 유니크 제약에 걸리지 않게 직렬화한다.
+	 * 첫 저장이 아닌데 version이 다르거나 빠졌으면 409로 돌려, 오래된 탭이 최신 입력을 덮어쓰거나 완료 뒤 되살리지 못하게 한다.
+	 * 삭제 뒤 다시 만들어도 version이 예전 값보다 커지도록 user_settings의 카운터를 쓴다.
+	 * 반환: 저장된 임시 저장본. 예외: 400 VALIDATION_FAILED, 409 VERSION_CONFLICT.
+	 */
 	public DraftResponse put(long userId, PutDraftRequest req) {
 		FieldErrors errors = new FieldErrors();
 		if (req.currentStep() == null) {

@@ -7,6 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * 진행 기록(goal_progress_logs) 테이블 접근 인터페이스.
+ * 모든 조회는 user_id 조건을 포함해 다른 사용자의 기록이 보이지 않게 한다.
+ */
 public interface ProgressLogRepository extends JpaRepository<GoalProgressLog, Long> {
 
 	/** 최근 기록이 먼저. created_at은 초 단위라 같은 시각이면 id가 큰 쪽(나중에 쓴 쪽)이 먼저다. */

@@ -20,6 +20,10 @@ import org.springframework.data.repository.query.Param;
  */
 public interface YearlyGoalRepository extends JpaRepository<YearlyGoal, Long> {
 
+	/**
+	 * 내 소유이고 삭제되지 않은 연간 목표를 id로 찾는다(잠금 없는 읽기).
+	 * 반환: 목표, 없거나 남의 것이거나 삭제됐으면 빈 Optional(셋을 구분하지 않는다).
+	 */
 	Optional<YearlyGoal> findByIdAndUserIdAndDeletedAtIsNull(Long id, Long userId);
 
 	/** 연간 목표 행 잠금(SELECT ... FOR UPDATE). 기준 저장·확정·달성을 한 줄로 세운다. */
@@ -27,10 +31,16 @@ public interface YearlyGoalRepository extends JpaRepository<YearlyGoal, Long> {
 	@Query("select g from YearlyGoal g where g.id = :id and g.userId = :userId and g.deletedAt is null")
 	Optional<YearlyGoal> findOwnedForUpdate(@Param("id") Long id, @Param("userId") Long userId);
 
+	/** 사용자의 해당 연도 삭제되지 않은 연간 목표 목록을 표시 순서(displayOrder), id 순으로 찾는다. */
 	List<YearlyGoal> findByUserIdAndTargetYearAndDeletedAtIsNullOrderByDisplayOrderAscIdAsc(Long userId, int targetYear);
 
+	/** 사용자의 해당 연도 삭제되지 않은 연간 목표 수를 센다. 연도별 최대 3개 제한 확인에 쓴다. */
 	long countByUserIdAndTargetYearAndDeletedAtIsNull(Long userId, int targetYear);
 
+	/**
+	 * 사용자의 해당 연도 삭제되지 않은 목표 중 가장 큰 displayOrder를 찾는다. 새 목표를 맨 뒤에 붙일 때 쓴다.
+	 * 반환: 최댓값, 목표가 하나도 없으면 null.
+	 */
 	@Query("select max(g.displayOrder) from YearlyGoal g where g.userId = :userId and g.targetYear = :year and g.deletedAt is null")
 	Integer findMaxDisplayOrder(@Param("userId") Long userId, @Param("year") int year);
 

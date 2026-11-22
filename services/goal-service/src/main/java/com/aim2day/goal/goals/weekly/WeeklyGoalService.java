@@ -81,11 +81,18 @@ public class WeeklyGoalService {
 		return repository.findVisible(weeklyGoalId, userId).orElseThrow(() -> notFound(weeklyGoalId));
 	}
 
+	/** 주간 목표가 없을 때 쓰는 404 예외를 만든다. */
 	public static BusinessException notFound(long weeklyGoalId) {
 		return new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
 				Map.of("resource", "WEEKLY_GOAL", "id", weeklyGoalId));
 	}
 
+	/**
+	 * 주간 목표를 만든다(POST /api/goals/weekly). 주간 목표는 계정 설정 기준 현재 주로만 만들 수 있다.
+	 * 입력: 세션 userId, 상위 월간 목표 id, 제목·설명·색·측정 방식·가중치·목표값.
+	 * 처리: 검증(400) 후 쓰기 트랜잭션에서 사용자 행을 먼저 잠그고 부모 확인·INSERT·월간 진행률 재계산을 한다.
+	 * 반환: 만들어진 주간 목표 응답. 예외: 422 GOAL_PARENT_UNAVAILABLE, 422 GOAL_PARENT_PERIOD_MISMATCH.
+	 */
 	public WeeklyGoalResponse create(long userId, CreateWeeklyGoalRequest req) {
 		// "이번 주"는 생성 시점의 계정 설정(시간대·주 시작 요일)으로 계산한다. 트랜잭션 밖에서 먼저 읽는다.
 		UserTime time = settingsService.userTime(userId);
@@ -149,6 +156,11 @@ public class WeeklyGoalService {
 		return weeklyId;
 	}
 
+	/**
+	 * 주간 목표 목록을 만든다(GET /api/goals/weekly).
+	 * 입력: 세션 userId, date(null이면 오늘), monthlyGoalId(null이면 전체).
+	 * 처리: 그 날짜가 기간에 드는 내게 보이는 주간 목표를 읽고 월간 목표 필터를 적용한다.
+	 */
 	public List<WeeklyGoalResponse> list(long userId, LocalDate date, Long monthlyGoalId) {
 		UserTime time = settingsService.userTime(userId);
 		LocalDate target = date != null ? date : time.today();
@@ -160,6 +172,10 @@ public class WeeklyGoalService {
 		});
 	}
 
+	/**
+	 * 주간 목표 상세를 만든다(GET /api/goals/weekly/{id}). 읽기 전용 트랜잭션에서 연결 행동 목록까지 담는다.
+	 * 예외: 없거나 남의 목표이거나 숨겨졌으면 404 RESOURCE_NOT_FOUND.
+	 */
 	public WeeklyGoalDetailResponse detail(long userId, long weeklyGoalId) {
 		UserTime time = settingsService.userTime(userId);
 		return readTx.execute(status -> detailView(userId, weeklyGoalId, time.today()));
@@ -175,6 +191,12 @@ public class WeeklyGoalService {
 				actionAssembler.responses(actionRepository.findActiveByWeeklyGoals(List.of(weeklyGoalId)), today));
 	}
 
+	/**
+	 * 주간 목표를 부분 수정한다(PATCH /api/goals/weekly/{id}).
+	 * 입력: 세션 userId, 목표 id, 바꿀 필드와 클라이언트가 본 version.
+	 * 처리: 목표값·가중치·상위 월간 목표가 바뀌면 사용자 행 잠금을 먼저 잡고 진행률을 다시 계산한다. 주간 행 잠금 뒤 version을 비교한다.
+	 * 반환: 수정된 목표 응답. 예외: 400 검증 실패, 404 없음, 409 VERSION_CONFLICT, 422 GOAL_MEASUREMENT_TYPE_IMMUTABLE 등.
+	 */
 	public WeeklyGoalResponse update(long userId, long weeklyGoalId, UpdateWeeklyGoalRequest req) {
 		UserTime time = settingsService.userTime(userId);
 		// 목표값·가중치·부모 월간이 바뀌면 진행률을 다시 계산하고 기록을 남길 수 있다.

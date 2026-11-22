@@ -68,15 +68,18 @@ public record ReportPeriod(PeriodType type, String value, LocalDate start, Local
 		}
 	}
 
+	/** 월간 기간(해당 월 1일~말일)을 만든다. */
 	public static ReportPeriod ofMonth(YearMonth ym) {
 		return new ReportPeriod(PeriodType.MONTHLY, ym.toString(), ym.atDay(1), ym.atEndOfMonth());
 	}
 
+	/** 분기 기간을 만든다. quarter는 1~4이고 period 값은 YYYY-Qn 형식이다. */
 	public static ReportPeriod ofQuarter(int year, int quarter) {
 		LocalDate start = LocalDate.of(year, (quarter - 1) * 3 + 1, 1);
 		return new ReportPeriod(PeriodType.QUARTERLY, year + "-Q" + quarter, start, start.plusMonths(3).minusDays(1));
 	}
 
+	/** 연간 기간(1월 1일~12월 31일)을 만든다. */
 	public static ReportPeriod ofYear(int year) {
 		return new ReportPeriod(PeriodType.YEARLY, String.format("%04d", year), LocalDate.of(year, 1, 1),
 				LocalDate.of(year, 12, 31));

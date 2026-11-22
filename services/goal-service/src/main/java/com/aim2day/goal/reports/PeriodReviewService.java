@@ -55,6 +55,11 @@ public class PeriodReviewService {
 		this.newTx = Tx.requiresNew(txManager);
 	}
 
+	/**
+	 * 기간 직접 회고 저장(PUT /api/reports/reviews/{periodType}/{period}).
+	 * 처리: 형식 검증(400) -> 아직 오지 않은 기간 거부(422) -> 사용자 행 잠금 아래에서 version 비교(409) 후 없으면 만들고 있으면 덮어쓴다.
+	 * 반환: 저장된 회고(improvements, nextFocus, version). 예외: 400 VALIDATION_FAILED, 409 VERSION_CONFLICT, 422 REPORT_INVALID_PERIOD.
+	 */
 	public ReviewResponse put(long userId, String periodType, String period, PutReviewRequest req) {
 		// 검사 순서: 형식 400(경로, 본문) -> 미래 기간 422 -> (잠금 안) version 409.
 		ReportPeriod p = ReportPeriod.parse(periodType, period);

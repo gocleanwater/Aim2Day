@@ -62,11 +62,18 @@ public class MonthlyGoalService {
 		return repository.findVisible(monthlyGoalId, userId).orElseThrow(() -> notFound(monthlyGoalId));
 	}
 
+	/** 월간 목표가 없을 때 쓰는 404 예외를 만든다. */
 	public static BusinessException notFound(long monthlyGoalId) {
 		return new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
 				Map.of("resource", "MONTHLY_GOAL", "id", monthlyGoalId));
 	}
 
+	/**
+	 * 월간 목표를 만든다(POST /api/goals/monthly). 월은 계정 시간대 기준 현재 달로 정해진다.
+	 * 입력: 세션 userId, 상위 연간 목표 id와 제목·설명·색.
+	 * 처리: 검증(400) 후 쓰기 트랜잭션에서 상위 목표 확인과 INSERT를 한다. 응답은 커밋 뒤 새 읽기 트랜잭션에서 만든다.
+	 * 반환: 만들어진 월간 목표 응답. 예외: 상위 목표 사용 불가 422 GOAL_PARENT_UNAVAILABLE, 기간 불일치 422 GOAL_PARENT_PERIOD_MISMATCH.
+	 */
 	public MonthlyGoalResponse create(long userId, CreateMonthlyGoalRequest req) {
 		// 현재 달은 계정 시간대 기준이라 먼저 읽는다(트랜잭션 밖).
 		UserTime time = settingsService.userTime(userId);
@@ -114,6 +121,12 @@ public class MonthlyGoalService {
 				goal.title(), goal.description(), goal.color())).getId();
 	}
 
+	/**
+	 * 월간 목표 목록을 만든다(GET /api/goals/monthly).
+	 * 입력: 세션 userId, month(YYYY-MM, null이면 현재 달), yearlyGoalId(null이면 전체).
+	 * 처리: 내게 보이는 그 달의 월간 목표를 연간 목표 표시 순서, id 순으로 읽고 상위 목표 필터를 적용한다.
+	 * 예외: month 형식 오류 400 VALIDATION_FAILED.
+	 */
 	public List<MonthlyGoalResponse> list(long userId, String monthParam, Long yearlyGoalId) {
 		UserTime time = settingsService.userTime(userId);
 		YearMonth month = time.currentMonth();
@@ -133,6 +146,10 @@ public class MonthlyGoalService {
 		});
 	}
 
+	/**
+	 * 월간 목표 상세를 만든다(GET /api/goals/monthly/{id}). 읽기 전용 트랜잭션에서 하위 주간 목표까지 담는다.
+	 * 예외: 없거나 남의 목표이거나 숨겨졌으면 404 RESOURCE_NOT_FOUND.
+	 */
 	public MonthlyGoalDetailResponse detail(long userId, long monthlyGoalId) {
 		UserTime time = settingsService.userTime(userId);
 		return readTx.execute(status -> detailView(userId, monthlyGoalId, time.today()));
@@ -144,6 +161,12 @@ public class MonthlyGoalService {
 		return assembler.monthlyTrees(List.of(goal), today).get(0);
 	}
 
+	/**
+	 * 월간 목표를 부분 수정한다(PATCH /api/goals/monthly/{id}).
+	 * 입력: 세션 userId, 목표 id, 바꿀 필드(제목·설명·색·상태)와 클라이언트가 본 version.
+	 * 처리: 소유권 확인 후 검증하고, version이 다르면 거부한다. 동시 커밋 경합은 @Version UPDATE가 막고 409로 바꾼다.
+	 * 반환: 수정된 목표 응답. 예외: 400 검증 실패, 404 없음, 409 VERSION_CONFLICT.
+	 */
 	public MonthlyGoalResponse update(long userId, long monthlyGoalId, UpdateMonthlyGoalRequest req) {
 		UserTime time = settingsService.userTime(userId);
 		// 사전 비교를 통과한 뒤 다른 인스턴스가 먼저 커밋하는 경합은 @Version UPDATE가 막고,

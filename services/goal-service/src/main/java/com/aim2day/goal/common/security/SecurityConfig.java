@@ -17,6 +17,10 @@ import tools.jackson.databind.json.JsonMapper;
 @Configuration
 public class SecurityConfig {
 
+	/**
+	 * 보안 필터 체인을 만든다. 인증은 SessionAuthenticationFilter가 Redis 세션의 userId로 하고, 인증이 없으면 JSON 401을 돌려준다.
+	 * 세션 관련 설정(sessionManagement 비활성화, RequestAttributeSecurityContextRepository, requestCache 비활성화)은 공유 계약 §4이므로 바꾸지 않는다.
+	 */
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JsonMapper jsonMapper) {
 		SecurityErrorHandlers errorHandlers = new SecurityErrorHandlers(jsonMapper);

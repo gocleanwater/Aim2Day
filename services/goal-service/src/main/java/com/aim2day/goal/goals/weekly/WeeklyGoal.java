@@ -155,6 +155,7 @@ public class WeeklyGoal {
 		return version;
 	}
 
+	/** 수정 가능한 필드를 바꾼다. 목표값·가중치·상위 월간 목표가 바뀌면 호출 쪽 서비스가 진행률을 다시 계산한다. 측정 방식은 바꾸지 않는다. */
 	public void change(String title, String description, String color, GoalStatus status, BigDecimal targetValue,
 			BigDecimal weight, Long monthlyGoalId) {
 		this.title = title;

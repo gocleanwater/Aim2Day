@@ -23,6 +23,7 @@ public class TrashPurgeJob {
 		this.service = service;
 	}
 
+	/** 스케줄러가 호출하는 진입점. 복구 기한이 지난 삭제 목표를 영구 삭제하도록 서비스에 맡긴다. */
 	@Scheduled(cron = "${aim2day.trash.purge-cron:0 0 * * * *}")
 	public void run() {
 		service.purgeExpired();

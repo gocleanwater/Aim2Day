@@ -110,6 +110,13 @@ public class GoalTrashService {
 
 	// ---------------------------------------------------------------- 삭제
 
+	/**
+	 * 목표 삭제(DELETE /api/goals/{level}/{id}). 연·월·주간을 같은 규칙으로 소프트 삭제한다.
+	 * 입력: 세션 userId, 목표 수준·id, confirm(하위 목표·미완료 행동이 함께 숨겨지는 것을 사용자가 확인했는지).
+	 * 처리: 사용자 행을 먼저 잠그고 대상 행을 잠그며 소유·가시성을 확인한다. 보이는 하위 항목이 있는데 confirm이 아니면 409로 개수를 알려 준다.
+	 * 삭제는 deleted_at만 기록하고 하위 행·version은 건드리지 않는다. 주간 목표를 지울 때만 월간 진행률의 분모가 바뀌므로 부모 월간을 다시 계산한다.
+	 * 반환: 삭제 시각·복구 기한. 예외: 404 RESOURCE_NOT_FOUND, 409 GOAL_DELETE_CONFIRM_REQUIRED.
+	 */
 	public DeleteGoalResponse delete(long userId, GoalLevel level, long id, boolean confirm) {
 		// 오늘(진행 기록 날짜)은 계정 시간대 기준이라 트랜잭션 밖에서 먼저 읽는다.
 		UserTime time = settingsService.userTime(userId);

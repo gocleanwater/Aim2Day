@@ -21,6 +21,10 @@ public class UserRowLock {
 	@PersistenceContext
 	private EntityManager em;
 
+	/**
+	 * users 행을 SELECT ... FOR UPDATE로 잠근다. 반드시 활성 트랜잭션 안에서 첫 쿼리로 부른다(아니면 IllegalStateException).
+	 * 계정이 없으면 401 UNAUTHENTICATED를 던진다. 트랜잭션이 끝나면(커밋·롤백) 잠금이 풀린다.
+	 */
 	public void lock(long userId) {
 		if (!TransactionSynchronizationManager.isActualTransactionActive()) {
 			// 트랜잭션 밖의 FOR UPDATE는 즉시 풀려 아무것도 보호하지 못한다. 호출 실수를 바로 드러낸다.
