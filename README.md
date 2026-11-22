@@ -115,12 +115,7 @@ cd /opt/aim2day/app
 | [jungsooko/aim2day-frontend](https://hub.docker.com/r/jungsooko/aim2day-frontend) | `1.0`, `latest` |
 | [jungsooko/aim2day-proxy](https://hub.docker.com/r/jungsooko/aim2day-proxy) | `1.0`, `latest` |
 
-```bash
-docker pull jungsooko/aim2day-user-service:1.0
-docker pull jungsooko/aim2day-goal-service:1.0
-docker pull jungsooko/aim2day-frontend:1.0
-docker pull jungsooko/aim2day-proxy:1.0
-```
+이미지는 따로 `docker pull` 하지 않아도 됩니다. 아래 `docker run`을 실행하면 서버에 없는 이미지를 Docker Hub에서 자동으로 받습니다.
 
 이미지를 소스에서 직접 만드는 명령(`docker build`·`tag`·`push`)은 07 문서 §1에 있습니다.
 

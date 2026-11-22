@@ -2,10 +2,10 @@
 
 이 문서는 서버에서 실행하는 모든 `docker build`·`docker run` 명령의 원본이다. 보고서의 "명령어 전체"와 시연 영상은 이 문서의 명령을 위에서부터 순서대로 붙여 넣는다. 명령을 바꿀 때는 이 문서부터 고친다. 스크립트 파일과 Docker Compose는 쓰지 않는다.
 
-- 실행 위치: 리눅스 서버(amd64). §1은 저장소 루트(`/opt/aim2day/app`)에서, §2부터는 아무 위치에서나 실행한다.
+- 실행 위치: 리눅스 서버(amd64). §1은 저장소 루트(`/opt/aim2day/app`)에서, §3부터는 아무 위치에서나 실행한다.
 - 이름 규칙과 값의 근거: [공유 계약](06_shared-contracts.md) §1·§2
 - 비밀번호는 과제 전용 값이다. `!`가 bash에서 특수 문자이므로 작은따옴표로 감싼다.
-- 실행에는 Docker Hub에 올린 이미지(`jungsooko/aim2day-*:1.0`)를 쓴다. 저장소 소스 없이도 §2부터 실행하면 같은 시스템이 뜬다.
+- 실행에는 Docker Hub에 올린 이미지(`jungsooko/aim2day-*:1.0`)를 쓴다. 저장소 소스 없이도 §3부터 실행하면 같은 시스템이 뜬다(이미지는 `docker run`이 Docker Hub에서 받는다).
 
 ## 1. 이미지 만들기와 Docker Hub 업로드 (개발자가 한 번)
 
@@ -35,16 +35,7 @@ docker push jungsooko/aim2day-proxy:1.0
 
 ## 2. 이미지 받기
 
-```bash
-docker pull jungsooko/aim2day-user-service:1.0
-docker pull jungsooko/aim2day-goal-service:1.0
-docker pull jungsooko/aim2day-frontend:1.0
-docker pull jungsooko/aim2day-proxy:1.0
-docker pull mysql:8.4
-docker pull redis:8-alpine
-```
-
-`docker run`은 이미지가 없으면 알아서 받으므로 이 절은 생략해도 된다. 미리 받아 두면 §4의 실행이 빨라진다.
+이미지는 따로 받지 않는다. §4의 `docker run`을 실행하면 서버에 없는 이미지(`jungsooko/aim2day-*:1.0`, `mysql:8.4`, `redis:8-alpine`)를 Docker Hub에서 자동으로 받은 뒤 컨테이너를 만든다. 시연 영상도 이 방식으로 실행했다.
 
 ## 3. 네트워크·볼륨
 
