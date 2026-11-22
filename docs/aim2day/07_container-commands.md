@@ -232,7 +232,29 @@ curl -s -o /dev/null -w "without cookie: %{http_code}\n" http://localhost/api/go
 
 ### 5.4 DB 볼륨 마운트·데이터 영속성
 
-MySQL 컨테이너를 완전히 지우고 §4.1 명령으로 다시 만든 뒤 데이터가 그대로인지 본다.
+MySQL 컨테이너를 재시작한 뒤 데이터가 그대로인지 본다(시연 영상은 이 방법을 쓴다).
+
+```bash
+# 1) 볼륨 마운트 확인
+docker inspect aim2day-mysql --format '{{range .Mounts}}{{.Type}}: {{.Name}} -> {{.Destination}}{{println}}{{end}}'
+
+# 2) 재시작 전 데이터(--default-character-set: 한글 제목이 ???로 깨지지 않게 클라이언트 문자셋을 맞춘다)
+docker exec aim2day-mysql mysql -uaim2day_app -p'aim2daypass!' --default-character-set=utf8mb4 aim2day \
+  -e "SELECT id, title, created_at FROM yearly_goals WHERE deleted_at IS NULL;"
+
+# 3) 재시작: STATUS가 "Up 몇 초"로 바뀐다
+docker restart aim2day-mysql
+docker ps --filter "name=aim2day-mysql"
+
+# 4) 준비를 기다린다
+docker exec aim2day-mysql mysqladmin ping -h 127.0.0.1 --silent && echo "mysqld is alive"
+
+# 5) 같은 데이터가 남아 있다
+docker exec aim2day-mysql mysql -uaim2day_app -p'aim2daypass!' --default-character-set=utf8mb4 aim2day \
+  -e "SELECT id, title, created_at FROM yearly_goals WHERE deleted_at IS NULL;"
+```
+
+더 강한 확인: 컨테이너를 완전히 지우고 §4.1 명령으로 새로 만들어도 데이터가 남는지 본다. 재시작은 같은 컨테이너를 다시 켜는 것이라 볼륨이 없어도 데이터가 남지만, 삭제 후 재생성은 볼륨이 있어야만 데이터가 남는다. 보고서 9.6 캡처는 이 방법으로 찍었다.
 
 ```bash
 # 1) 볼륨 마운트 확인
