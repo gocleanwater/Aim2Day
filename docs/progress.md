@@ -65,8 +65,9 @@
 | 작업 | 상태 | 비고 |
 |---|---|---|
 | Docker Hub 업로드 (amd64) | ✅ | 2026-11-21 `jungsooko/aim2day-{user-service,goal-service,frontend,proxy}:1.0`·`latest`(커밋 6937152 이미지). Dockerfile `COPY`로 코드를 넣은 이미지라 바인딩 마운트 없이 실행된다(수업 안내 https://hull.kr/cloud_native/20 과 같은 방식) |
-| 검증 자료 캡처 (`docker ps`, `network inspect`, `exec bash`, 세션 공유, 볼륨 영속성) | ✅ | 2026-11-21 서버 pty로 실제 실행한 터미널 출력을 xterm.js로 렌더링(화면 잠금으로 데스크톱 캡처 불가). 07 문서 §5 명령. 결과물은 저장소 밖 `Desktop/CloudNative_submission/` |
-| 보고서 (구성도, 통신 절차, 설치 가이드, 명령어 전체) | 🔶 | 2026-11-21 Word 36쪽 + 별도 구현 검증 자료 10쪽(docx·PDF). Codex 2회 리뷰 반영(1회차 major 5·minor 5, 2회차 minor 1). 남은 것: 시연 영상 주소 기입(사용자) |
+| 검증 자료 캡처 (`docker ps`, `network inspect`, `exec bash`, 세션 공유, 볼륨 영속성) | ✅ | 2026-11-22 PuTTY 창 실제 스크린샷으로 교체(network inspect는 3장). 07 문서 §5 명령. 결과물은 저장소 밖 `Desktop/CloudNative_submission/` |
+| 보고서 (구성도, 통신 절차, 설치 가이드, 명령어 전체) | ✅ | 2026-11-23 보고서 35쪽 + 구현 검증 자료 9쪽(docx·PDF), 시연 영상 주소 기입. Codex 3회 리뷰 반영(3회차: 캡처의 세션 ID 노출 → 해당 세션 로그아웃으로 해소) |
+| 시연 영상 | ✅ | 2026-11-23 5분 32초 무편집(Google Drive). 6장 명령으로 실행 → docker ps 8개 → 로그인 → 콘솔에서 세션 공유·분산 → docker restart 후 데이터 유지. 원본·구성도 `.excalidraw`는 `Desktop/CloudNative_submission/` |
 
 ## 결정 기록
 
